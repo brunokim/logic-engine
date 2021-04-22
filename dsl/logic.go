@@ -28,6 +28,10 @@ func Comp(functor string, args ...logic.Term) *logic.Comp {
 	return logic.NewComp(functor, args...)
 }
 
+func Indicator(name string, arity int) logic.Indicator{
+    return logic.Indicator{Name: name, Arity: arity}
+}
+
 func Query(comps ...*logic.Comp) []*logic.Comp {
 	return comps
 }

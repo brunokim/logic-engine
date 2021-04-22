@@ -3,6 +3,7 @@ package wam
 import (
 	"fmt"
 
+	"github.com/brunokim/logic-engine/dsl"
 	"github.com/brunokim/logic-engine/logic"
 )
 
@@ -273,7 +274,7 @@ func Compile(clause *logic.Clause) *Clause {
 }
 
 func compileQuery(query []logic.Term) (*Clause, error) {
-	dummy, err := logic.NewClause(logic.Atom{"dummy"}, query...).Normalize()
+	dummy, err := logic.NewClause(dsl.Atom("dummy"), query...).Normalize()
 	if err != nil {
 		return nil, err
 	}
@@ -298,12 +299,12 @@ func compileQuery(query []logic.Term) (*Clause, error) {
 
 func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction {
 	switch term.Indicator() {
-	case logic.Indicator{"!", 0}:
+	case dsl.Indicator("!", 0):
 		if pos == 0 {
 			return []Instruction{NeckCut{}}
 		}
 		return []Instruction{Cut{}}
-	case logic.Indicator{"fail", 0}:
+	case dsl.Indicator("fail", 0):
 		return []Instruction{Fail{}}
 	}
 	ctx.instrs = nil
