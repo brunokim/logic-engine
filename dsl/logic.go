@@ -1,67 +1,113 @@
+// Package dsl contains constructors for several types as functions.
+//
+// This package may be used to simplify building complex types with a
+// uniform interface. It's specially useful for testing, but may be
+// used anywhere as a thin wrapper over the actual constructors.
+//
+// It's more ergonomic to alias function names instead of dot-importing
+// this package, e.g.
+//
+//     var (
+//         atom = dsl.Atom
+//         var_ = dsl.Var
+//         comp = dsl.Comp
+//         list = dsl.List
+//
+//         // The list [a, X, f(Y)]
+//         aList = list(atom("a"), var_("X"), comp("f", var_("Y")))
+//     )
 package dsl
 
 import (
+    "fmt"
+
 	"github.com/brunokim/logic-engine/logic"
 )
 
+// Terms builds a list of logic terms.
 func Terms(terms ...logic.Term) []logic.Term {
 	return terms
 }
 
+// Atom builds a logic atom.
 func Atom(name string) logic.Atom {
 	return logic.Atom{Name: name}
 }
 
+// Int builds a logic int.
 func Int(i int) logic.Int {
 	return logic.Int{Value: i}
 }
 
+// Var builds a logic variable.
 func Var(name string) logic.Var {
 	return logic.NewVar(name)
 }
 
+// SVar builds a logic variable with a suffix.
+// 
+// This should only be useful for tests that *want* to check that the suffix
+// of a generated var is correct.
 func SVar(name string, suffix int) logic.Var {
 	return logic.NewVar(name).WithSuffix(suffix)
 }
 
+// Comp builds a logic compound term.
 func Comp(functor string, args ...logic.Term) *logic.Comp {
 	return logic.NewComp(functor, args...)
 }
 
+// Indicator builds a logic functor indicator.
 func Indicator(name string, arity int) logic.Indicator{
     return logic.Indicator{Name: name, Arity: arity}
 }
 
-func Query(comps ...*logic.Comp) []*logic.Comp {
-	return comps
-}
-
+// Clause builds a logic clause.
 func Clause(head logic.Term, body ...logic.Term) *logic.Clause {
 	return logic.NewClause(head, body...)
 }
 
+// Clauses builds a list of logic clauses.
 func Clauses(cs ...*logic.Clause) []*logic.Clause {
 	return cs
 }
 
 // ----
 
+// List builds a logic list.
+// 
+//     List()                                          // []
+//     List(Atom("a"), Var("X"), Comp("f", Var("Y")))  // [a, X, f(Y)]
 func List(terms ...logic.Term) logic.Term {
 	return logic.NewList(terms...)
 }
 
+// IList builds an incomplete list, where the last element is the list's tail.
+// It panics if less than 2 terms are provided.
+//
+//     IList(Atom("a"), Var("X"), Var("T")))  // [a, X|T]
 func IList(terms ...logic.Term) logic.Term {
 	n := len(terms)
+    if n < 2 {
+        panic(fmt.Sprintf("IList called with <2 arguments: %v", terms))
+    }
 	butlast, last := terms[:n-1], terms[n-1]
 	return logic.NewIncompleteList(butlast, last)
 }
 
 // ----
 
+// Assoc builds a key:val association logic term.
 func Assoc(key, val logic.Term) *logic.Assoc {
 	return logic.NewAssoc(key, val)
 }
 
+// Dict builds a logic dictionary.
+// It expects an even list of terms, corresponding to alternating key/value terms.
+//
+//     Dict()                                              // {}
+//     Dict(Atom("a"), Var("X"))                           // {a: X}
+//     Dict(Atom("a"), Var("X"), List(Atom("p")), Int(1))  // {a: X, [p]: 1}
 func Dict(kvs ...logic.Term) logic.Term {
 	n := len(kvs)
 	if n%2 == 1 {
@@ -73,6 +119,11 @@ func Dict(kvs ...logic.Term) logic.Term {
 	return IDict(tmp...)
 }
 
+// IDict builds an incomplete dictionary.
+// It expects an odd list of terms, corresponding to alternating key/value terms,
+// with the last one being the dict's parent.
+//
+//     Dict(Atom("a"), Var("X"), Var("Ds"))  // {a: X|Ds}
 func IDict(kvs ...logic.Term) logic.Term {
 	n := len(kvs)
 	if n%2 == 0 {

@@ -15,7 +15,6 @@ var (
 	ilist     = dsl.IList
 	int_      = dsl.Int
 	list      = dsl.List
-	query     = dsl.Query
 	svar      = dsl.SVar
 	terms     = dsl.Terms
 	var_      = dsl.Var
