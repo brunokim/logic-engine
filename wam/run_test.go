@@ -1,0 +1,933 @@
+package wam_test
+
+import (
+	"testing"
+
+	"github.com/brunokim/logic-engine/dsl"
+	"github.com/brunokim/logic-engine/logic"
+	"github.com/brunokim/logic-engine/wam"
+)
+
+var (
+	// ?- p(Z, h(Z, W), f(W))
+	queryInstrs = []wam.Instruction{
+		put_struct{functor{"h", 2}, reg(2)},
+		set_variable{reg(1)},
+		set_variable{reg(4)},
+		put_struct{functor{"f", 1}, reg(3)},
+		set_value{reg(4)},
+		put_struct{functor{"p", 3}, reg(0)},
+		set_value{reg(1)},
+		set_value{reg(2)},
+		set_value{reg(3)},
+	}
+
+	// p(f(X), h(Y, f(a)), Y).
+	programInstrs = []wam.Instruction{
+		get_struct{functor{"p", 3}, reg(0)},
+		unify_variable{reg(1)},
+		unify_variable{reg(2)},
+		unify_variable{reg(3)},
+		get_struct{functor{"f", 1}, reg(1)},
+		unify_variable{reg(5)},
+		get_struct{functor{"h", 2}, reg(2)},
+		unify_value{reg(3)},
+		unify_variable{reg(5)},
+		get_struct{functor{"f", 1}, reg(5)},
+		unify_variable{reg(6)},
+		get_constant{&constant{"a"}, reg(6)},
+	}
+)
+
+func TestRun_BuildQuery(t *testing.T) {
+	query := clause(functor{}, queryInstrs...)
+	query.Code = append(query.Code, halt{})
+	m := wam.NewMachine()
+	m.AddClause(query)
+	m.IterLimit = 10
+	m.DebugFilename = "debugtest/run-build-query.jsonl"
+	if err := m.Run(); err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+	z, w := m.Reg[1], m.Reg[4]
+	if z.String() != "_X0" {
+		t.Errorf("Z = %v != _X0", z)
+	}
+	if w.String() != "_X1" {
+		t.Errorf("W = %v != _X1", z)
+	}
+}
+
+func TestRun_BuildQueryAndProgram(t *testing.T) {
+	instrs := []wam.Instruction{}
+	instrs = append(instrs, queryInstrs...)
+	instrs = append(instrs, programInstrs...)
+	instrs = append(instrs, halt{})
+	query := clause(functor{}, instrs...)
+	m := wam.NewMachine()
+	m.AddClause(query)
+	m.IterLimit = 30
+	m.DebugFilename = "debugtest/run-build-query-and-program.jsonl"
+	if err := m.Run(); err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+	z, w := m.Reg[1], m.Reg[4]
+	zWant, wWant := "&f(&f(&a))", "&&f(&a)"
+	if z.String() != zWant {
+		t.Errorf("Z = %v != %s", z, zWant)
+	}
+	if w.String() != wWant {
+		t.Errorf("W = %v != %s", w, wWant)
+	}
+}
+
+func TestRun_Call(t *testing.T) {
+	query := &wam.Clause{Code: queryInstrs, NumRegisters: 5}
+	query.Code = append(query.Code, call{functor{"p", 3}}, halt{})
+
+	program := &wam.Clause{Code: programInstrs, Functor: functor{"p", 3}, NumRegisters: 7}
+	program.Code = append(program.Code, proceed{})
+
+	m := wam.NewMachine()
+	m.AddClause(query)
+	m.AddClause(program)
+	m.IterLimit = 40
+	m.DebugFilename = "debugtest/run-call.jsonl"
+
+	if err := m.Run(); err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+
+	z, w := m.Reg[1], m.Reg[4]
+	zWant, wWant := "&f(&f(&a))", "&&f(&a)"
+	if z.String() != zWant {
+		t.Errorf("Z = %v != %s", z, zWant)
+	}
+	if w.String() != wWant {
+		t.Errorf("W = %v != %s", w, wWant)
+	}
+}
+
+var (
+	// p(X, Y) :- q(X, Z), r(Z, Y).
+	p2 = clause(functor{"p", 2},
+		allocate{2},
+		get_variable{reg(2), reg(0)},
+		get_variable{stack(0), reg(1)},
+		put_value{reg(2), reg(0)},
+		put_variable{stack(1), reg(1)},
+		call{functor{"q", 2}},
+		put_value{stack(1), reg(0)},
+		put_value{stack(0), reg(1)},
+		call{functor{"r", 2}},
+		deallocate{},
+		proceed{})
+
+	// q(a, f(a)).
+	q2 = clause(functor{"q", 2},
+		get_constant{&constant{"a"}, reg(0)},
+		get_struct{functor{"f", 1}, reg(1)},
+		unify_constant{&constant{"a"}},
+		proceed{})
+
+	// r(f(A), f(B)) :- s(B), t(A).
+	r2 = clause(functor{"r", 2},
+		allocate{1},
+		get_struct{functor{"f", 1}, reg(0)},
+		unify_variable{stack(0)},
+		get_struct{functor{"f", 1}, reg(1)},
+		unify_variable{reg(2)},
+		put_value{reg(2), reg(0)},
+		call{functor{"s", 1}},
+		put_value{stack(0), reg(0)},
+		call{functor{"t", 1}},
+		deallocate{},
+		proceed{})
+
+	// s(g(b)).
+	s1 = clause(functor{"s", 1},
+		get_struct{functor{"g", 1}, reg(0)},
+		unify_constant{&constant{"b"}},
+		proceed{})
+
+	// t(a).
+	t1 = clause(functor{"t", 1},
+		get_constant{&constant{"a"}, reg(0)},
+		proceed{})
+)
+
+func TestRun_Allocate(t *testing.T) {
+	m := wam.NewMachine()
+	m.AddClause(p2)
+	m.AddClause(q2)
+	m.AddClause(r2)
+	m.AddClause(s1)
+	m.AddClause(t1)
+
+	// ?- p(X, Y).
+	m.AddClause(clause(functor{},
+		// Save X and Y at regs X3 and X4, that are not used by any other clauses.
+		put_variable{reg(3), reg(0)},
+		put_variable{reg(4), reg(1)},
+		call{functor{"p", 2}},
+		halt{}))
+	m.IterLimit = 100
+	m.DebugFilename = "debugtest/run-allocate.jsonl"
+
+	if err := m.Run(); err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+
+	x, y := m.Reg[3], m.Reg[4]
+	xWant, yWant := "&a", "&f(&g(b))"
+	if x.String() != xWant {
+		t.Errorf("X = %v != %s", x, xWant)
+	}
+	if y.String() != yWant {
+		t.Errorf("Y = %v != %s", y, yWant)
+	}
+}
+
+var (
+	// color(red).
+	// color(green).
+	// color(blue).
+	colorRed = clause(functor{"color", 1},
+		try_me_else{instr{colorGreen, 0}},
+		get_constant{&constant{"red"}, reg(0)},
+		proceed{})
+	colorGreen = clause(functor{"color", 1},
+		retry_me_else{instr{colorBlue, 0}},
+		get_constant{&constant{"green"}, reg(0)},
+		proceed{})
+	colorBlue = clause(functor{"color", 1},
+		trust_me{},
+		get_constant{&constant{"blue"}, reg(0)},
+		proceed{})
+
+	// bit(false).
+	// bit(true).
+	bitFalse = clause(functor{"bit", 1},
+		try_me_else{instr{bitTrue, 0}},
+		get_constant{&constant{"false"}, reg(0)},
+		proceed{})
+	bitTrue = clause(functor{"bit", 1},
+		trust_me{},
+		get_constant{&constant{"true"}, reg(0)},
+		proceed{})
+
+	// bit_color(Bit, Color) :- bit(Bit), color(Color).
+	bitColor = clause(functor{"bit_color", 2},
+		allocate{1},
+		get_variable{reg(2), reg(0)},
+		get_variable{stack(0), reg(1)},
+		put_value{reg(2), reg(0)},
+		call{functor{"bit", 1}},
+		put_value{stack(0), reg(0)},
+		call{functor{"color", 1}},
+		deallocate{},
+		proceed{})
+)
+
+func TestRun_ChoicePoints(t *testing.T) {
+	m := wam.NewMachine()
+	m.AddClause(colorRed)
+	m.AddClause(bitFalse)
+	m.AddClause(bitColor)
+
+	// ?- bit_color(true, green).
+	m.AddClause(clause(functor{},
+		put_constant{&constant{"true"}, reg(0)},
+		put_constant{&constant{"green"}, reg(1)},
+		call{functor{"bit_color", 2}},
+		halt{},
+	))
+	m.IterLimit = 30
+	m.DebugFilename = "debugtest/run-choicepoint.jsonl"
+
+	if err := m.Run(); err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+}
+
+var (
+	// a(X, Z) :- b(Y, X), c(Z, f(Y)).
+	// b(A, p) :- d(A).
+	// c(S, f(S)).
+	// c(S, g(S)).
+	// d(q0).
+	// d(q1).
+	// d(q2).
+	a2 = clause(functor{"a", 2},
+		allocate{2},
+		get_variable{reg(2), reg(0)},
+		get_variable{stack(0), reg(1)},
+		put_variable{stack(1), reg(0)},
+		put_value{reg(2), reg(1)},
+		call{functor{"b", 2}},
+		put_value{stack(0), reg(0)},
+		put_struct{functor{"f", 1}, reg(1)},
+		set_value{stack(1)},
+		call{functor{"c", 2}},
+		deallocate{},
+		proceed{})
+	b2 = clause(functor{"b", 2},
+		allocate{0},
+		get_variable{reg(2), reg(0)},
+		get_constant{&constant{"p"}, reg(1)},
+		put_value{reg(2), reg(0)},
+		call{functor{"d", 1}},
+		deallocate{},
+		proceed{})
+	c2_1 = clause(functor{"c", 2},
+		try_me_else{instr{c2_2, 0}},
+		get_variable{reg(2), reg(0)},
+		get_struct{functor{"f", 1}, reg(1)},
+		unify_value{reg(2)},
+		proceed{})
+	c2_2 = clause(functor{"c", 2},
+		trust_me{},
+		get_variable{reg(2), reg(0)},
+		get_struct{functor{"g", 1}, reg(1)},
+		unify_value{reg(2)},
+		proceed{})
+	d1_1 = clause(functor{"d", 1},
+		try_me_else{instr{d1_2, 0}},
+		get_constant{&constant{"q0"}, reg(0)},
+		proceed{})
+	d1_2 = clause(functor{"d", 1},
+		retry_me_else{instr{d1_3, 0}},
+		get_constant{&constant{"q1"}, reg(0)},
+		proceed{})
+	d1_3 = clause(functor{"d", 1},
+		trust_me{},
+		get_constant{&constant{"q2"}, reg(0)},
+		proceed{})
+)
+
+func TestRun_Trail(t *testing.T) {
+	m := wam.NewMachine()
+	m.AddClause(a2)
+	m.AddClause(b2)
+	m.AddClause(c2_1)
+	m.AddClause(d1_1)
+
+	// ?- a(X, q1).
+	m.AddClause(clause(functor{},
+		// Save X at reg X3, that is not used by any other clauses.
+		put_variable{reg(3), reg(0)},
+		put_constant{&constant{"q1"}, reg(1)},
+		call{functor{"a", 2}},
+		halt{}))
+	m.IterLimit = 50
+	m.DebugFilename = "debugtest/run-trail.jsonl"
+
+	if err := m.Run(); err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+
+	x := m.Reg[3]
+	xWant := "&p"
+	if x.String() != xWant {
+		t.Errorf("X = %v != %s", x, xWant)
+	}
+}
+
+func TestRun_List(t *testing.T) {
+	m := wam.NewMachine()
+	// build_list((a . (b . []))).
+	m.AddClause(clause(functor{"build_list", 1},
+		get_list{reg(0)},
+		unify_constant{&constant{"a"}},
+		unify_variable{reg(1)},
+		get_list{reg(1)},
+		unify_constant{&constant{"b"}},
+		unify_constant{&constant{"[]"}},
+		proceed{}))
+
+	// =(X, X).
+	m.AddClause(clause(functor{"=", 2},
+		get_value{reg(0), reg(1)},
+		proceed{}))
+
+	// ?- build_list((a . T)), =(T, (X . [])).
+	m.AddClause(clause(functor{},
+		allocate{2},
+
+		put_list{reg(0)},
+		set_constant{&constant{"a"}},
+		set_variable{stack(0)},
+		call{functor{"build_list", 1}},
+
+		put_value{stack(0), reg(0)},
+		put_list{reg(1)},
+		set_variable{stack(1)},
+		set_constant{&constant{"[]"}},
+		call{functor{"=", 2}},
+
+		halt{}))
+	m.IterLimit = 50
+	m.DebugFilename = "debugtest/run-list.jsonl"
+
+	if err := m.Run(); err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+
+	tail, x := m.Env.PermanentVars[0], m.Env.PermanentVars[1]
+	tailWant, xWant := "&[b]", "&b"
+	if tail.String() != tailWant {
+		t.Errorf("T = %v != %s", tail, tailWant)
+	}
+	if x.String() != xWant {
+		t.Errorf("X = %v != %s", x, xWant)
+	}
+}
+
+func TestRun_Void(t *testing.T) {
+	m := wam.NewMachine()
+	// length3((_ . (_ . (_ . [])))).
+	m.AddClause(clause(functor{"length3", 1},
+		get_list{reg(0)},
+		unify_void{1},
+		unify_variable{reg(1)},
+		get_list{reg(1)},
+		unify_void{1},
+		get_list{reg(2)},
+		unify_void{1},
+		unify_constant{&constant{"[]"}},
+		proceed{}))
+
+	// ?- length3((a . (X . (f(_, _, X) . []))))
+	m.AddClause(clause(functor{},
+		// f(_, _, X)
+		put_struct{functor{"f", 3}, reg(3)},
+		set_void{2},
+		set_variable{reg(4)},
+
+		// (f(...) . [])
+		put_list{reg(2)},
+		set_value{reg(3)},
+		set_constant{&constant{"[]"}},
+
+		// (X . (...))
+		put_list{reg(1)},
+		set_value{reg(4)},
+		set_value{reg(2)},
+
+		// (a . (...))
+		put_list{reg(0)},
+		set_constant{&constant{"a"}},
+		set_value{reg(1)},
+
+		call{functor{"length3", 1}},
+		halt{}))
+	m.IterLimit = 50
+	m.DebugFilename = "debugtest/run-void.jsonl"
+
+	if err := m.Run(); err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+
+	x := m.Reg[4]
+	xWant := "_X2"
+	if x.String() != xWant {
+		t.Errorf("X = %v != %s", x, xWant)
+	}
+}
+
+var (
+	// concat([H|T], L, [H|R]) :- concat(T, L, R).
+	concat2 = clause(functor{"concat", 3},
+		trust_me{},
+
+		get_list{reg(0)},
+		unify_variable{reg(3)},
+		unify_variable{reg(4)},
+
+		// L is already in position for next call.
+
+		get_list{reg(2)},
+		unify_value{reg(3)},
+		unify_variable{reg(5)},
+
+		put_value{reg(4), reg(0)},
+		put_value{reg(5), reg(2)},
+		execute{functor{"concat", 3}})
+	// concat([], L, L).
+	concat1 = clause(functor{"concat", 3},
+		try_me_else{instr{concat2, 0}},
+		get_constant{&constant{"[]"}, reg(0)},
+		get_value{reg(1), reg(2)},
+		proceed{})
+	// [a, b, c]
+	buildList_abc = []wam.Instruction{
+		put_list{reg(5)},
+		set_constant{&constant{"c"}},
+		set_constant{&constant{"[]"}},
+		put_list{reg(4)},
+		set_constant{&constant{"b"}},
+		set_value{reg(5)},
+		put_list{reg(0)},
+		set_constant{&constant{"a"}},
+		set_value{reg(4)},
+	}
+	// [d]
+	buildList_d = []wam.Instruction{
+		put_list{reg(1)},
+		set_constant{&constant{"d"}},
+		set_constant{&constant{"[]"}},
+	}
+)
+
+func TestConcat(t *testing.T) {
+	m := wam.NewMachine()
+	m.AddClause(concat1)
+
+	// ?- concat([a, b, c], [d], L).
+	var instrs []wam.Instruction
+	instrs = append(instrs, buildList_abc...)
+	instrs = append(instrs, buildList_d...)
+	instrs = append(instrs,
+		put_variable{reg(6), reg(2)},
+		call{functor{"concat", 3}},
+		halt{})
+	m.AddClause(clause(functor{}, instrs...))
+	m.IterLimit = 75
+	m.DebugFilename = "debugtest/run-concat.jsonl"
+
+	if err := m.Run(); err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+
+	x := m.Reg[6]
+	xWant := "&[a|&[b|&[c|&[d]]]]"
+	if x.String() != xWant {
+		t.Errorf("X = %v != %s", x, xWant)
+	}
+}
+
+func TestConcat_TryTrust(t *testing.T) {
+	m := wam.NewMachine()
+	m.AddClause(concat1)
+	m.AddClause(clause(functor{"concat_tryelse", 0},
+		try{instr{concat1, 1}},
+		trust{instr{concat2, 1}}))
+
+	// ?- concat([a, b, c], [d], L).
+	var instrs []wam.Instruction
+	instrs = append(instrs, buildList_abc...)
+	instrs = append(instrs, buildList_d...)
+	instrs = append(instrs,
+		put_variable{reg(6), reg(2)},
+		call{functor{"concat_tryelse", 0}},
+		halt{})
+	m.AddClause(clause(functor{}, instrs...))
+
+	m.IterLimit = 75
+	m.DebugFilename = "debugtest/run-concat-tryelse.jsonl"
+
+	if err := m.Run(); err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+
+	x := m.Reg[6]
+	xWant := "&[a|&[b|&[c|&[d]]]]"
+	if x.String() != xWant {
+		t.Errorf("X = %v != %s", x, xWant)
+	}
+}
+
+var (
+	// call(...) subsequence 1
+	//   - call(or(X, Y)) #1
+	//   - call(trace)
+	//   - call(or(X, Y)) #2
+	//   - call(trace)
+	//   - call(nl)
+	call_s1 = clause(functor{"call", 1},
+		try_me_else{instr{callBuiltin, 0}},
+		switch_on_term{
+			instr{callOr1, 0},
+			instr{call_s1_constant, 0},
+			instr{call_s1_list, 0},
+			instr{call_s1_struct, 0},
+		})
+	call_s1_constant = clause(functor{"call", 1},
+		switch_on_constant{map[string]instr{
+			"trace":   instr{callTrace, 1},
+			"notrace": instr{callNotrace, 1},
+			"nl":      instr{callNl, 1},
+		}})
+	call_s1_list = clause(functor{"call", 1},
+		execute{functor{"fail", 0}})
+	call_s1_struct = clause(functor{"call", 1},
+		switch_on_struct{map[functor]instr{
+			functor{"or", 2}: instr{call_s1_struct_or2, 0},
+		}})
+	call_s1_struct_or2 = clause(functor{"call", 1},
+		try{instr{callOr1, 1}},
+		trust{instr{callOr2, 1}})
+	// call(or(X, Y)) :- call(X).
+	callOr1 = clause(functor{"call", 1},
+		try_me_else{instr{callTrace, 0}},
+		get_struct{functor{"or", 2}, reg(0)},
+		unify_variable{reg(1)},
+		unify_void{1},
+		put_value{reg(1), reg(0)},
+		execute{functor{"call", 1}})
+	// call(trace) :- trace().
+	callTrace = clause(functor{"call", 1},
+		retry_me_else{instr{callOr2, 0}},
+		get_constant{&constant{"trace"}, reg(0)},
+		execute{functor{"trace", 0}})
+	// call(or(X, Y)) :- call(Y).
+	callOr2 = clause(functor{"call", 1},
+		retry_me_else{instr{callNotrace, 0}},
+		get_struct{functor{"or", 2}, reg(0)},
+		unify_void{1},
+		unify_variable{reg(1)},
+		put_value{reg(1), reg(0)},
+		execute{functor{"call", 1}})
+	// call(notrace) :- notrace().
+	callNotrace = clause(functor{"call", 1},
+		retry_me_else{instr{callNl, 0}},
+		get_constant{&constant{"notrace"}, reg(0)},
+		execute{functor{"notrace", 0}})
+	// call(nl) :- nl().
+	callNl = clause(functor{"call", 1},
+		trust_me{},
+		get_constant{&constant{"nl"}, reg(0)},
+		execute{functor{"nl", 0}})
+	// call(X) :- builtin(X).
+	callBuiltin = clause(functor{"call", 1},
+		retry_me_else{instr{callExtern, 0}},
+		execute{functor{"builtin", 0}})
+	// call(X) :- extern(X).
+	callExtern = clause(functor{"call", 1},
+		retry_me_else{instr{call_s2, 0}},
+		execute{functor{"extern", 0}})
+	// call(...) subsequence 2
+	//   - call(call(X))
+	//   - call(repeat) #1
+	//   - call(repeat) #2
+	//   - call(true)
+	call_s2 = clause(functor{"call", 1},
+		trust_me{},
+		switch_on_term{
+			instr{callCall, 0},
+			instr{call_s2_constant, 0},
+			instr{call_s2_list, 0},
+			instr{call_s2_struct, 0},
+		})
+	call_s2_constant = clause(functor{"call", 1},
+		switch_on_constant{map[string]instr{
+			"repeat": instr{call_s2_constant_repeat, 0},
+			"true":   instr{callTrue, 1},
+		}})
+	call_s2_constant_repeat = clause(functor{"call", 1},
+		try{instr{callRepeat1, 1}},
+		trust{instr{callRepeat2, 1}})
+	call_s2_list = clause(functor{"call", 1},
+		execute{functor{"fail", 0}})
+	call_s2_struct = clause(functor{"call", 1},
+		switch_on_struct{map[functor]instr{
+			functor{"call", 1}: instr{callCall, 1},
+		}})
+	// call(call(X)) :- call(X).
+	callCall = clause(functor{"call", 1},
+		retry_me_else{instr{callRepeat1, 0}},
+		get_struct{functor{"call", 1}, reg(0)},
+		unify_variable{reg(1)},
+		put_value{reg(1), reg(0)},
+		execute{functor{"call", 1}})
+	// call(repeat).
+	callRepeat1 = clause(functor{"call", 1},
+		retry_me_else{instr{callRepeat2, 0}},
+		get_constant{&constant{"repeat"}, reg(0)},
+		proceed{})
+	// call(repeat) :- call(repeat).
+	callRepeat2 = clause(functor{"call", 1},
+		retry_me_else{instr{callTrue, 0}},
+		get_constant{&constant{"repeat"}, reg(0)},
+		execute{functor{"call", 1}})
+	// call(true).
+	callTrue = clause(functor{"call", 1},
+		trust_me{},
+		get_constant{&constant{"true"}, reg(0)},
+		proceed{})
+)
+
+func TestSwitch(t *testing.T) {
+	m := wam.NewMachine()
+	m.AddClause(call_s1)
+
+	// ?- call(true), call(or(call(a), repeat))
+	m.AddClause(clause(functor{},
+		put_constant{&constant{"true"}, reg(0)},
+		call{functor{"call", 1}},
+		put_struct{functor{"call", 1}, reg(1)},
+		set_constant{&constant{"a"}},
+		put_struct{functor{"or", 2}, reg(0)},
+		set_value{reg(1)},
+		set_constant{&constant{"repeat"}},
+		call{functor{"call", 1}},
+		halt{}))
+
+	m.IterLimit = 75
+	m.DebugFilename = "debugtest/run-switch.jsonl"
+
+	if err := m.Run(); err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+}
+
+var (
+	// member(X, [X|_]) :- !.
+	// member(X, [_|T]) :- member(X, T).
+	member1 = clause(functor{"member", 2},
+		try_me_else{instr{member2, 0}},
+		get_variable{reg(2), reg(0)},
+		get_list{reg(1)},
+		unify_value{reg(2)},
+		unify_void{1},
+		neck_cut{},
+		proceed{})
+	member2 = clause(functor{"member", 2},
+		trust_me{},
+		get_variable{reg(2), reg(0)},
+		get_list{reg(1)},
+		unify_void{1},
+		unify_variable{reg(3)},
+		put_value{reg(2), reg(0)},
+		put_value{reg(3), reg(1)},
+		execute{functor{"member", 2}})
+
+	// set_add(Set, X, Set) :- member(X, Set), !.
+	// set_add(Set, X, [X|Set]).
+	setAdd1 = clause(functor{"set_add", 3},
+		try_me_else{instr{setAdd2, 0}},
+		allocate{0},
+		get_variable{reg(3), reg(0)},
+		get_variable{reg(4), reg(1)},
+		get_value{reg(3), reg(2)},
+		put_value{reg(4), reg(0)},
+		put_value{reg(3), reg(1)},
+		call{functor{"member", 2}},
+		cut{},
+		deallocate{},
+		proceed{})
+	setAdd2 = clause(functor{"set_add", 3},
+		trust_me{},
+		get_variable{reg(3), reg(0)},
+		get_variable{reg(4), reg(1)},
+		get_list{reg(2)},
+		unify_value{reg(4)},
+		unify_value{reg(3)},
+		proceed{})
+)
+
+func TestCut(t *testing.T) {
+	m := wam.NewMachine()
+	m.AddClause(member1)
+	m.AddClause(setAdd1)
+
+	// ?- member(a, [c, a, b]), set_add([a, b], c, L1), set_add(L1, b, L2).
+	m.AddClause(clause(functor{},
+		// [a, b]
+		put_list{reg(4)},
+		set_constant{&constant{"b"}},
+		set_constant{&constant{"[]"}},
+		put_list{reg(3)},
+		set_constant{&constant{"a"}},
+		set_value{reg(4)},
+		// member(a, [c, a, b])
+		put_constant{&constant{"a"}, reg(0)},
+		put_list{reg(1)},
+		set_constant{&constant{"c"}},
+		set_value{reg(3)},
+		call{functor{"member", 2}},
+		// set_add([a, b], c, L1)
+		put_value{reg(3), reg(0)},
+		put_constant{&constant{"c"}, reg(1)},
+		put_variable{reg(5), reg(2)},
+		call{functor{"set_add", 3}},
+		// set_add(L1, b, L2)
+		put_value{reg(5), reg(0)},
+		put_constant{&constant{"b"}, reg(1)},
+		put_variable{reg(6), reg(2)},
+		call{functor{"set_add", 3}},
+		halt{}))
+
+	m.IterLimit = 150
+	m.DebugFilename = "debugtest/cut.jsonl"
+
+	if err := m.Run(); err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+
+	l1, l2 := m.Reg[5], m.Reg[6]
+	l1Want, l2Want := "&[c, a, b]", "&[c, a, b]"
+	if l1.String() != l1Want {
+		t.Errorf("L1 = %v != %s", l1, l1Want)
+	}
+	if l2.String() != l2Want {
+		t.Errorf("L2 = %v != %s", l2, l2Want)
+	}
+}
+
+// tree(nil, L, L).
+// tree(node(Name, Left, Right), L1, L3) :-
+//   tree(Left, L1, [Name|L2]),
+//   tree(Right, L2, L3).
+var (
+	tree1 = clause(functor{"tree", 3},
+		try_me_else{instr{tree2, 0}},
+		get_constant{&constant{"nil"}, reg(0)},
+		get_value{reg(2), reg(1)},
+		proceed{})
+
+	tree2 = clause(functor{"tree", 3},
+		trust_me{},
+		allocate{3},
+		get_struct{functor{"node", 3}, reg(0)},
+		unify_variable{reg(3)},         // Name
+		unify_variable{reg(4)},         // Left
+		unify_variable{stack(0)},       // Right
+		get_variable{reg(5), reg(1)},   // L1
+		get_variable{stack(1), reg(2)}, // L3
+		put_value{reg(4), reg(0)},
+		put_value{reg(1), reg(1)},
+		put_list{reg(2)},
+		set_value{reg(3)},
+		set_variable{stack(2)}, // L2
+		call{functor{"tree", 3}},
+		put_value{stack(0), reg(0)},
+		put_value{stack(2), reg(1)},
+		put_value{stack(1), reg(2)},
+		deallocate{},
+		execute{functor{"tree", 3}})
+)
+
+func TestNestedCalls(t *testing.T) {
+	m := wam.NewMachine()
+	m.AddClause(tree1)
+
+	// ?- tree(node(a, node(b, nil, node(c, nil, nil)), node(d, nil, nil)), L, []).
+	// L = [b, c, a, d]
+	m.AddClause(clause(functor{},
+		put_struct{functor{"node", 3}, reg(5)},
+		set_constant{&constant{"d"}},
+		set_constant{&constant{"nil"}},
+		set_constant{&constant{"nil"}},
+		put_struct{functor{"node", 3}, reg(4)},
+		set_constant{&constant{"c"}},
+		set_constant{&constant{"nil"}},
+		set_constant{&constant{"nil"}},
+		put_struct{functor{"node", 3}, reg(3)},
+		set_constant{&constant{"b"}},
+		set_constant{&constant{"nil"}},
+		set_value{reg(4)},
+		put_struct{functor{"node", 3}, reg(0)},
+		set_constant{&constant{"a"}},
+		set_value{reg(3)},
+		set_value{reg(5)},
+		put_variable{reg(6), reg(1)},
+		put_constant{&constant{"[]"}, reg(2)},
+		call{functor{"tree", 3}},
+		halt{}))
+
+	m.IterLimit = 150
+	m.DebugFilename = "debugtest/nested-calls.jsonl"
+
+	if err := m.Run(); err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+
+	l := m.Reg[6]
+	lWant := `&[b|&[c|&[a|&[d|&"[]"]]]]`
+	if l.String() != lWant {
+		t.Errorf("L = %v != %s", l, lWant)
+	}
+}
+
+func TestCallMeta(t *testing.T) {
+	m := wam.NewMachine()
+	m.IterLimit = 20
+	m.DebugFilename = "debugtest/call-meta.jsonl"
+
+	// p(a).
+	// q(b).
+	// ?- call(p(), X)
+	clauses, err := wam.CompileClauses([]*logic.Clause{
+		dsl.Clause(comp("p", atom("a"))),
+		dsl.Clause(comp("q", atom("b"))),
+	})
+	if err != nil {
+		t.Fatalf("CompileClauses: %v", err)
+	}
+	for _, clause := range clauses {
+		m.AddClause(clause)
+	}
+	bindings, err := m.RunQuery(comp("call", comp("p"), var_("X")))
+	if err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+	if v := bindings[var_("X")]; v != atom("a") {
+		t.Errorf("X = %v (want %v)", v, atom("a"))
+	}
+}
+
+func TestMetaMetaCall(t *testing.T) {
+	m := wam.NewMachine()
+	m.IterLimit = 30
+	m.DebugFilename = "debugtest/meta-meta-call.jsonl"
+
+	// p(a).
+	// ?- call(call(p, X))
+	clauses, err := wam.CompileClauses([]*logic.Clause{
+		dsl.Clause(comp("p", atom("a"))),
+	})
+	if err != nil {
+		t.Fatalf("CompileClauses: %v", err)
+	}
+	for _, clause := range clauses {
+		m.AddClause(clause)
+	}
+	bindings, err := m.RunQuery(comp("call", comp("call", atom("p"), var_("X"))))
+	if err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+	if v := bindings[var_("X")]; v != atom("a") {
+		t.Errorf("X = %v (want %v)", v, atom("a"))
+	}
+}
+
+func TestIf(t *testing.T) {
+	m := wam.NewMachine()
+	m.IterLimit = 200
+	m.DebugFilename = "debugtest/if.jsonl"
+
+	// true.
+	// member(X, [H|T]) :- if(=(X, H), true, member(X, T)).
+	// ?- member(b, [a, c, b]), member(z, [a, c, b]).
+	clauses, err := wam.CompileClauses([]*logic.Clause{
+		dsl.Clause(atom("true")),
+		dsl.Clause(comp("member", var_("X"), ilist(var_("H"), var_("T"))),
+			comp("if",
+				comp("=", var_("X"), var_("H")),
+				atom("true"),
+				comp("member", var_("X"), var_("T")))),
+	})
+	if err != nil {
+		t.Fatalf("CompileClauses: %v", err)
+	}
+	for _, clause := range clauses {
+		m.AddClause(clause)
+	}
+	_, err = m.RunQuery(
+		comp("member", atom("b"), list(atom("a"), atom("c"), atom("b"))),
+		comp("member", atom("z"), list(atom("a"), atom("c"), atom("b"))))
+	if err == nil {
+		t.Fatalf("expected err, got nil")
+	}
+}

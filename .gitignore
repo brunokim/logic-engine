@@ -1,0 +1,11 @@
+.*.swo
+.*.swp
+*.pdf
+
+minmax
+kln2go
+lisp2kln
+
+coverage.out
+*.html
+*.jsonl
