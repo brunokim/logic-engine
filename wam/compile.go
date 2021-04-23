@@ -14,7 +14,24 @@ func NewMachine() *Machine {
 	for _, builtin := range builtins {
 		m.AddClause(builtin)
 	}
+	m.interrupt = make(chan struct{})
 	return m
+}
+
+// Reset discards all states for the machine, except for the compiled clauses.
+func (m *Machine) Reset() {
+	m.CodePtr = InstrAddr{}
+	m.Continuation = InstrAddr{}
+	for i := range m.Reg {
+		m.Reg[i] = nil
+	}
+	m.Trail = nil
+	m.Env = nil
+	m.ChoicePoint = nil
+	m.CutChoice = nil
+	m.LastRefID = 0
+	m.encoder = nil
+	m.interrupt = make(chan struct{})
 }
 
 // AddClause adds a compiled clause to the machine.
@@ -310,7 +327,7 @@ func compileQuery(query []logic.Term) (*Clause, error) {
 }
 
 func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction {
-    // Special cases.
+	// Special cases.
 	switch term.Indicator() {
 	case dsl.Indicator("!", 0):
 		if pos == 0 {
@@ -320,7 +337,7 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 	case dsl.Indicator("fail", 0):
 		return []Instruction{Fail{}}
 	}
-    // Regular goal: put term args into registers X0-Xn and issue a call to f/n.
+	// Regular goal: put term args into registers X0-Xn and issue a call to f/n.
 	ctx.instrs = nil
 	var instrs []Instruction
 	for i, arg := range term.Args {
@@ -346,7 +363,7 @@ func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
 			ctx.topReg++
 		}
 	}
-    // If call requires an environment, add an allocate-deallocate pair to the clause.
+	// If call requires an environment, add an allocate-deallocate pair to the clause.
 	var header, footer []Instruction
 	if currStack > 0 || hasDeepCut(clause) || hasNonLastCall(clause) {
 		header = []Instruction{Allocate{currStack}}

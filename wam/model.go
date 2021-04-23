@@ -8,7 +8,7 @@
 // to make use of regular Go pointers whenever possible, leveraging the
 // runtime's garbage collector.
 //
-// The machine is composed of a list of registers and two stacks: the 
+// The machine is composed of a list of registers and two stacks: the
 // environment (or AND-)stack, that stores local variables of function calls,
 // and the choicepoint (or OR-)stack, that stores the sequence of possible
 // alternate steps to take on failure.
@@ -21,7 +21,7 @@ import (
 	"sort"
 	"strings"
 
-    "github.com/brunokim/logic-engine/logic"
+	"github.com/brunokim/logic-engine/logic"
 )
 
 // ---- Address types
@@ -534,7 +534,7 @@ type Ref struct {
 	id   int
 }
 
-// Struct represents a compound term. 
+// Struct represents a compound term.
 type Struct struct {
 	Name string
 	Args []Cell
@@ -641,6 +641,7 @@ type ChoicePoint struct {
 
 // UnificationMode is an enum for the current machine's read or write unification approach.
 type UnificationMode int
+
 const (
 	Read UnificationMode = iota
 	Write
@@ -661,7 +662,7 @@ type Machine struct {
 	Reg []Cell
 
 	// Trail of variables that may need to be unbound on backtrack.
-    // TODO: move this to the choicepoint themselves?
+	// TODO: move this to the choicepoint themselves?
 	Trail []*Ref
 
 	// Read or write mode for term unification.
@@ -689,8 +690,11 @@ type Machine struct {
 	// Incrementing ID to identify generated variables.
 	LastRefID int
 
-    // Keep variables of original query between RunQuery/NextSolution calls.
-    xs []logic.Var
+	// interrupt checks for a signal that the current operation should be aborted.
+	interrupt chan struct{}
+
+	// Keep variables of original query between RunQuery/NextSolution calls.
+	xs []logic.Var
 
 	// Optimization for debugging: keep encoder between calls.
 	encoder             *machineEncoder

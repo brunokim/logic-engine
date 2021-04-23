@@ -2,13 +2,13 @@ package wam
 
 import (
 	"encoding/json"
-    "strconv"
-    "regexp"
 	"fmt"
 	"io"
 	"log"
 	"math"
 	"os"
+	"regexp"
+	"strconv"
 
 	"github.com/brunokim/logic-engine/logic"
 )
@@ -32,7 +32,7 @@ func (m *Machine) RunQuery(query ...logic.Term) (map[logic.Var]logic.Term, error
 		return nil, err
 	}
 	m.AddClause(c)
-    return m.runOnce()
+	return m.runOnce()
 }
 
 func (m *Machine) runOnce() (map[logic.Var]logic.Term, error) {
@@ -50,47 +50,39 @@ func (m *Machine) runOnce() (map[logic.Var]logic.Term, error) {
 }
 
 var debugFilenameRE = regexp.MustCompile(`(.*?)(-(\d+))?.jsonl`)
+
 func incrementDebugFilename(filename string) string {
-    parts := debugFilenameRE.FindStringSubmatch(filename)
-    if len(parts) == 0 {
-        return filename
-    }
-    name, iter := parts[1], parts[3]
-    i := 1
-    if iter != "" {
-        i, _ = strconv.Atoi(iter)
-        i++
-    }
-    return fmt.Sprintf("%s-%03d.jsonl", name, i)
+	parts := debugFilenameRE.FindStringSubmatch(filename)
+	if len(parts) == 0 {
+		return filename
+	}
+	name, iter := parts[1], parts[3]
+	i := 1
+	if iter != "" {
+		i, _ = strconv.Atoi(iter)
+		i++
+	}
+	return fmt.Sprintf("%s-%03d.jsonl", name, i)
 }
 
 // NextSolution backtracks on the next choice point and execute that
 // alternate path, returning all bindings that satisfy the original query.
 func (m *Machine) NextSolution() (map[logic.Var]logic.Term, error) {
-    instr, err := m.backtrack(fmt.Errorf("no more solutions"))
-    if err != nil {
-        return nil, err
-    }
-    m.CodePtr = instr
-    if m.DebugFilename != "" {
-        m.DebugFilename = incrementDebugFilename(m.DebugFilename)
-    }
-    return m.runOnce()
+	instr, err := m.backtrack(fmt.Errorf("no more solutions"))
+	if err != nil {
+		return nil, err
+	}
+	m.CodePtr = instr
+	if m.DebugFilename != "" {
+		m.DebugFilename = incrementDebugFilename(m.DebugFilename)
+	}
+	return m.runOnce()
 }
 
-// Reset discards all states for the machine, except for the compiled clauses.
-func (m *Machine) Reset() {
-    m.CodePtr = InstrAddr{}
-    m.Continuation = InstrAddr{}
-    for i := range m.Reg {
-        m.Reg[i] = nil
-    }
-    m.Trail = nil
-    m.Env = nil
-    m.ChoicePoint = nil
-    m.CutChoice = nil
-    m.LastRefID = 0
-    m.encoder = nil
+// Interrupt signals the machine to shutdown, and blocks until it has received
+// the signal.
+func (m *Machine) Interrupt() {
+	m.interrupt <- struct{}{}
 }
 
 // Run executes the instructions currently present in the machine.
@@ -120,6 +112,11 @@ func (m *Machine) Run() error {
 		if _, ok := instr.(Halt); ok {
 			// Return normally when reaching Halt instruction.
 			break
+		}
+		select {
+		case <-m.interrupt:
+			return fmt.Errorf("interrupted @ clock %d", i)
+		default:
 		}
 		m.hasBacktracked = false
 		nextInstr, err := m.execute(instr)
