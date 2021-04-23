@@ -3,7 +3,10 @@ package wam_test
 import (
 	"testing"
 
+    "github.com/google/go-cmp/cmp"
+
 	"github.com/brunokim/logic-engine/dsl"
+	"github.com/brunokim/logic-engine/test_helpers"
 	"github.com/brunokim/logic-engine/logic"
 	"github.com/brunokim/logic-engine/wam"
 )
@@ -928,6 +931,102 @@ func TestIf(t *testing.T) {
 		comp("member", atom("b"), list(atom("a"), atom("c"), atom("b"))),
 		comp("member", atom("z"), list(atom("a"), atom("c"), atom("b"))))
 	if err == nil {
-		t.Fatalf("expected err, got nil")
+		t.Errorf("expected err, got nil")
 	}
+}
+
+func TestNextSolution(t *testing.T) {
+    m := wam.NewMachine()
+    m.IterLimit = 200
+    m.DebugFilename = "debugtest/next-solution.jsonl"
+
+    // add(0, S, S).
+    // add(s(A), B, s(S)) :- add(A, B, S).
+    clauses, err := wam.CompileClauses([]*logic.Clause{
+        dsl.Clause(comp("add", atom("0"), var_("S"), var_("S"))),
+        dsl.Clause(comp("add", comp("s", var_("A")), var_("B"), comp("s", var_("S"))),
+            comp("add", var_("A"), var_("B"), var_("S"))),
+    })
+    if err != nil {
+        t.Fatalf("CompileClauses: %v", err)
+    }
+    for _, clause := range clauses {
+        m.AddClause(clause)
+    }
+
+    // ?- add(X, Y, s(s(s(0)))).
+    var solutions [4]map[logic.Var]logic.Term
+    solutions[0], err = m.RunQuery(
+        comp("add", var_("X"), var_("Y"), comp("s", comp("s", comp("s", atom("0"))))))
+    if err != nil {
+        t.Fatalf("RunQuery: got err: %v", err)
+    }
+    for i := 1; i < 4; i++ {
+        solutions[i], err = m.NextSolution()
+        if err != nil {
+            t.Fatalf("NextSolution #%d: got err: %v", i, err)
+        }
+    }
+    _, err = m.NextSolution()
+    if err == nil {
+        t.Errorf("want err, got nil")
+    }
+    wantSolutions := [4]map[logic.Var]logic.Term{
+        map[logic.Var]logic.Term{
+            var_("X"): atom("0"),
+            var_("Y"): comp("s", comp("s", comp("s", atom("0"))))},
+        map[logic.Var]logic.Term{
+            var_("X"): comp("s", atom("0")),
+            var_("Y"): comp("s", comp("s", atom("0")))},
+        map[logic.Var]logic.Term{
+            var_("X"): comp("s", comp("s", atom("0"))),
+            var_("Y"): comp("s", atom("0"))},
+        map[logic.Var]logic.Term{
+            var_("X"): comp("s", comp("s", comp("s", atom("0")))),
+            var_("Y"): atom("0")},
+    }
+    if diff := cmp.Diff(wantSolutions, solutions, test_helpers.IgnoreUnexported); diff != "" {
+        t.Errorf("-want, +got:%s", diff)
+    }
+}
+
+func TestReset(t *testing.T) {
+    m := wam.NewMachine()
+    m.IterLimit = 200
+    m.DebugFilename = "debugtest/reset.jsonl"
+
+    // parent(charles, william).
+    // parent(diana, william).
+    // parent(charles, harry).
+    // parent(diana, harry).
+    clauses, err := wam.CompileClauses([]*logic.Clause{
+        dsl.Clause(comp("parent", atom("charles"), atom("william"))),
+        dsl.Clause(comp("parent", atom("diana"), atom("william"))),
+        dsl.Clause(comp("parent", atom("charles"), atom("harry"))),
+        dsl.Clause(comp("parent", atom("diana"), atom("harry"))),
+    })
+    if err != nil {
+        t.Fatalf("CompileClauses: %v", err)
+    }
+    for _, clause := range clauses {
+        m.AddClause(clause)
+    }
+
+    // ?- parent(charles, X).
+    bindings1, err1 := m.RunQuery(comp("parent", atom("charles"), var_("X")))
+    m.Reset()
+    bindings2, err2 := m.RunQuery(comp("parent", var_("X"), atom("harry")))
+    bindings3, err3 := m.NextSolution()
+    bindings := []map[logic.Var]logic.Term{bindings1, bindings2, bindings3}
+
+    if err1 != nil || err2 != nil || err3 != nil {
+        t.Fatalf("got err, err1=%v err2=%v err3=%v", err1, err2, err3)
+    }
+    want1 := map[logic.Var]logic.Term{var_("X"): atom("william")}
+    want2 := map[logic.Var]logic.Term{var_("X"): atom("charles")}
+    want3 := map[logic.Var]logic.Term{var_("X"): atom("diana")}
+    want := []map[logic.Var]logic.Term{want1, want2, want3}
+    if diff := cmp.Diff(want, bindings, test_helpers.IgnoreUnexported); diff != "" {
+        t.Errorf("-want, +got:%s", diff)
+    }
 }

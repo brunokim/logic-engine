@@ -2,6 +2,8 @@ package wam
 
 import (
 	"encoding/json"
+    "strconv"
+    "regexp"
 	"fmt"
 	"io"
 	"log"
@@ -14,15 +16,15 @@ import (
 // RunQuery executes the given logic query, returning all bindings that satisfy the query
 // and compiled clauses simultaneously.
 func (m *Machine) RunQuery(query ...logic.Term) (map[logic.Var]logic.Term, error) {
-	pos := make(map[logic.Var]int)
-	var xs []logic.Var
+	seen := make(map[logic.Var]struct{})
+	m.xs = nil
 	for _, c := range query {
 		for _, x := range logic.Vars(c) {
-			if _, ok := pos[x]; ok {
+			if _, ok := seen[x]; ok {
 				continue
 			}
-			pos[x] = len(xs)
-			xs = append(xs, x)
+			seen[x] = struct{}{}
+			m.xs = append(m.xs, x)
 		}
 	}
 	c, err := compileQuery(query)
@@ -30,6 +32,10 @@ func (m *Machine) RunQuery(query ...logic.Term) (map[logic.Var]logic.Term, error
 		return nil, err
 	}
 	m.AddClause(c)
+    return m.runOnce()
+}
+
+func (m *Machine) runOnce() (map[logic.Var]logic.Term, error) {
 	if err := m.Run(); err != nil {
 		return nil, err
 	}
@@ -38,9 +44,53 @@ func (m *Machine) RunQuery(query ...logic.Term) (map[logic.Var]logic.Term, error
 	}
 	bindings := make(map[logic.Var]logic.Term)
 	for i, term := range fromCells(m.Env.PermanentVars) {
-		bindings[xs[i]] = term
+		bindings[m.xs[i]] = term
 	}
 	return bindings, nil
+}
+
+var debugFilenameRE = regexp.MustCompile(`(.*?)(-(\d+))?.jsonl`)
+func incrementDebugFilename(filename string) string {
+    parts := debugFilenameRE.FindStringSubmatch(filename)
+    if len(parts) == 0 {
+        return filename
+    }
+    name, iter := parts[1], parts[3]
+    i := 1
+    if iter != "" {
+        i, _ = strconv.Atoi(iter)
+        i++
+    }
+    return fmt.Sprintf("%s-%03d.jsonl", name, i)
+}
+
+// NextSolution backtracks on the next choice point and execute that
+// alternate path, returning all bindings that satisfy the original query.
+func (m *Machine) NextSolution() (map[logic.Var]logic.Term, error) {
+    instr, err := m.backtrack(fmt.Errorf("no more solutions"))
+    if err != nil {
+        return nil, err
+    }
+    m.CodePtr = instr
+    if m.DebugFilename != "" {
+        m.DebugFilename = incrementDebugFilename(m.DebugFilename)
+    }
+    return m.runOnce()
+}
+
+// Reset discards all states for the machine, except for the compiled clauses.
+func (m *Machine) Reset() {
+    m.CodePtr = InstrAddr{}
+    m.Continuation = InstrAddr{}
+    for i := range m.Reg {
+        m.Reg[i] = nil
+    }
+    m.Trail = nil
+    m.Env = nil
+    m.ChoicePoint = nil
+    m.CutChoice = nil
+    m.LastRefID = 0
+    m.encoder = nil
 }
 
 // Run executes the instructions currently present in the machine.

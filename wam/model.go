@@ -689,6 +689,9 @@ type Machine struct {
 	// Incrementing ID to identify generated variables.
 	LastRefID int
 
+    // Keep variables of original query between RunQuery/NextSolution calls.
+    xs []logic.Var
+
 	// Optimization for debugging: keep encoder between calls.
 	encoder             *machineEncoder
 	shouldEncodeClauses bool
