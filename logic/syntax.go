@@ -1,29 +1,29 @@
 package logic
 
 import (
-    "unicode"
-    "strings"
+	"strings"
+	"unicode"
 )
 
 func isDigit(ch rune) bool {
-    return '0' <= ch && ch <= '9'
+	return '0' <= ch && ch <= '9'
 }
 
 func isIdent(ch rune) bool {
-    return ch == '_' || unicode.IsLetter(ch) || isDigit(ch)
+	return ch == '_' || unicode.IsLetter(ch) || isDigit(ch)
 }
 
 func isIdents(text string) bool {
-    for _, ch := range text {
-        if !isIdent(ch) {
-            return false
-        }
-    }
-    return true
+	for _, ch := range text {
+		if !isIdent(ch) {
+			return false
+		}
+	}
+	return true
 }
 
 func isVarFirst(ch rune) bool {
-    return ch == '_' || unicode.IsUpper(ch)
+	return ch == '_' || unicode.IsUpper(ch)
 }
 
 // IsVar returns whether text is a valid name for a Var.
@@ -36,36 +36,36 @@ func IsVar(text string) bool {
 		return false
 	}
 	if !isVarFirst(ch) {
-        return false
-    }
-    return isIdents(text)
+		return false
+	}
+	return isIdents(text)
 }
 
 // IsInt returns whether text is a valid value for an Int.
 //
 // An int must contain only (Latin) digit letters.
 func IsInt(text string) bool {
-    if text == "" {
-        return false
-    }
-    for _, ch := range text {
-        if !isDigit(ch) {
-            return false
-        }
-    }
-    return true
+	if text == "" {
+		return false
+	}
+	for _, ch := range text {
+		if !isDigit(ch) {
+			return false
+		}
+	}
+	return true
 }
 
 // Returns whether text must be quoted as an atom.
 func IsQuotedAtom(text string) bool {
-    if text == "" {
-        return true
-    }
-    ch, err := firstRune(text)
-    if err != nil || isVarFirst(ch) || isDigit(ch) {
-        return true
-    }
-    return !isIdents(text)
+	if text == "" {
+		return true
+	}
+	ch, err := firstRune(text)
+	if err != nil || isVarFirst(ch) || isDigit(ch) {
+		return true
+	}
+	return !isIdents(text)
 }
 
 var escapeChars = map[rune]string{
@@ -111,4 +111,3 @@ func FormatAtom(text string) string {
 	b.WriteRune('"')
 	return b.String()
 }
-

@@ -18,9 +18,9 @@ func init() {
 }
 
 var (
-    comp = dsl.Comp
-    var_ = dsl.Var
-    atom = dsl.Atom
+	comp = dsl.Comp
+	var_ = dsl.Var
+	atom = dsl.Atom
 )
 
 var (

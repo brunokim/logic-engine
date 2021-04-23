@@ -8,7 +8,7 @@ import (
 )
 
 var (
-    // go-cmp Option to ignore logic term's unexported fields for comparison.
+	// go-cmp Option to ignore logic term's unexported fields for comparison.
 	IgnoreUnexported = cmp.Options{
 		cmpopts.IgnoreUnexported(logic.Comp{}),
 		cmpopts.IgnoreUnexported(logic.List{}),

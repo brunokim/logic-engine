@@ -168,10 +168,10 @@ var (
 //
 // It panics if the name doesn't start with an uppercase letter or an underscore.
 func NewVar(name string) Var {
-    if !IsVar(name) {
+	if !IsVar(name) {
 		panic("NewVar: invalid name: %q")
 	}
-    return Var{name, 0}
+	return Var{name, 0}
 }
 
 // WithSuffix creates a new var with the same name and provided suffix. Used to

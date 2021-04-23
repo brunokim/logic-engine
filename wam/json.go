@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"reflect"
 
-    "github.com/brunokim/logic-engine/logic"
+	"github.com/brunokim/logic-engine/logic"
 )
 
 func (i RegAddr) MarshalText() ([]byte, error) {

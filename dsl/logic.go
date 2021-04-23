@@ -19,7 +19,7 @@
 package dsl
 
 import (
-    "fmt"
+	"fmt"
 
 	"github.com/brunokim/logic-engine/logic"
 )
@@ -45,7 +45,7 @@ func Var(name string) logic.Var {
 }
 
 // SVar builds a logic variable with a suffix.
-// 
+//
 // This should only be useful for tests that *want* to check that the suffix
 // of a generated var is correct.
 func SVar(name string, suffix int) logic.Var {
@@ -58,8 +58,8 @@ func Comp(functor string, args ...logic.Term) *logic.Comp {
 }
 
 // Indicator builds a logic functor indicator.
-func Indicator(name string, arity int) logic.Indicator{
-    return logic.Indicator{Name: name, Arity: arity}
+func Indicator(name string, arity int) logic.Indicator {
+	return logic.Indicator{Name: name, Arity: arity}
 }
 
 // Clause builds a logic clause.
@@ -75,7 +75,7 @@ func Clauses(cs ...*logic.Clause) []*logic.Clause {
 // ----
 
 // List builds a logic list.
-// 
+//
 //     List()                                          // []
 //     List(Atom("a"), Var("X"), Comp("f", Var("Y")))  // [a, X, f(Y)]
 func List(terms ...logic.Term) logic.Term {
@@ -88,9 +88,9 @@ func List(terms ...logic.Term) logic.Term {
 //     IList(Atom("a"), Var("X"), Var("T")))  // [a, X|T]
 func IList(terms ...logic.Term) logic.Term {
 	n := len(terms)
-    if n < 2 {
-        panic(fmt.Sprintf("IList called with <2 arguments: %v", terms))
-    }
+	if n < 2 {
+		panic(fmt.Sprintf("IList called with <2 arguments: %v", terms))
+	}
 	butlast, last := terms[:n-1], terms[n-1]
 	return logic.NewIncompleteList(butlast, last)
 }
