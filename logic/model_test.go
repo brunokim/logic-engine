@@ -63,7 +63,7 @@ func TestString(t *testing.T) {
 		term fmt.Stringer
 		want string
 	}{
-		{atom("a"), `"a"`},
+		{atom("a"), `a`},
 		{var_("A"), "A"},
 		{svar("A", 1), "A_1_"},
 		{comp("f"), "f()"},
@@ -75,9 +75,9 @@ func TestString(t *testing.T) {
 		{ilist(var_("A"), var_("B"), var_("Tail")), "[A, B|Tail]"},
 		{assoc(var_("Key"), var_("Val")), "Key:Val"},
 		{dict(var_("Key"), var_("Val")), "{Key:Val}"},
-		{dict(atom("a"), var_("A")), `{"a":A}`},
-		{dict(atom("a"), var_("A"), atom("b"), var_("B")), `{"a":A, "b":B}`},
-		{idict(atom("a"), var_("A"), atom("b"), var_("B"), var_("Parent")), `{"a":A, "b":B|Parent}`},
+		{dict(atom("a"), var_("A")), `{a:A}`},
+		{dict(atom("a"), var_("A"), atom("b"), var_("B")), `{a:A, b:B}`},
+		{idict(atom("a"), var_("A"), atom("b"), var_("B"), var_("Parent")), `{a:A, b:B|Parent}`},
 		{clause(comp("add", atom("0"), var_("X"), var_("X"))), `add("0", X, X).`},
 		{
 			clause(comp("add", comp("s", var_("A")), var_("B"), comp("s", var_("Sum"))),
@@ -113,23 +113,23 @@ func TestNewAssocSet(t *testing.T) {
 		{[]*logic.Assoc{}, ""},
 		{[]*logic.Assoc{assoc(atom("a"), int_(1))}, ""},
 		{[]*logic.Assoc{assoc(atom("a"), int_(1)), assoc(atom("b"), int_(1))}, ""},
-		{[]*logic.Assoc{assoc(atom("a"), int_(1)), assoc(atom("a"), int_(2))}, `duplicate keys in AssocSet: "a"`},
+		{[]*logic.Assoc{assoc(atom("a"), int_(1)), assoc(atom("a"), int_(2))}, `duplicate keys in AssocSet: a`},
 		{[]*logic.Assoc{
 			assoc(atom("a"), int_(1)),
 			assoc(atom("a"), int_(2)),
 			assoc(atom("a"), int_(3))},
-			`duplicate keys in AssocSet: "a"`},
+			`duplicate keys in AssocSet: a`},
 		{[]*logic.Assoc{
 			assoc(atom("a"), int_(1)),
 			assoc(atom("b"), int_(2)),
 			assoc(atom("b"), int_(3))},
-			`duplicate keys in AssocSet: "b"`},
+			`duplicate keys in AssocSet: b`},
 		{[]*logic.Assoc{
 			assoc(atom("a"), int_(0)),
 			assoc(atom("a"), int_(1)),
 			assoc(atom("b"), int_(2)),
 			assoc(atom("b"), int_(3))},
-			`duplicate keys in AssocSet: "a"`},
+			`duplicate keys in AssocSet: a`},
 	}
 	for _, test := range tests {
 		_, err := logic.NewAssocSet(test.assocs)

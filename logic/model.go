@@ -66,7 +66,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"unicode"
 )
 
 // ---- Basic types
@@ -169,14 +168,10 @@ var (
 //
 // It panics if the name doesn't start with an uppercase letter or an underscore.
 func NewVar(name string) Var {
-	r, err := firstRune(name)
-	if err != nil {
-		panic(fmt.Sprintf("NewVar: %v", err))
+    if !IsVar(name) {
+		panic("NewVar: invalid name: %q")
 	}
-	if r == '_' || unicode.IsUpper(r) {
-		return Var{name, 0}
-	}
-	panic(fmt.Sprintf("NewVar: invalid name: %q", name))
+    return Var{name, 0}
 }
 
 // WithSuffix creates a new var with the same name and provided suffix. Used to
@@ -202,7 +197,7 @@ func NewComp(functor string, terms ...Term) *Comp {
 	return &Comp{Functor: functor, Args: terms, hasVar_: hasVar}
 }
 
-// Indicator is a notation for a functor, usually shown as functor/arity, e.g., f/2.
+// Indicator is a notation for a comp, usually shown as functor/arity, e.g., f/2.
 type Indicator struct {
 	// Name is the compound term's functor.
 	Name string
@@ -748,7 +743,7 @@ func (t *Dict) Eq(other *Dict) bool { return t.compare(other) == equal }
 // ---- String()
 
 func (t Atom) String() string {
-	return fmt.Sprintf("%q", t.Name)
+	return FormatAtom(t.Name)
 }
 
 func (t Int) String() string {
