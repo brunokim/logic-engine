@@ -1,13 +1,77 @@
+// Package logic implements the interface for a logic engine, with terms and solvers.
+//
+// A logic term can be fall in one of three categories:
+//
+// * atomic: a term that represents an immutable value.
+//
+// * variable: a term that represents an unbound, yet-to-be-resolved term.
+//
+// * complex: a term that contains other terms, recursively.
+//
+// A logic program takes a list of rules and, given a query, tries to obtain
+// a list of variable assignments that satisfy this query, subject to the rules
+// provided.
+//
+// The simplest rule is a fact, that simply enunciates some known relationship.
+// For example, we can write the parent-child relationship of some members of the
+// British royal family:
+//
+//     parent(elizabeth, charles).
+//     parent(philip, charles).
+//     parent(charles, william).
+//     parent(diana, william).
+//     parent(charles, harry).
+//     parent(diana, harry).
+//
+// The fact 'parent(X, Y)' should be read as "X is parent of Y". We can use these
+// facts to query for relationships that satisfy both the query and the fact database.
+//
+//     ?- parent(P, charles).  % Query for P that satisfy "P is parent of charles"
+//     P = elizabeth ;
+//     P = philip .
+//
+//     ?- parent(diana, C).    % Query for C that satisfy "diana is parent of C"
+//     C = william ;
+//     C = harry .
+//
+//     ?- parent(X, philip).   % Query for X that satisfy "X is parent of philip".
+//     false                   % There's no fact in the database that satisfy that.
+//
+// More complex rules can be written as clauses like "X :- A, B, C.", that can be
+// read as "X holds if A, B, C also hold".
+//
+//     % G is a grandparent of C if G is parent of (some) P, and P is parent of C.
+//     grandparent(G, C) :- parent(G, P), parent(P, C).
+//
+//     % P1 is a partner of P2 if P1 and P2 have (some) child C, and P1 is not P2.
+//     partner(P1, P2) :- parent(P1, C), parent(P2, C), P1 \= P2.
+//
+// We can query these rules just as facts. The logic engine will look for facts that
+// satisfy the clause recursively and output all solutions.
+//
+//     ?- grandparent(G, harry).    % Query for grandparents G of harry
+//     G = elizabeth ;
+//     G = philip .
+//
+//     ?- partner(X, Y).            % Query for all partners in the database.
+//     X = elizabeth, Y = philip ;
+//     X = philip, Y = elizabeth ;
+//     X = charles, Y = diana ;     % charles-diana appears twice because they
+//     X = charles, Y = diana ;     % are partners in two ways: with
+//     X = diana, Y = charles ;     % C = william and C = harry.
+//     X = diana, Y = charles .
 package logic
 
 import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // ---- Basic types
 
+// Term is a representation of a logic term.
 type Term interface {
 	fmt.Stringer
 	short() string
@@ -15,64 +79,108 @@ type Term interface {
 	hasVar() bool
 }
 
+// Atom is an atomic term representing a symbol.
 type Atom struct {
+	// Name is the identifier for an atom.
 	Name string
 }
 
+// Int is an atomic term representing an integer.
 type Int struct {
+	// Value is the (immutable) value of an int.
 	Value int
 }
 
+// Var is a variable term.
 type Var struct {
+	// Name is the identifier for a var.
 	Name   string
 	suffix int
 }
 
+// Comp is a complex term, representing an immutable compound term.
 type Comp struct {
+	// Functor is the primary identifier of a comp.
 	Functor string
+	// Args is the list of terms within this term.
 	Args    []Term
 	hasVar_ bool
 }
 
+// List is a complex term, representing an ordered sequence of terms.
 type List struct {
-	Terms   []Term
+	// Terms are the contents of a list.
+	Terms []Term
+	// Tail is the continuation of a list, which is usually another
+	// list, the empty list, or an unbound var.
 	Tail    Term
 	hasVar_ bool
 }
 
+// Assoc is a complex term, representing an association pair.
 type Assoc struct {
-	Key, Val Term
-	hasVar_  bool
+	// Key is the association key
+	Key Term
+	// Val is the association value
+	Val     Term
+	hasVar_ bool
 }
 
+// AssocSet is a set of assocs, implemented as a sorted array.
 type AssocSet []*Assoc
 
+// Dict is a complex term, representing a set of associations with
+// unique keys.
 type Dict struct {
-	Assocs  AssocSet
+	// Set of associations of this dict.
+	Assocs AssocSet
+	// Parent is the representation of another dict with additional
+	// values to this dict. Note that the keys in Assocs override the
+	// ones in Parent. It usually is another dict, an unbound var, or
+	// the empty dict.
 	Parent  Term
 	hasVar_ bool
 }
 
+// Clause is the representation of a logic rule.
+// Note that Clause is not a Term, so it can't be used within complex terms.
 type Clause struct {
-	Head    Term   // May be Atom or Comp
-	Body    []Term // May be Atom, Var or Comp
+	// Head is the consequent of a clause. May be Atom or Comp.
+	Head Term
+	// Body is the antecedent of a clause. May be Atom, Var or Comp.
+	Body    []Term
 	hasVar_ bool
 }
 
 // ---- Public vars
 
 var (
+	// AnonymousVar represents a variable to be ignored.
 	AnonymousVar = NewVar("_")
+	// EmptyList is an atom representing an empty list.
 	EmptyList = Atom{"[]"}
+	// EmptyDict is an atom representing an empty dict.
 	EmptyDict = Atom{"{}"}
 )
 
 // ---- Vars
 
+// NewVar creates a new var.
+//
+// It panics if the name doesn't start with an uppercase letter or an underscore.
 func NewVar(name string) Var {
-	return Var{name, 0}
+	r, err := firstRune(name)
+	if err != nil {
+		panic(fmt.Sprintf("NewVar: %v", err))
+	}
+	if r == '_' || unicode.IsUpper(r) {
+		return Var{name, 0}
+	}
+	panic(fmt.Sprintf("NewVar: invalid name: %q", name))
 }
 
+// WithSuffix creates a new var with the same name and provided suffix. Used to
+// generate vars from the same template.
 func (x Var) WithSuffix(suffix int) Var {
 	if x.Name == "_" {
 		return x
@@ -82,6 +190,7 @@ func (x Var) WithSuffix(suffix int) Var {
 
 // ---- Compound terms
 
+// NewComp creates a compound term.
 func NewComp(functor string, terms ...Term) *Comp {
 	var hasVar bool
 	for _, term := range terms {
@@ -93,21 +202,27 @@ func NewComp(functor string, terms ...Term) *Comp {
 	return &Comp{Functor: functor, Args: terms, hasVar_: hasVar}
 }
 
+// Indicator is a notation for a functor, usually shown as functor/arity, e.g., f/2.
 type Indicator struct {
-	Name  string
+	// Name is the compound term's functor.
+	Name string
+	// Arity is the compound term's number of args.
 	Arity int
 }
 
+// Indicator returns the functor's indicator.
 func (c *Comp) Indicator() Indicator {
 	return Indicator{c.Functor, len(c.Args)}
 }
 
 // ---- Lists
 
+// NewList creates a List with the provided terms and EmptyList as tail.
 func NewList(terms ...Term) Term {
 	return NewIncompleteList(terms, EmptyList)
 }
 
+// NewIncompleteList creates a List with the provided terms and tail.
 func NewIncompleteList(terms []Term, tail Term) Term {
 	if len(terms) == 0 {
 		return tail
@@ -132,7 +247,11 @@ func NewIncompleteList(terms []Term, tail Term) Term {
 	return &List{Terms: terms, Tail: tail, hasVar_: hasVar}
 }
 
+// Slice returns a new list starting from the n-th term, inclusive.
 func (l *List) Slice(n int) Term {
+	if n < 0 || n > len(l.Terms) {
+		panic(fmt.Sprintf("(*List).Slice: invalid index %d", n))
+	}
 	if n == len(l.Terms) {
 		return l.Tail
 	}
@@ -144,10 +263,14 @@ func (l *List) Slice(n int) Term {
 
 // ---- Assoc and Dict
 
+// NewAssoc returns an assoc with provided key and value.
 func NewAssoc(key, val Term) *Assoc {
 	return &Assoc{Key: key, Val: val, hasVar_: key.hasVar() || val.hasVar()}
 }
 
+// NewAssocSet returns an AssocSet with the provided assocs.
+//
+// It returns an error if there are any duplicate keys.
 func NewAssocSet(as []*Assoc) (AssocSet, error) {
 	tmp := make(AssocSet, len(as))
 	copy(tmp, as)
@@ -222,10 +345,16 @@ func intersectionAndDifferences(as1, as2 AssocSet) ([]Term, AssocSet, AssocSet) 
 
 // ---- Dicts
 
+// NewDict returns a dict with the provided assocs and EmptyDict as parent.
+//
+// It panics if there are duplicate keys in assocs.
 func NewDict(assocs ...*Assoc) Term {
 	return NewIncompleteDict(assocs, EmptyDict)
 }
 
+// NewIncompleteDict returns a dict with the provided assocs and parent.
+//
+// It panics if there are duplicate keys in assocs.
 func NewIncompleteDict(assocs []*Assoc, parent Term) Term {
 	if len(assocs) == 0 {
 		return parent
@@ -257,6 +386,7 @@ func newIncompleteDict(assocs AssocSet, parent Term) *Dict {
 
 // ---- Clauses
 
+// NewClause returns a clause with the provided head and terms as body.
 func NewClause(head Term, body ...Term) *Clause {
 	var hasVar bool
 	for _, term := range body {
@@ -273,10 +403,8 @@ func NewClause(head Term, body ...Term) *Clause {
 
 // Normalize transforms the clause to contain only comp terms.
 //
-// Example:
-//    p :- f(X), q, X.
-//    ->
-//    p() :- f(X), q(), call(X).
+// Atoms in the clause's head and body are converted to functors with 0 arity.
+// Variables in the clause's body are converted to a 'call(X)' functor.
 func (c *Clause) Normalize() (*Clause, error) {
 	var head Term
 	switch h := c.Head.(type) {
@@ -333,8 +461,8 @@ func Vars(term Term) []Var {
 	return xs
 }
 
-func (t Atom) vars(seen map[Var]struct{}, xs []Var) []Var    { return xs }
-func (t Int) vars(seen map[Var]struct{}, xs []Var) []Var     { return xs }
+func (t Atom) vars(seen map[Var]struct{}, xs []Var) []Var { return xs }
+func (t Int) vars(seen map[Var]struct{}, xs []Var) []Var  { return xs }
 
 func (t Var) vars(seen map[Var]struct{}, xs []Var) []Var {
 	if _, ok := seen[t]; ok {
@@ -373,6 +501,7 @@ func (t *Dict) vars(seen map[Var]struct{}, xs []Var) []Var {
 	return xs
 }
 
+// Vars returns a set with all variables, in insertion order.
 func (t *Clause) Vars() []Var {
 	seen := make(map[Var]struct{})
 	var xs []Var
@@ -544,13 +673,20 @@ func (d *Dict) compare(other *Dict) ordering {
 
 // ---- Less()
 
+// Less returns the order between t1 and t2, following the standard of terms.
+//
+// The order of terms is: Vars < Ints < Atoms < Comps < List < Assoc < Dict
 func Less(t1, t2 Term) bool {
 	return compare(t1, t2) == less
 }
 
-func (t Atom) Less(other Atom) bool       { return t.Name < other.Name }
-func (t Int) Less(other Int) bool         { return t.Value < other.Value }
+// Less returns whether this atom is less than another, in lexicographic order.
+func (t Atom) Less(other Atom) bool { return t.Name < other.Name }
 
+// Less returns whether this int is less than another.
+func (t Int) Less(other Int) bool { return t.Value < other.Value }
+
+// Less returns whether this var is less than another, in lexicographic order.
 func (t Var) Less(other Var) bool {
 	if t.Name != other.Name {
 		return t.Name < other.Name
@@ -558,24 +694,56 @@ func (t Var) Less(other Var) bool {
 	return t.suffix < other.suffix
 }
 
-func (t *Comp) Less(other *Comp) bool   { return t.compare(other) == less }
-func (t *List) Less(other *List) bool   { return t.compare(other) == less }
+// Less returns whether this comp is less than another.
+//
+// Comps are first compared by arity, then by functor, then by args pairwise.
+func (t *Comp) Less(other *Comp) bool { return t.compare(other) == less }
+
+// Less returns whether this list is less than another.
+//
+// Lists are compared lexicographically.
+func (t *List) Less(other *List) bool { return t.compare(other) == less }
+
+// Less returns whether this assoc is less than another.
+//
+// Assocs are compared first by key, than by value.
 func (t *Assoc) Less(other *Assoc) bool { return t.compare(other) == less }
-func (t *Dict) Less(other *Dict) bool   { return t.compare(other) == less }
+
+// Less returns whether this dict is less than another.
+//
+// Dicts are compared in lexicographic order, with keys sorted.
+func (t *Dict) Less(other *Dict) bool { return t.compare(other) == less }
 
 // ---- Eq()
 
+// Eq returns whether t1 and t2 are identical terms.
+//
+// Note that this only takes into account the structure of terms, not whether
+// any binding may make them identical.
 func Eq(t1, t2 Term) bool {
 	return compare(t1, t2) == equal
 }
 
-func (t Atom) Eq(other Atom) bool       { return t == other }
-func (t Int) Eq(other Int) bool         { return t == other }
-func (t Var) Eq(other Var) bool         { return t == other }
-func (t *Comp) Eq(other *Comp) bool     { return t.compare(other) == equal }
-func (t *List) Eq(other *List) bool     { return t.compare(other) == equal }
-func (t *Assoc) Eq(other *Assoc) bool   { return t.compare(other) == equal }
-func (t *Dict) Eq(other *Dict) bool     { return t.compare(other) == equal }
+// Eq returns whether this atom is equal to another.
+func (t Atom) Eq(other Atom) bool { return t == other }
+
+// Eq returns whether this int is equal to another.
+func (t Int) Eq(other Int) bool { return t == other }
+
+// Eq returns whether this var is equal to another.
+func (t Var) Eq(other Var) bool { return t == other }
+
+// Eq returns whether this comp is equal to another.
+func (t *Comp) Eq(other *Comp) bool { return t.compare(other) == equal }
+
+// Eq returns whether this list is equal to another.
+func (t *List) Eq(other *List) bool { return t.compare(other) == equal }
+
+// Eq returns whether this assoc is equal to another.
+func (t *Assoc) Eq(other *Assoc) bool { return t.compare(other) == equal }
+
+// Eq returns whether this dict is equal to another.
+func (t *Dict) Eq(other *Dict) bool { return t.compare(other) == equal }
 
 // ---- String()
 
@@ -645,9 +813,9 @@ func (c *Clause) String() string {
 
 // ---- short()
 
-func (t Atom) short() string    { return t.String() }
-func (t Int) short() string     { return t.String() }
-func (t Var) short() string     { return t.String() }
+func (t Atom) short() string { return t.String() }
+func (t Int) short() string  { return t.String() }
+func (t Var) short() string  { return t.String() }
 
 func (t *Comp) short() string {
 	return fmt.Sprintf("%s/%d", t.Functor, len(t.Args))

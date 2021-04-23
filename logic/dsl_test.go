@@ -5,17 +5,17 @@ import (
 )
 
 var (
-	assoc     = dsl.Assoc
-	atom      = dsl.Atom
-	clause    = dsl.Clause
-	clauses   = dsl.Clauses
-	comp      = dsl.Comp
-	dict      = dsl.Dict
-	idict     = dsl.IDict
-	ilist     = dsl.IList
-	int_      = dsl.Int
-	list      = dsl.List
-	svar      = dsl.SVar
-	terms     = dsl.Terms
-	var_      = dsl.Var
+	assoc   = dsl.Assoc
+	atom    = dsl.Atom
+	clause  = dsl.Clause
+	clauses = dsl.Clauses
+	comp    = dsl.Comp
+	dict    = dsl.Dict
+	idict   = dsl.IDict
+	ilist   = dsl.IList
+	int_    = dsl.Int
+	list    = dsl.List
+	svar    = dsl.SVar
+	terms   = dsl.Terms
+	var_    = dsl.Var
 )
