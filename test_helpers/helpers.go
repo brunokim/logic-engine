@@ -15,6 +15,7 @@ func numSpaces(s string) int {
 	return n
 }
 
+// TabIndent indents every line of s with a single tab.
 func TabIndent(s string) string {
 	lines := strings.Split(s, "\n")
 	for i, line := range lines {
@@ -27,6 +28,8 @@ func TabIndent(s string) string {
 	return strings.Join(lines, "\n")
 }
 
+// Dedent removes common whitespace of each line. Useful to remove indentation that is
+// present only because of a `backtick` string indentation level.
 func Dedent(s string) string {
 	lines := strings.Split(s, "\n")
 	minSpaces := len(s)

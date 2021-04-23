@@ -7,6 +7,7 @@ import (
 	"github.com/brunokim/logic-engine/logic"
 )
 
+// NewMachine creates a new abstract machine.
 func NewMachine() *Machine {
 	m := new(Machine)
 	m.Code = make(map[Functor]*Clause)
@@ -16,6 +17,8 @@ func NewMachine() *Machine {
 	return m
 }
 
+// AddClause adds a compiled clause to the machine.
+// It overwrites any present clause with the same functor.
 func (m *Machine) AddClause(clause *Clause) {
 	m.Code[clause.Functor] = clause
 	// Grow machine registers to accomodate the clause requirements.
@@ -24,9 +27,16 @@ func (m *Machine) AddClause(clause *Clause) {
 	}
 }
 
-// TODO: ignore cuts (and other builtin calls) that we know that
-// preserve registers. For example, in "f(X) :- !, a(X)." X is
-// not a permanent variable.
+// Compute the permanent vars of a logic clause.
+//
+// A permanent var is a local var in a call that is referenced in more
+// than one body term. They must be stored in the environment stack, or
+// otherwise they may be overwritten if stored in a register, since a
+// body term may use them in any ways.
+//
+// TODO: ignore cuts (and other builtin calls) that we know to preserve
+// registers. For example, in "f(X) :- !, a(X)." X should not be a
+// permanent variable.
 func permanentVars(clause *logic.Clause) map[logic.Var]struct{} {
 	if len(clause.Body) < 2 {
 		return map[logic.Var]struct{}{}
@@ -89,6 +99,7 @@ type compound struct {
 	addr RegAddr
 }
 
+// compileCtx wraps all the state necessary to compile a single clause.
 type compileCtx struct {
 	topReg  RegAddr
 	seen    map[logic.Var]struct{}
@@ -217,8 +228,8 @@ func (ctx *compileCtx) putTerm(term logic.Term, addr RegAddr) []Instruction {
 	}
 }
 
-// Set arguments by first handling compound terms (comp, list) and later
-// vars. This is necessary because compound terms may have vars within them, and
+// Set arguments by first handling complex terms (comp, list) and later
+// vars. This is necessary because complex terms may have vars within them, and
 // these must be set first (e.g. with set_variable) before the top-level reference.
 //
 // Example
@@ -263,6 +274,7 @@ func (ctx *compileCtx) setArg(arg logic.Term) Instruction {
 	}
 }
 
+// Compile compiles a single logic clause.
 func Compile(clause *logic.Clause) *Clause {
 	clause2, err := clause.Normalize()
 	if err != nil {
@@ -298,6 +310,7 @@ func compileQuery(query []logic.Term) (*Clause, error) {
 }
 
 func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction {
+    // Special cases.
 	switch term.Indicator() {
 	case dsl.Indicator("!", 0):
 		if pos == 0 {
@@ -307,6 +320,7 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 	case dsl.Indicator("fail", 0):
 		return []Instruction{Fail{}}
 	}
+    // Regular goal: put term args into registers X0-Xn and issue a call to f/n.
 	ctx.instrs = nil
 	var instrs []Instruction
 	for i, arg := range term.Args {
@@ -332,6 +346,7 @@ func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
 			ctx.topReg++
 		}
 	}
+    // If call requires an environment, add an allocate-deallocate pair to the clause.
 	var header, footer []Instruction
 	if currStack > 0 || hasDeepCut(clause) || hasNonLastCall(clause) {
 		header = []Instruction{Allocate{currStack}}
@@ -436,6 +451,7 @@ func optimizeLastCall(code []Instruction) []Instruction {
 	return code
 }
 
+// Create level-1 index of clauses, based on their first arg.
 func compileClausesWithSameFunctor(clauses []*logic.Clause) *Clause {
 	if len(clauses) == 1 {
 		return Compile(clauses[0])
@@ -465,6 +481,13 @@ func compileClausesWithSameFunctor(clauses []*logic.Clause) *Clause {
 	}
 }
 
+// Compile a subsequence of clauses with non-var first argument.
+//
+// Clauses are indexed on whether their first argument is a constant,
+// functor or list, accelerating matching during unification.
+//
+// Clauses with same first arg are also placed in a linked-list of
+// try-retry-trust instructions.
 func compileSubSequence(clauses []*logic.Clause) *Clause {
 	var numReg int
 	codes := make([]*Clause, len(clauses))
@@ -497,7 +520,7 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 			panic(fmt.Sprintf("compileSubSequences: unexpected term type %T (%v)", arg, arg))
 		}
 	}
-	//
+	// Create first indexing instruction.
 	switchOnTerm := SwitchOnTerm{
 		IfVar:      InstrAddr{codes[0], 0},
 		IfConstant: InstrAddr{fail, 0},
@@ -579,6 +602,7 @@ func addrsToInstrs(addrs []InstrAddr) []Instruction {
 //    f(a, b, c).  |-- third subsequence
 //    f(g(u, v)).  |
 //    f(U, V).    |--- fourth subsequence
+//    f(X, p(X)).  |-- fifth subsequence
 //
 func splitSubsequences(clauses []*logic.Clause) ([][]*logic.Clause, bool) {
 	var buf []*logic.Clause
@@ -630,6 +654,8 @@ func addChoiceLinks(clauses []*Clause) {
 	}
 }
 
+// CompileClauses returns a list of compiled clauses. Each corresponds with
+// a functor f/n, and all sub-clauses that implement the same functor.
 func CompileClauses(clauses []*logic.Clause) ([]*Clause, error) {
 	m := make(map[logic.Indicator][]*logic.Clause)
 	var order []logic.Indicator

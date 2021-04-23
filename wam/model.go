@@ -1,19 +1,41 @@
+// Package wam implements an interpreter for a Warren Abstract Machine.
+//
+// The WAM is a specification to implement a register-based Prolog machine,
+// that enjoys good performance and ease of translation to machine code.
+//
+// The literal specification expects a huge area of contiguous memory to
+// contain the machine's stack, heap and registers. We sidestep this model
+// to make use of regular Go pointers whenever possible, leveraging the
+// runtime's garbage collector.
+//
+// The machine is composed of a list of registers and two stacks: the 
+// environment (or AND-)stack, that stores local variables of function calls,
+// and the choicepoint (or OR-)stack, that stores the sequence of possible
+// alternate steps to take on failure.
+//
+// Learn more in "Warren’s Abstract Machine: A tutorial reconstrution", Hassan Aït-Kici
 package wam
 
 import (
 	"fmt"
 	"sort"
 	"strings"
+
+    "github.com/brunokim/logic-engine/logic"
 )
 
 // ---- Address types
 
+// Addr represents an address within the machine's memory.
 type Addr interface {
 	fmt.Stringer
 	isAddr()
 }
 
+// RegAddr is the index of a machine register.
 type RegAddr int
+
+// StackAddr is the index of a local variable in the current environment.
 type StackAddr int
 
 func (a RegAddr) isAddr()   {}
@@ -36,157 +58,196 @@ func (i Functor) String() string {
 
 // ---- Instructions
 
+// Instruction represents an instruction of the abstract machine.
 type Instruction interface {
 	fmt.Stringer
 	isInstruction()
 }
 
+// PutStruct instruction: put_struct <f/n>, <reg X>
 type PutStruct struct {
 	Functor Functor
 	ArgAddr RegAddr
 }
 
+// PutVariable instruction: put_variable <addr>, <reg X>
 type PutVariable struct {
 	Addr    Addr
 	ArgAddr RegAddr
 }
 
+// PutValue instruction: put_value <addr>, <reg X>
 type PutValue struct {
 	Addr    Addr
 	ArgAddr RegAddr
 }
 
+// PutConstant instruction: put_constant <const>, <reg X>
 type PutConstant struct {
 	Constant *Constant
 	ArgAddr  RegAddr
 }
 
+// PutList instruction: put_list <reg X>
 type PutList struct {
 	ArgAddr RegAddr
 }
 
+// GetStruct instruction: get_struct <f/n>, <reg X>
 type GetStruct struct {
 	Functor Functor
 	ArgAddr RegAddr
 }
 
+// GetVariable instruction: get_variable <addr>, <reg X>
 type GetVariable struct {
 	Addr    Addr
 	ArgAddr RegAddr
 }
 
+// GetValue instruction: get_value <addr>, <reg X>
 type GetValue struct {
 	Addr    Addr
 	ArgAddr RegAddr
 }
 
+// GetConstant instruction: get_constant <const>, <reg X>
 type GetConstant struct {
 	Constant *Constant
 	ArgAddr  RegAddr
 }
 
+// GetList instruction: get_list <reg X>
 type GetList struct {
 	ArgAddr RegAddr
 }
 
+// SetVariable instruction: set_variable <addr>
 type SetVariable struct {
 	Addr Addr
 }
 
+// SetValue instruction: set_value <addr>
 type SetValue struct {
 	Addr Addr
 }
 
+// SetConstant instruction: set_constant <const>
 type SetConstant struct {
 	Constant *Constant
 }
 
+// SetVoid instruction: set_void <n>
 type SetVoid struct {
 	NumVars int
 }
 
+// UnifyVariable instruction: unify_variable <addr>
 type UnifyVariable struct {
 	Addr Addr
 }
 
+// UnifyValue instruction: unify_value <addr>
 type UnifyValue struct {
 	Addr Addr
 }
 
+// UnifyConstant instruction: unify_constant <const>
 type UnifyConstant struct {
 	Constant *Constant
 }
 
+// UnifyVoid instruction: unify_void <n>
 type UnifyVoid struct {
 	NumVars int
 }
 
+// Call instruction: call <f/n>
 type Call struct {
 	Functor Functor
 }
 
+// CallMeta instruction: call_meta <addr>, [<addr1>, <addr2>, <addr3>]
 type CallMeta struct {
 	Addr   Addr
 	Params []Addr
 }
 
+// Execute instruction: execute <f/n>
 type Execute struct {
 	Functor Functor
 }
 
+// ExecuteMeta instruction: execute_meta <addr>, [<addr1>, <addr2>, <addr3>]
 type ExecuteMeta struct {
 	Addr   Addr
 	Params []Addr
 }
 
+// Proceed instruction: proceed
 type Proceed struct{}
 
+// Halt instruction: halt
 type Halt struct{}
 
+// Allocate instruction: allocate <n>
 type Allocate struct {
 	NumVars int
 }
 
+// Deallocate instruction: deallocate
 type Deallocate struct{}
 
+// TryMeElse instruction: try_me_else <instr i>
 type TryMeElse struct {
 	Alternative InstrAddr
 }
 
+// RetryMeElse instruction: retry_me_else <instr i>
 type RetryMeElse struct {
 	Alternative InstrAddr
 }
 
+// TrustMe instruction: trust_me
 type TrustMe struct{}
 
+// Try instruction: try <instr i>
 type Try struct {
 	Continuation InstrAddr
 }
 
+// Retry instruction: retry <instr i>
 type Retry struct {
 	Continuation InstrAddr
 }
 
+// Trust instruction: trust <instr i>
 type Trust struct {
 	Continuation InstrAddr
 }
 
+// SwitchOnTerm instruction: switch_on_term <instr ifVar> <instr ifConst> <instr ifList> <instr ifStruct>
 type SwitchOnTerm struct {
 	IfVar, IfConstant, IfList, IfStruct InstrAddr
 }
 
+// SwitchOnConstant instruction: switch_on_constant map{"p": <instr i1>, "q": <instr i2>}
 type SwitchOnConstant struct {
 	Continuation map[string]InstrAddr
 }
 
+// SwitchOnStruct instruction: switch_on_constant map{"f/1": <instr i1>, "f/2": <instr i2>}
 type SwitchOnStruct struct {
 	Continuation map[Functor]InstrAddr
 }
 
+// NeckCut instruction: neck_cut
 type NeckCut struct{}
 
+// Cut instruction: cut
 type Cut struct{}
 
+// Fail instruction: fail
 type Fail struct{}
 
 func (i PutStruct) isInstruction()        {}
@@ -400,14 +461,14 @@ func (i Fail) String() string {
 
 // ---- Clauses and code
 
-// Fragment of a code representing a single clause.
+// Clause represents a single compiled clause.
 type Clause struct {
 	Functor      Functor
 	NumRegisters int
 	Code         []Instruction
 }
 
-// Location of an instruction within a clause.
+// InstrAddr represents the address of an instruction within a clause.
 type InstrAddr struct {
 	Clause *Clause
 	Pos    int
@@ -460,25 +521,34 @@ func (a InstrAddr) String() string {
 
 // ---- Heap cells
 
+// Cell represents a term in the Go heap.
 type Cell interface {
 	fmt.Stringer
 	isCell()
 }
 
+// Ref represents a variable indirection. When it's unbound, the
+// Cell field is nil; otherwise, it points to another heap cell.
 type Ref struct {
 	Cell Cell
 	id   int
 }
 
+// Struct represents a compound term. 
 type Struct struct {
 	Name string
 	Args []Cell
 }
 
+// Constant represents an immutable value, such as an atom, int or
+// Go pointer.
 type Constant struct {
 	Value string
 }
 
+// List represents a list term as a linked list of cons cells.
+//
+//     [a, b, c] -> List{Atom{"a"}, List{Atom{"b"}, List{Atom{"c"}, Atom{"[]"}}}}
 type List struct {
 	Head, Tail Cell
 }
@@ -488,6 +558,7 @@ func (c *Ref) isCell()      {}
 func (c *Constant) isCell() {}
 func (c *List) isCell()     {}
 
+// Functor returns the f/n notation of a struct.
 func (c *Struct) Functor() Functor {
 	return Functor{c.Name, len(c.Args)}
 }
@@ -507,53 +578,11 @@ func (c *Struct) String() string {
 	return fmt.Sprintf("%s(%s)", c.Name, strings.Join(args, ", "))
 }
 
-var syntaxChars = map[rune]string{
-	' ':  " ",
-	'\n': "\\n",
-	'\t': "\\t",
-	'\v': "\\v",
-	'\f': "\\f",
-	'\r': "\\r",
-	',':  ",",
-	'(':  "(",
-	')':  ")",
-	'[':  "[",
-	']':  "]",
-	'"':  "\\\"",
-	'\\': "\\\\",
-	'_':  "_",
-}
-
-func formatAtom(text string) string {
-	// Check if there's any character that needs escaping.
-	var hasEscape bool
-	for _, ch := range text {
-		if _, ok := syntaxChars[ch]; ok {
-			hasEscape = true
-			break
-		}
-	}
-	if !hasEscape {
-		return text
-	}
-	// Build a quoted atom.
-	var b strings.Builder
-	b.WriteRune('"')
-	for _, ch := range text {
-		if exp, ok := syntaxChars[ch]; ok {
-			b.WriteString(exp)
-		} else {
-			b.WriteRune(ch)
-		}
-	}
-	b.WriteRune('"')
-	return b.String()
-}
-
 func (c *Constant) String() string {
-	return formatAtom(c.Value)
+	return logic.FormatAtom(c.Value)
 }
 
+// Unroll a List into a sequence of cells.
 func (c *List) toSlice() ([]Cell, Cell) {
 	cells, tail := []Cell{c.Head}, c.Tail
 	l, ok := tail.(*List)
@@ -580,7 +609,7 @@ func (c *List) String() string {
 
 // ---- Stack frames
 
-// AND-stack frames, environment associated to a call.
+// Env represents an AND-stack frame with the environment associated to a call.
 type Env struct {
 	// Previous environment.
 	Prev *Env
@@ -592,7 +621,7 @@ type Env struct {
 	CutChoice *ChoicePoint
 }
 
-// OR-stack frames, state associated to a different code path.
+// ChoicePoint represents an OR-stack frames with the state associated to an alternative code path.
 type ChoicePoint struct {
 	// Previous choice point.
 	Prev *ChoicePoint
@@ -608,14 +637,16 @@ type ChoicePoint struct {
 	Continuation InstrAddr
 }
 
-type UnificationMode int
-
 //go:generate stringer -type=UnificationMode
+
+// UnificationMode is an enum for the current machine's read or write unification approach.
+type UnificationMode int
 const (
 	Read UnificationMode = iota
 	Write
 )
 
+// Machine represents an abstract machine state.
 type Machine struct {
 	// Instruction list. A query is represented by an empty functor.
 	Code map[Functor]*Clause
@@ -629,7 +660,8 @@ type Machine struct {
 	// Temporary cell region. Should be max of all Clause.NumRegister's.
 	Reg []Cell
 
-	// Trail of variables that may need to be unbound.
+	// Trail of variables that may need to be unbound on backtrack.
+    // TODO: move this to the choicepoint themselves?
 	Trail []*Ref
 
 	// Read or write mode for term unification.

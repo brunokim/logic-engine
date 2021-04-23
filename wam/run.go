@@ -11,6 +11,8 @@ import (
 	"github.com/brunokim/logic-engine/logic"
 )
 
+// RunQuery executes the given logic query, returning all bindings that satisfy the query
+// and compiled clauses simultaneously.
 func (m *Machine) RunQuery(query ...logic.Term) (map[logic.Var]logic.Term, error) {
 	pos := make(map[logic.Var]int)
 	var xs []logic.Var
