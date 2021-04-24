@@ -29,13 +29,17 @@ type Result struct {
 	Err      error
 }
 
+func (solver *Solver) Debug(filename string) {
+	solver.m.DebugFilename = filename
+}
+
 func (solver *Solver) Query(terms ...logic.Term) (<-chan Result, func()) {
 	solver.m.Reset()
 	stream := make(chan Result)
 	go func() {
 		bindings, err := solver.m.RunQuery(terms...)
 		stream <- Result{bindings, err}
-		for err != nil {
+		for err == nil {
 			bindings, err = solver.m.NextSolution()
 			stream <- Result{bindings, err}
 		}
