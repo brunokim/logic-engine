@@ -150,7 +150,7 @@ export class Wam2 {
                     aria-haspopup=true
                     aria-controls=${tableId}
                     aria-expanded=${isExpanded}>
-                        #${i} --
+                        Env #${i} --
                         Address: ${this.instructionAddress(ptr)}
                         Continuation: ${this.instructionAddress(env.Continuation)}
                 </h3>`)
@@ -202,7 +202,7 @@ export class Wam2 {
                     aria-haspopup=true
                     aria-controls=${tableId}
                     aria-expanded=${isExpanded}>
-                        #${i} --
+                        Choice #${i} --
                         Address: ${this.instructionAddress(ptr)}
                         Continuation: ${this.instructionAddress(choice.Continuation)}
                 </h3>`)
