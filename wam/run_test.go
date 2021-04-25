@@ -943,7 +943,7 @@ func TestNextSolution(t *testing.T) {
 	// add(0, S, S).
 	// add(s(A), B, s(S)) :- add(A, B, S).
 	clauses, err := wam.CompileClauses([]*logic.Clause{
-		dsl.Clause(comp("add", atom("0"), var_("S"), var_("S"))),
+		dsl.Clause(comp("add", int_(0), var_("S"), var_("S"))),
 		dsl.Clause(comp("add", comp("s", var_("A")), var_("B"), comp("s", var_("S"))),
 			comp("add", var_("A"), var_("B"), var_("S"))),
 	})
@@ -957,7 +957,7 @@ func TestNextSolution(t *testing.T) {
 	// ?- add(X, Y, s(s(s(0)))).
 	var solutions [4]map[logic.Var]logic.Term
 	solutions[0], err = m.RunQuery(
-		comp("add", var_("X"), var_("Y"), comp("s", comp("s", comp("s", atom("0"))))))
+		comp("add", var_("X"), var_("Y"), comp("s", comp("s", comp("s", int_(0))))))
 	if err != nil {
 		t.Fatalf("RunQuery: got err: %v", err)
 	}
@@ -973,17 +973,17 @@ func TestNextSolution(t *testing.T) {
 	}
 	wantSolutions := [4]map[logic.Var]logic.Term{
 		map[logic.Var]logic.Term{
-			var_("X"): atom("0"),
-			var_("Y"): comp("s", comp("s", comp("s", atom("0"))))},
+			var_("X"): int_(0),
+			var_("Y"): comp("s", comp("s", comp("s", int_(0))))},
 		map[logic.Var]logic.Term{
-			var_("X"): comp("s", atom("0")),
-			var_("Y"): comp("s", comp("s", atom("0")))},
+			var_("X"): comp("s", int_(0)),
+			var_("Y"): comp("s", comp("s", int_(0)))},
 		map[logic.Var]logic.Term{
-			var_("X"): comp("s", comp("s", atom("0"))),
-			var_("Y"): comp("s", atom("0"))},
+			var_("X"): comp("s", comp("s", int_(0))),
+			var_("Y"): comp("s", int_(0))},
 		map[logic.Var]logic.Term{
-			var_("X"): comp("s", comp("s", comp("s", atom("0")))),
-			var_("Y"): atom("0")},
+			var_("X"): comp("s", comp("s", comp("s", int_(0)))),
+			var_("Y"): int_(0)},
 	}
 	if diff := cmp.Diff(wantSolutions, solutions, test_helpers.IgnoreUnexported); diff != "" {
 		t.Errorf("-want, +got:%s", diff)

@@ -64,6 +64,7 @@ func TestString(t *testing.T) {
 		want string
 	}{
 		{atom("a"), `a`},
+		{int_(42), `42`},
 		{var_("A"), "A"},
 		{svar("A", 1), "A_1_"},
 		{comp("f"), "f()"},
@@ -78,7 +79,7 @@ func TestString(t *testing.T) {
 		{dict(atom("a"), var_("A")), `{a:A}`},
 		{dict(atom("a"), var_("A"), atom("b"), var_("B")), `{a:A, b:B}`},
 		{idict(atom("a"), var_("A"), atom("b"), var_("B"), var_("Parent")), `{a:A, b:B|Parent}`},
-		{clause(comp("add", atom("0"), var_("X"), var_("X"))), `add("0", X, X).`},
+		{clause(comp("add", int_(0), var_("X"), var_("X"))), `add(0, X, X).`},
 		{
 			clause(comp("add", comp("s", var_("A")), var_("B"), comp("s", var_("Sum"))),
 				comp("add", var_("A"), var_("B"), var_("Sum"))),

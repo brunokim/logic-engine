@@ -56,6 +56,7 @@ type (
 
 var (
 	atom  = dsl.Atom
+	int_  = dsl.Int
 	comp  = dsl.Comp
 	ilist = dsl.IList
 	list  = dsl.List

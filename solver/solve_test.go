@@ -17,6 +17,7 @@ var (
 	clauses = dsl.Clauses
 	clause  = dsl.Clause
 	atom    = dsl.Atom
+	int_    = dsl.Int
 	var_    = dsl.Var
 	comp    = dsl.Comp
 )
@@ -25,7 +26,7 @@ func TestSolve(t *testing.T) {
 	// nat(0).
 	// nat(s(X)) :- nat(X).
 	s, err := solver.NewSolver(clauses(
-		clause(comp("nat", atom("0"))),
+		clause(comp("nat", int_(0))),
 		clause(comp("nat", comp("s", var_("X"))),
 			comp("nat", var_("X"))),
 	))
@@ -45,11 +46,11 @@ func TestSolve(t *testing.T) {
 	}
 	cancel()
 	want := [5]solver.Solution{
-		solver.Solution{var_("X"): atom("0")},
-		solver.Solution{var_("X"): comp("s", atom("0"))},
-		solver.Solution{var_("X"): comp("s", comp("s", atom("0")))},
-		solver.Solution{var_("X"): comp("s", comp("s", comp("s", atom("0"))))},
-		solver.Solution{var_("X"): comp("s", comp("s", comp("s", comp("s", atom("0")))))},
+		solver.Solution{var_("X"): int_(0)},
+		solver.Solution{var_("X"): comp("s", int_(0))},
+		solver.Solution{var_("X"): comp("s", comp("s", int_(0)))},
+		solver.Solution{var_("X"): comp("s", comp("s", comp("s", int_(0))))},
+		solver.Solution{var_("X"): comp("s", comp("s", comp("s", comp("s", int_(0)))))},
 	}
 	if diff := cmp.Diff(want, got, test_helpers.IgnoreUnexported); diff != "" {
 		t.Errorf("(-want, +got)%s", diff)
@@ -62,7 +63,7 @@ func TestSolve_All(t *testing.T) {
 	// add(0, S, S).
 	// add(s(A), B, s(S)) :- add(A, B, S).
 	s, err := solver.NewSolver(clauses(
-		clause(comp("add", atom("0"), var_("S"), var_("S"))),
+		clause(comp("add", int_(0), var_("S"), var_("S"))),
 		clause(comp("add", succ(var_("A")), var_("B"), succ(var_("S"))),
 			comp("add", var_("A"), var_("B"), var_("S"))),
 	))
@@ -71,16 +72,16 @@ func TestSolve_All(t *testing.T) {
 		t.Fatalf("NewSolver: got err: %v", err)
 	}
 	// ?- add(X, Y, s(s(s(0)))).
-	solutions, _ := s.Query(comp("add", var_("X"), var_("Y"), succ(succ(succ(atom("0"))))))
+	solutions, _ := s.Query(comp("add", var_("X"), var_("Y"), succ(succ(succ(int_(0))))))
 	var got []solver.Solution
 	for result := range solutions {
 		got = append(got, result)
 	}
 	want := []solver.Solution{
-		solver.Solution{var_("X"): atom("0"), var_("Y"): succ(succ(succ(atom("0"))))},
-		solver.Solution{var_("X"): succ(atom("0")), var_("Y"): succ(succ(atom("0")))},
-		solver.Solution{var_("X"): succ(succ(atom("0"))), var_("Y"): succ(atom("0"))},
-		solver.Solution{var_("X"): succ(succ(succ(atom("0")))), var_("Y"): atom("0")},
+		solver.Solution{var_("X"): int_(0), var_("Y"): succ(succ(succ(int_(0))))},
+		solver.Solution{var_("X"): succ(int_(0)), var_("Y"): succ(succ(int_(0)))},
+		solver.Solution{var_("X"): succ(succ(int_(0))), var_("Y"): succ(int_(0))},
+		solver.Solution{var_("X"): succ(succ(succ(int_(0)))), var_("Y"): int_(0)},
 	}
 	if diff := cmp.Diff(want, got, test_helpers.IgnoreUnexported); diff != "" {
 		t.Errorf("(-want, +got)%s", diff)

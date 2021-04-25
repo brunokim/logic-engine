@@ -183,6 +183,8 @@ func (ctx *compileCtx) getTerm(term logic.Term, addr RegAddr) []Instruction {
 	switch t := term.(type) {
 	case logic.Atom:
 		return []Instruction{GetConstant{toConstant(t), addr}}
+	case logic.Int:
+		return []Instruction{GetConstant{toConstant(t), addr}}
 	case logic.Var:
 		return []Instruction{ctx.getVar(t, addr)}
 	case *logic.Comp:
@@ -207,6 +209,8 @@ func (ctx *compileCtx) unifyArg(arg logic.Term) Instruction {
 	switch a := arg.(type) {
 	case logic.Atom:
 		return UnifyConstant{toConstant(a)}
+	case logic.Int:
+		return UnifyConstant{toConstant(a)}
 	case logic.Var:
 		return ctx.unifyVar(a)
 	case *logic.Comp:
@@ -227,6 +231,8 @@ func (ctx *compileCtx) unifyArg(arg logic.Term) Instruction {
 func (ctx *compileCtx) putTerm(term logic.Term, addr RegAddr) []Instruction {
 	switch t := term.(type) {
 	case logic.Atom:
+		return []Instruction{PutConstant{toConstant(t), addr}}
+	case logic.Int:
 		return []Instruction{PutConstant{toConstant(t), addr}}
 	case logic.Var:
 		return []Instruction{ctx.putVar(t, addr)}
@@ -273,6 +279,8 @@ func (ctx *compileCtx) setArgs(args []logic.Term, instrs []Instruction) {
 func (ctx *compileCtx) setArg(arg logic.Term) Instruction {
 	switch a := arg.(type) {
 	case logic.Atom:
+		return SetConstant{toConstant(a)}
+	case logic.Int:
 		return SetConstant{toConstant(a)}
 	case logic.Var:
 		return ctx.setVar(a)
