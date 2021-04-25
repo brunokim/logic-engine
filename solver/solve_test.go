@@ -37,11 +37,11 @@ func TestSolve(t *testing.T) {
 	solutions, cancel := s.Query(comp("nat", var_("X")))
 	var got [5]solver.Solution
 	for i := 0; i < 5; i++ {
-		result := <-solutions
-		if result.Err != nil {
-			t.Fatalf("#%d: got err: %v", i, result.Err)
+		result, ok := <-solutions
+		if !ok {
+			t.Fatalf("#%d: stream closed prematurely (err: %v)", i, s.Err)
 		}
-		got[i] = result.Solution
+		got[i] = result
 	}
 	cancel()
 	want := [5]solver.Solution{
@@ -73,13 +73,8 @@ func TestSolve_All(t *testing.T) {
 	// ?- add(X, Y, s(s(s(0)))).
 	solutions, _ := s.Query(comp("add", var_("X"), var_("Y"), succ(succ(succ(atom("0"))))))
 	var got []solver.Solution
-	var i int
 	for result := range solutions {
-		if result.Err != nil {
-			break
-		}
-		i++
-		got = append(got, result.Solution)
+		got = append(got, result)
 	}
 	want := []solver.Solution{
 		solver.Solution{var_("X"): atom("0"), var_("Y"): succ(succ(succ(atom("0"))))},
@@ -105,12 +100,15 @@ func TestSolve_Cancel(t *testing.T) {
 	<-time.After(10 * time.Millisecond)
 	cancel()
 	result, ok := <-solutions
-	if !ok {
-		t.Fatalf("s.Query() channel was closed prematurely")
+	if result != nil {
+		t.Fatalf("result is not nil: %v", result)
 	}
-	if !strings.Contains(result.Err.Error(), "interrupted @ clock") {
-		t.Errorf("expected interrupted error, got: %v", result.Err)
+	if ok {
+		t.Fatalf("channel is open after canceling")
+	}
+	if !strings.Contains(s.Err.Error(), "interrupted @ clock") {
+		t.Errorf("expected interrupted error, got: %v", s.Err)
 	} else {
-		t.Log(result.Err)
+		t.Log(s.Err)
 	}
 }
