@@ -36,10 +36,7 @@ func Example() {
 		comp("mul", succ(succ(atom("0"))), succ(succ(succ(atom("0")))), var_("Y")),
 		comp("add", succ(atom("0")), var_("X"), var_("Y")))
 	for solution := range solutions {
-		for x, term := range solution {
-			fmt.Printf("%v = %v\n", x, term)
-		}
+		fmt.Println(solution)
 	}
-	// Unordered output: X = s(s(s(s(s("0")))))
-	// Y = s(s(s(s(s(s("0"))))))
+	// Output: X = s(s(s(s(s("0"))))), Y = s(s(s(s(s(s("0"))))))
 }

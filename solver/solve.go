@@ -3,6 +3,10 @@
 package solver
 
 import (
+	"fmt"
+	"sort"
+	"strings"
+
 	"github.com/brunokim/logic-engine/logic"
 	"github.com/brunokim/logic-engine/wam"
 )
@@ -19,6 +23,24 @@ type Solver struct {
 // Solution (or bindings) is a substitution from vars to terms that produce
 // a valid predicate.
 type Solution map[logic.Var]logic.Term
+
+func (s Solution) String() string {
+	vars := make([]logic.Var, len(s))
+	i := 0
+	for x := range s {
+		vars[i] = x
+		i++
+	}
+	sort.Slice(vars, func(i, j int) bool { return vars[i].Less(vars[j]) })
+	var b strings.Builder
+	for i, x := range vars {
+		fmt.Fprintf(&b, "%v = %v", x, s[x])
+		if i < len(vars)-1 {
+			b.WriteString(", ")
+		}
+	}
+	return b.String()
+}
 
 // NewSolver compiles the provided clauses and returns a Solver object.
 func NewSolver(clauses []*logic.Clause) (*Solver, error) {
