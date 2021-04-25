@@ -1,3 +1,5 @@
+// Package solver contains methods to execute logic programs and list their
+// solutions.
 package solver
 
 import (
@@ -8,7 +10,7 @@ import (
 // Solver provides an asynchronous interface for enumerating the solutions
 // of a logic query.
 type Solver struct {
-	// Err stores the error that finished a query.
+	// Err stores the error that terminated a query.
 	Err error
 
 	m *wam.Machine
