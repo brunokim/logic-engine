@@ -84,7 +84,7 @@ type PutValue struct {
 
 // PutConstant instruction: put_constant <const>, <reg X>
 type PutConstant struct {
-	Constant *Constant
+	Constant Constant
 	ArgAddr  RegAddr
 }
 
@@ -113,7 +113,7 @@ type GetValue struct {
 
 // GetConstant instruction: get_constant <const>, <reg X>
 type GetConstant struct {
-	Constant *Constant
+	Constant Constant
 	ArgAddr  RegAddr
 }
 
@@ -134,7 +134,7 @@ type SetValue struct {
 
 // SetConstant instruction: set_constant <const>
 type SetConstant struct {
-	Constant *Constant
+	Constant Constant
 }
 
 // SetVoid instruction: set_void <n>
@@ -154,7 +154,7 @@ type UnifyValue struct {
 
 // UnifyConstant instruction: unify_constant <const>
 type UnifyConstant struct {
-	Constant *Constant
+	Constant Constant
 }
 
 // UnifyVoid instruction: unify_void <n>
@@ -233,7 +233,7 @@ type SwitchOnTerm struct {
 
 // SwitchOnConstant instruction: switch_on_constant map{"p": <instr i1>, "q": <instr i2>}
 type SwitchOnConstant struct {
-	Continuation map[string]InstrAddr
+	Continuation map[Constant]InstrAddr
 }
 
 // SwitchOnStruct instruction: switch_on_constant map{"f/1": <instr i1>, "f/2": <instr i2>}
@@ -541,10 +541,21 @@ type Struct struct {
 }
 
 // Constant represents an immutable value, such as an atom, int or
-// Go pointer.
-type Constant struct {
-	Value string
+// Go pointer. The underlying type must be comparable.
+type Constant interface {
+	Cell
+	isConstant()
 }
+
+type WAtom string
+type WInt int
+type WPtr struct {
+	ptr interface{}
+}
+
+func (c WAtom) isConstant() {}
+func (c WInt) isConstant()  {}
+func (c WPtr) isConstant()  {}
 
 // List represents a list term as a linked list of cons cells.
 //
@@ -553,10 +564,12 @@ type List struct {
 	Head, Tail Cell
 }
 
-func (c *Struct) isCell()   {}
-func (c *Ref) isCell()      {}
-func (c *Constant) isCell() {}
-func (c *List) isCell()     {}
+func (c *Struct) isCell() {}
+func (c *Ref) isCell()    {}
+func (c *List) isCell()   {}
+func (c WAtom) isCell()   {}
+func (c WInt) isCell()    {}
+func (c WPtr) isCell()    {}
 
 // Functor returns the f/n notation of a struct.
 func (c *Struct) Functor() Functor {
@@ -578,8 +591,16 @@ func (c *Struct) String() string {
 	return fmt.Sprintf("%s(%s)", c.Name, strings.Join(args, ", "))
 }
 
-func (c *Constant) String() string {
-	return logic.FormatAtom(c.Value)
+func (c WAtom) String() string {
+	return logic.FormatAtom(string(c))
+}
+
+func (c WInt) String() string {
+	return fmt.Sprintf("%d", c)
+}
+
+func (c WPtr) String() string {
+	return fmt.Sprintf("<ptr %p>", c)
 }
 
 // Unroll a List into a sequence of cells.
@@ -601,7 +622,7 @@ func (c *List) String() string {
 		args[i] = fmt.Sprintf("%v", cell)
 	}
 	body := strings.Join(args, ", ")
-	if c, ok := tail.(*Constant); ok && c.Value == "[]" {
+	if c, ok := tail.(WAtom); ok && c == "[]" {
 		return fmt.Sprintf("[%s]", body)
 	}
 	return fmt.Sprintf("[%s|%v]", body, tail)

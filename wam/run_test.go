@@ -38,7 +38,7 @@ var (
 		unify_variable{reg(5)},
 		get_struct{functor{"f", 1}, reg(5)},
 		unify_variable{reg(6)},
-		get_constant{&constant{"a"}, reg(6)},
+		get_constant{watom("a"), reg(6)},
 	}
 )
 
@@ -128,9 +128,9 @@ var (
 
 	// q(a, f(a)).
 	q2 = clause(functor{"q", 2},
-		get_constant{&constant{"a"}, reg(0)},
+		get_constant{watom("a"), reg(0)},
 		get_struct{functor{"f", 1}, reg(1)},
-		unify_constant{&constant{"a"}},
+		unify_constant{watom("a")},
 		proceed{})
 
 	// r(f(A), f(B)) :- s(B), t(A).
@@ -150,12 +150,12 @@ var (
 	// s(g(b)).
 	s1 = clause(functor{"s", 1},
 		get_struct{functor{"g", 1}, reg(0)},
-		unify_constant{&constant{"b"}},
+		unify_constant{watom("b")},
 		proceed{})
 
 	// t(a).
 	t1 = clause(functor{"t", 1},
-		get_constant{&constant{"a"}, reg(0)},
+		get_constant{watom("a"), reg(0)},
 		proceed{})
 )
 
@@ -197,26 +197,26 @@ var (
 	// color(blue).
 	colorRed = clause(functor{"color", 1},
 		try_me_else{instr{colorGreen, 0}},
-		get_constant{&constant{"red"}, reg(0)},
+		get_constant{watom("red"), reg(0)},
 		proceed{})
 	colorGreen = clause(functor{"color", 1},
 		retry_me_else{instr{colorBlue, 0}},
-		get_constant{&constant{"green"}, reg(0)},
+		get_constant{watom("green"), reg(0)},
 		proceed{})
 	colorBlue = clause(functor{"color", 1},
 		trust_me{},
-		get_constant{&constant{"blue"}, reg(0)},
+		get_constant{watom("blue"), reg(0)},
 		proceed{})
 
 	// bit(false).
 	// bit(true).
 	bitFalse = clause(functor{"bit", 1},
 		try_me_else{instr{bitTrue, 0}},
-		get_constant{&constant{"false"}, reg(0)},
+		get_constant{watom("false"), reg(0)},
 		proceed{})
 	bitTrue = clause(functor{"bit", 1},
 		trust_me{},
-		get_constant{&constant{"true"}, reg(0)},
+		get_constant{watom("true"), reg(0)},
 		proceed{})
 
 	// bit_color(Bit, Color) :- bit(Bit), color(Color).
@@ -240,8 +240,8 @@ func TestRun_ChoicePoints(t *testing.T) {
 
 	// ?- bit_color(true, green).
 	m.AddClause(clause(functor{},
-		put_constant{&constant{"true"}, reg(0)},
-		put_constant{&constant{"green"}, reg(1)},
+		put_constant{watom("true"), reg(0)},
+		put_constant{watom("green"), reg(1)},
 		call{functor{"bit_color", 2}},
 		halt{},
 	))
@@ -277,7 +277,7 @@ var (
 	b2 = clause(functor{"b", 2},
 		allocate{0},
 		get_variable{reg(2), reg(0)},
-		get_constant{&constant{"p"}, reg(1)},
+		get_constant{watom("p"), reg(1)},
 		put_value{reg(2), reg(0)},
 		call{functor{"d", 1}},
 		deallocate{},
@@ -296,15 +296,15 @@ var (
 		proceed{})
 	d1_1 = clause(functor{"d", 1},
 		try_me_else{instr{d1_2, 0}},
-		get_constant{&constant{"q0"}, reg(0)},
+		get_constant{watom("q0"), reg(0)},
 		proceed{})
 	d1_2 = clause(functor{"d", 1},
 		retry_me_else{instr{d1_3, 0}},
-		get_constant{&constant{"q1"}, reg(0)},
+		get_constant{watom("q1"), reg(0)},
 		proceed{})
 	d1_3 = clause(functor{"d", 1},
 		trust_me{},
-		get_constant{&constant{"q2"}, reg(0)},
+		get_constant{watom("q2"), reg(0)},
 		proceed{})
 )
 
@@ -319,7 +319,7 @@ func TestRun_Trail(t *testing.T) {
 	m.AddClause(clause(functor{},
 		// Save X at reg X3, that is not used by any other clauses.
 		put_variable{reg(3), reg(0)},
-		put_constant{&constant{"q1"}, reg(1)},
+		put_constant{watom("q1"), reg(1)},
 		call{functor{"a", 2}},
 		halt{}))
 	m.IterLimit = 50
@@ -341,11 +341,11 @@ func TestRun_List(t *testing.T) {
 	// build_list((a . (b . []))).
 	m.AddClause(clause(functor{"build_list", 1},
 		get_list{reg(0)},
-		unify_constant{&constant{"a"}},
+		unify_constant{watom("a")},
 		unify_variable{reg(1)},
 		get_list{reg(1)},
-		unify_constant{&constant{"b"}},
-		unify_constant{&constant{"[]"}},
+		unify_constant{watom("b")},
+		unify_constant{watom("[]")},
 		proceed{}))
 
 	// =(X, X).
@@ -358,14 +358,14 @@ func TestRun_List(t *testing.T) {
 		allocate{2},
 
 		put_list{reg(0)},
-		set_constant{&constant{"a"}},
+		set_constant{watom("a")},
 		set_variable{stack(0)},
 		call{functor{"build_list", 1}},
 
 		put_value{stack(0), reg(0)},
 		put_list{reg(1)},
 		set_variable{stack(1)},
-		set_constant{&constant{"[]"}},
+		set_constant{watom("[]")},
 		call{functor{"=", 2}},
 
 		halt{}))
@@ -397,7 +397,7 @@ func TestRun_Void(t *testing.T) {
 		unify_void{1},
 		get_list{reg(2)},
 		unify_void{1},
-		unify_constant{&constant{"[]"}},
+		unify_constant{watom("[]")},
 		proceed{}))
 
 	// ?- length3((a . (X . (f(_, _, X) . []))))
@@ -410,7 +410,7 @@ func TestRun_Void(t *testing.T) {
 		// (f(...) . [])
 		put_list{reg(2)},
 		set_value{reg(3)},
-		set_constant{&constant{"[]"}},
+		set_constant{watom("[]")},
 
 		// (X . (...))
 		put_list{reg(1)},
@@ -419,7 +419,7 @@ func TestRun_Void(t *testing.T) {
 
 		// (a . (...))
 		put_list{reg(0)},
-		set_constant{&constant{"a"}},
+		set_constant{watom("a")},
 		set_value{reg(1)},
 
 		call{functor{"length3", 1}},
@@ -459,26 +459,26 @@ var (
 	// concat([], L, L).
 	concat1 = clause(functor{"concat", 3},
 		try_me_else{instr{concat2, 0}},
-		get_constant{&constant{"[]"}, reg(0)},
+		get_constant{watom("[]"), reg(0)},
 		get_value{reg(1), reg(2)},
 		proceed{})
 	// [a, b, c]
 	buildList_abc = []wam.Instruction{
 		put_list{reg(5)},
-		set_constant{&constant{"c"}},
-		set_constant{&constant{"[]"}},
+		set_constant{watom("c")},
+		set_constant{watom("[]")},
 		put_list{reg(4)},
-		set_constant{&constant{"b"}},
+		set_constant{watom("b")},
 		set_value{reg(5)},
 		put_list{reg(0)},
-		set_constant{&constant{"a"}},
+		set_constant{watom("a")},
 		set_value{reg(4)},
 	}
 	// [d]
 	buildList_d = []wam.Instruction{
 		put_list{reg(1)},
-		set_constant{&constant{"d"}},
-		set_constant{&constant{"[]"}},
+		set_constant{watom("d")},
+		set_constant{watom("[]")},
 	}
 )
 
@@ -556,10 +556,10 @@ var (
 			instr{call_s1_struct, 0},
 		})
 	call_s1_constant = clause(functor{"call", 1},
-		switch_on_constant{map[string]instr{
-			"trace":   instr{callTrace, 1},
-			"notrace": instr{callNotrace, 1},
-			"nl":      instr{callNl, 1},
+		switch_on_constant{map[constant]instr{
+			watom("trace"):   instr{callTrace, 1},
+			watom("notrace"): instr{callNotrace, 1},
+			watom("nl"):      instr{callNl, 1},
 		}})
 	call_s1_list = clause(functor{"call", 1},
 		execute{functor{"fail", 0}})
@@ -581,7 +581,7 @@ var (
 	// call(trace) :- trace().
 	callTrace = clause(functor{"call", 1},
 		retry_me_else{instr{callOr2, 0}},
-		get_constant{&constant{"trace"}, reg(0)},
+		get_constant{watom("trace"), reg(0)},
 		execute{functor{"trace", 0}})
 	// call(or(X, Y)) :- call(Y).
 	callOr2 = clause(functor{"call", 1},
@@ -594,12 +594,12 @@ var (
 	// call(notrace) :- notrace().
 	callNotrace = clause(functor{"call", 1},
 		retry_me_else{instr{callNl, 0}},
-		get_constant{&constant{"notrace"}, reg(0)},
+		get_constant{watom("notrace"), reg(0)},
 		execute{functor{"notrace", 0}})
 	// call(nl) :- nl().
 	callNl = clause(functor{"call", 1},
 		trust_me{},
-		get_constant{&constant{"nl"}, reg(0)},
+		get_constant{watom("nl"), reg(0)},
 		execute{functor{"nl", 0}})
 	// call(X) :- builtin(X).
 	callBuiltin = clause(functor{"call", 1},
@@ -623,9 +623,9 @@ var (
 			instr{call_s2_struct, 0},
 		})
 	call_s2_constant = clause(functor{"call", 1},
-		switch_on_constant{map[string]instr{
-			"repeat": instr{call_s2_constant_repeat, 0},
-			"true":   instr{callTrue, 1},
+		switch_on_constant{map[constant]instr{
+			watom("repeat"): instr{call_s2_constant_repeat, 0},
+			watom("true"):   instr{callTrue, 1},
 		}})
 	call_s2_constant_repeat = clause(functor{"call", 1},
 		try{instr{callRepeat1, 1}},
@@ -646,17 +646,17 @@ var (
 	// call(repeat).
 	callRepeat1 = clause(functor{"call", 1},
 		retry_me_else{instr{callRepeat2, 0}},
-		get_constant{&constant{"repeat"}, reg(0)},
+		get_constant{watom("repeat"), reg(0)},
 		proceed{})
 	// call(repeat) :- call(repeat).
 	callRepeat2 = clause(functor{"call", 1},
 		retry_me_else{instr{callTrue, 0}},
-		get_constant{&constant{"repeat"}, reg(0)},
+		get_constant{watom("repeat"), reg(0)},
 		execute{functor{"call", 1}})
 	// call(true).
 	callTrue = clause(functor{"call", 1},
 		trust_me{},
-		get_constant{&constant{"true"}, reg(0)},
+		get_constant{watom("true"), reg(0)},
 		proceed{})
 )
 
@@ -666,13 +666,13 @@ func TestSwitch(t *testing.T) {
 
 	// ?- call(true), call(or(call(a), repeat))
 	m.AddClause(clause(functor{},
-		put_constant{&constant{"true"}, reg(0)},
+		put_constant{watom("true"), reg(0)},
 		call{functor{"call", 1}},
 		put_struct{functor{"call", 1}, reg(1)},
-		set_constant{&constant{"a"}},
+		set_constant{watom("a")},
 		put_struct{functor{"or", 2}, reg(0)},
 		set_value{reg(1)},
-		set_constant{&constant{"repeat"}},
+		set_constant{watom("repeat")},
 		call{functor{"call", 1}},
 		halt{}))
 
@@ -738,25 +738,25 @@ func TestCut(t *testing.T) {
 	m.AddClause(clause(functor{},
 		// [a, b]
 		put_list{reg(4)},
-		set_constant{&constant{"b"}},
-		set_constant{&constant{"[]"}},
+		set_constant{watom("b")},
+		set_constant{watom("[]")},
 		put_list{reg(3)},
-		set_constant{&constant{"a"}},
+		set_constant{watom("a")},
 		set_value{reg(4)},
 		// member(a, [c, a, b])
-		put_constant{&constant{"a"}, reg(0)},
+		put_constant{watom("a"), reg(0)},
 		put_list{reg(1)},
-		set_constant{&constant{"c"}},
+		set_constant{watom("c")},
 		set_value{reg(3)},
 		call{functor{"member", 2}},
 		// set_add([a, b], c, L1)
 		put_value{reg(3), reg(0)},
-		put_constant{&constant{"c"}, reg(1)},
+		put_constant{watom("c"), reg(1)},
 		put_variable{reg(5), reg(2)},
 		call{functor{"set_add", 3}},
 		// set_add(L1, b, L2)
 		put_value{reg(5), reg(0)},
-		put_constant{&constant{"b"}, reg(1)},
+		put_constant{watom("b"), reg(1)},
 		put_variable{reg(6), reg(2)},
 		call{functor{"set_add", 3}},
 		halt{}))
@@ -785,7 +785,7 @@ func TestCut(t *testing.T) {
 var (
 	tree1 = clause(functor{"tree", 3},
 		try_me_else{instr{tree2, 0}},
-		get_constant{&constant{"nil"}, reg(0)},
+		get_constant{watom("nil"), reg(0)},
 		get_value{reg(2), reg(1)},
 		proceed{})
 
@@ -819,23 +819,23 @@ func TestNestedCalls(t *testing.T) {
 	// L = [b, c, a, d]
 	m.AddClause(clause(functor{},
 		put_struct{functor{"node", 3}, reg(5)},
-		set_constant{&constant{"d"}},
-		set_constant{&constant{"nil"}},
-		set_constant{&constant{"nil"}},
+		set_constant{watom("d")},
+		set_constant{watom("nil")},
+		set_constant{watom("nil")},
 		put_struct{functor{"node", 3}, reg(4)},
-		set_constant{&constant{"c"}},
-		set_constant{&constant{"nil"}},
-		set_constant{&constant{"nil"}},
+		set_constant{watom("c")},
+		set_constant{watom("nil")},
+		set_constant{watom("nil")},
 		put_struct{functor{"node", 3}, reg(3)},
-		set_constant{&constant{"b"}},
-		set_constant{&constant{"nil"}},
+		set_constant{watom("b")},
+		set_constant{watom("nil")},
 		set_value{reg(4)},
 		put_struct{functor{"node", 3}, reg(0)},
-		set_constant{&constant{"a"}},
+		set_constant{watom("a")},
 		set_value{reg(3)},
 		set_value{reg(5)},
 		put_variable{reg(6), reg(1)},
-		put_constant{&constant{"[]"}, reg(2)},
+		put_constant{watom("[]"), reg(2)},
 		call{functor{"tree", 3}},
 		halt{}))
 

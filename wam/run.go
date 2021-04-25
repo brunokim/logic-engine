@@ -278,8 +278,8 @@ func (m *Machine) putMeta(addr Addr, params []Addr) (Functor, error) {
 	switch c := cell.(type) {
 	case *Struct:
 		name, args = c.Name, c.Args
-	case *Constant:
-		name, args = c.Value, nil
+	case WAtom:
+		name, args = string(c), nil
 	default:
 		return Functor{}, fmt.Errorf("not an atom or struct: %v", cell)
 	}
@@ -351,8 +351,8 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		// Expect a constant from register.
 		cell := deref(m.get(instr.ArgAddr))
 		switch c := cell.(type) {
-		case *Constant:
-			if c.Value != instr.Constant.Value {
+		case Constant:
+			if c != instr.Constant {
 				return m.backtrack(&unifyError{c, instr.Constant})
 			}
 		case *Ref:
@@ -433,8 +433,8 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		case Read:
 			cell := deref(m.getCompoundArg())
 			switch c := cell.(type) {
-			case *Constant:
-				if c.Value != instr.Constant.Value {
+			case Constant:
+				if c != instr.Constant {
 					return m.backtrack(&unifyError{c, instr.Constant})
 				}
 			case *Ref:
@@ -533,7 +533,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		switch cell.(type) {
 		case *Ref:
 			return instr.IfVar, nil
-		case *Constant:
+		case Constant:
 			return instr.IfConstant, nil
 		case *List:
 			return instr.IfList, nil
@@ -543,8 +543,8 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 			panic(fmt.Sprintf("switch_on_term: unhandled type %T (%v)", cell, cell))
 		}
 	case SwitchOnConstant:
-		cell := deref(m.Reg[0]).(*Constant)
-		cont, ok := instr.Continuation[cell.Value]
+		cell := deref(m.Reg[0]).(Constant)
+		cont, ok := instr.Continuation[cell]
 		if !ok {
 			return m.backtrack(fmt.Errorf("constant index not found: %v", cell))
 		}
@@ -639,10 +639,10 @@ func (m *Machine) unify(a1, a2 Cell) error {
 			continue
 		}
 		switch t1 := c1.(type) {
-		case *Constant:
+		case Constant:
 			// 3. If they are both constants, check that they are equal.
-			t2, ok := c2.(*Constant)
-			if !(ok && t1.Value == t2.Value) {
+			t2, ok := c2.(Constant)
+			if !(ok && t1 == t2) {
 				return &unifyError{c1, c2}
 			}
 		case *Struct:

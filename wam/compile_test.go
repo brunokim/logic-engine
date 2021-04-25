@@ -39,7 +39,7 @@ func TestCompile(t *testing.T) {
 				get_variable{reg(3), reg(0)},
 				get_list{reg(1)},
 				unify_value{reg(3)},
-				unify_constant{&constant{"[]"}},
+				unify_constant{watom("[]")},
 				get_list{reg(2)},
 				unify_value{reg(3)},
 				unify_void{1},
@@ -67,8 +67,8 @@ func TestCompile(t *testing.T) {
 		{
 			dsl.Clause(comp("mul", atom("0"), var_("_"), atom("0"))),
 			clause(functor{"mul", 3},
-				get_constant{&constant{"0"}, reg(0)},
-				get_constant{&constant{"0"}, reg(2)},
+				get_constant{watom("0"), reg(0)},
+				get_constant{watom("0"), reg(2)},
 				proceed{}),
 		},
 		{
@@ -96,12 +96,12 @@ func TestCompile(t *testing.T) {
 				unify_variable{reg(1)},
 				unify_variable{reg(2)},
 				get_struct{functor{"g", 1}, reg(1)},
-				unify_constant{&constant{"a"}},
+				unify_constant{watom("a")},
 				get_list{reg(2)},
 				unify_variable{reg(3)},
-				unify_constant{&constant{"[]"}},
+				unify_constant{watom("[]")},
 				get_struct{functor{"h", 1}, reg(3)},
-				unify_constant{&constant{"b"}},
+				unify_constant{watom("b")},
 				proceed{}),
 		},
 		{
@@ -179,23 +179,23 @@ var (
 	// vowel(u).
 	vowelA = clause(functor{"vowel", 1},
 		try_me_else{instr{vowelE, 0}},
-		get_constant{&constant{"a"}, reg(0)},
+		get_constant{watom("a"), reg(0)},
 		proceed{})
 	vowelE = clause(functor{"vowel", 1},
 		retry_me_else{instr{vowelI, 0}},
-		get_constant{&constant{"e"}, reg(0)},
+		get_constant{watom("e"), reg(0)},
 		proceed{})
 	vowelI = clause(functor{"vowel", 1},
 		retry_me_else{instr{vowelO, 0}},
-		get_constant{&constant{"i"}, reg(0)},
+		get_constant{watom("i"), reg(0)},
 		proceed{})
 	vowelO = clause(functor{"vowel", 1},
 		retry_me_else{instr{vowelU, 0}},
-		get_constant{&constant{"o"}, reg(0)},
+		get_constant{watom("o"), reg(0)},
 		proceed{})
 	vowelU = clause(functor{"vowel", 1},
 		trust_me{},
-		get_constant{&constant{"u"}, reg(0)},
+		get_constant{watom("u"), reg(0)},
 		proceed{})
 	vowelIndex = &wam.Clause{
 		Functor:      functor{"vowel", 1},
@@ -205,12 +205,12 @@ var (
 				IfVar:      instr{vowelA, 0},
 				IfConstant: instr{nil, 1},
 			},
-			switch_on_constant{map[string]instr{
-				"a": instr{vowelA, 1},
-				"e": instr{vowelE, 1},
-				"i": instr{vowelI, 1},
-				"o": instr{vowelO, 1},
-				"u": instr{vowelU, 1},
+			switch_on_constant{map[constant]instr{
+				watom("a"): instr{vowelA, 1},
+				watom("e"): instr{vowelE, 1},
+				watom("i"): instr{vowelI, 1},
+				watom("o"): instr{vowelO, 1},
+				watom("u"): instr{vowelU, 1},
 			}},
 		},
 	}
@@ -226,24 +226,24 @@ var (
 	// f([y]).
 	fAtomA1 = clause(functor{"f", 1},
 		try_me_else{instr{fAtomA2, 0}},
-		get_constant{&constant{"a"}, reg(0)},
+		get_constant{watom("a"), reg(0)},
 		execute{functor{"a", 0}})
 	fAtomA2 = clause(functor{"f", 1},
 		retry_me_else{instr{fAtomB, 0}},
-		get_constant{&constant{"a"}, reg(0)},
+		get_constant{watom("a"), reg(0)},
 		execute{functor{"b", 0}})
 	fAtomB = clause(functor{"f", 1},
 		retry_me_else{instr{fAtomNil, 0}},
-		get_constant{&constant{"b"}, reg(0)},
+		get_constant{watom("b"), reg(0)},
 		proceed{})
 	fAtomNil = clause(functor{"f", 1},
 		retry_me_else{instr{fStructG1, 0}},
-		get_constant{&constant{"[]"}, reg(0)},
+		get_constant{watom("[]"), reg(0)},
 		proceed{})
 	fStructG1 = clause(functor{"f", 1},
 		retry_me_else{instr{fList1, 0}},
 		get_struct{functor{"g", 1}, reg(0)},
-		unify_constant{&constant{"0"}},
+		unify_constant{watom("0")},
 		proceed{})
 	fList1 = clause(functor{"f", 1},
 		retry_me_else{instr{fStructG2, 0}},
@@ -254,19 +254,19 @@ var (
 	fStructG2 = clause(functor{"f", 1},
 		retry_me_else{instr{fList2, 0}},
 		get_struct{functor{"g", 1}, reg(0)},
-		unify_constant{&constant{"1"}},
+		unify_constant{watom("1")},
 		proceed{})
 	fList2 = clause(functor{"f", 1},
 		retry_me_else{instr{fList3, 0}},
 		get_list{reg(0)},
-		unify_constant{&constant{"x"}},
-		unify_constant{&constant{"[]"}},
+		unify_constant{watom("x")},
+		unify_constant{watom("[]")},
 		proceed{})
 	fList3 = clause(functor{"f", 1},
 		trust_me{},
 		get_list{reg(0)},
-		unify_constant{&constant{"y"}},
-		unify_constant{&constant{"[]"}},
+		unify_constant{watom("y")},
+		unify_constant{watom("[]")},
 		proceed{})
 	fIndex = &wam.Clause{
 		Functor:      functor{"f", 1},
@@ -278,10 +278,10 @@ var (
 				IfStruct:   instr{nil, 4},
 				IfList:     instr{nil, 7},
 			},
-			/*1*/ switch_on_constant{map[string]instr{
-				"a":  instr{nil, 2},
-				"b":  instr{fAtomB, 1},
-				"[]": instr{fAtomNil, 1},
+			/*1*/ switch_on_constant{map[constant]instr{
+				watom("a"):  instr{nil, 2},
+				watom("b"):  instr{fAtomB, 1},
+				watom("[]"): instr{fAtomNil, 1},
 			}},
 			/*2*/ try{instr{fAtomA1, 1}},
 			/*3*/ trust{instr{fAtomA2, 1}},
@@ -350,8 +350,8 @@ func TestCompileClauses(t *testing.T) {
 			"IfConstant.Clause",
 			"IfStruct.Clause",
 			"IfList.Clause"),
-		cmp.Transformer("switch_on_constant.Continuation", func(cont map[string]instr) map[string]instr {
-			m := make(map[string]instr)
+		cmp.Transformer("switch_on_constant.Continuation", func(cont map[constant]instr) map[constant]instr {
+			m := make(map[constant]instr)
 			for key, ins := range cont {
 				if ins.Pos == 1 {
 					m[key] = ins

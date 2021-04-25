@@ -7,10 +7,13 @@ import (
 
 type (
 	functor  = wam.Functor
-	constant = wam.Constant
 	reg      = wam.RegAddr
 	stack    = wam.StackAddr
 	instr    = wam.InstrAddr
+	constant = wam.Constant
+	watom    = wam.WAtom
+	wint     = wam.WInt
+	wptr     = wam.WPtr
 
 	put_struct         = wam.PutStruct
 	put_variable       = wam.PutVariable

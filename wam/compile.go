@@ -520,14 +520,16 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 		return codes[0]
 	}
 	// Group clauses by type and index key.
-	constIndex := make(map[string][]InstrAddr)
+	constIndex := make(map[Constant][]InstrAddr)
 	structIndex := make(map[Functor][]InstrAddr)
 	var listIndex []InstrAddr
 	for i, clause := range clauses {
 		arg := clause.Head.(*logic.Comp).Args[0]
 		switch a := arg.(type) {
 		case logic.Atom:
-			constIndex[a.Name] = append(constIndex[a.Name], InstrAddr{codes[i], 1})
+			constIndex[toConstant(a)] = append(constIndex[toConstant(a)], InstrAddr{codes[i], 1})
+		case logic.Int:
+			constIndex[toConstant(a)] = append(constIndex[toConstant(a)], InstrAddr{codes[i], 1})
 		case *logic.Comp:
 			f := toFunctor(a.Indicator())
 			structIndex[f] = append(structIndex[f], InstrAddr{codes[i], 1})
@@ -556,7 +558,7 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 	}
 	// Index constants.
 	if len(constIndex) > 0 {
-		switchOnConst := SwitchOnConstant{Continuation: make(map[string]InstrAddr)}
+		switchOnConst := SwitchOnConstant{Continuation: make(map[Constant]InstrAddr)}
 		switchOnTerm.IfConstant = putCode(switchOnConst)
 		for name, addrs := range constIndex {
 			if len(addrs) == 1 {

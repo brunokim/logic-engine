@@ -10,8 +10,15 @@ func toFunctor(indicator logic.Indicator) Functor {
 	return Functor{Name: indicator.Name, Arity: indicator.Arity}
 }
 
-func toConstant(atom logic.Atom) *Constant {
-	return &Constant{Value: atom.Name}
+func toConstant(term logic.Term) Constant {
+	switch t := term.(type) {
+	case logic.Atom:
+		return WAtom(t.Name)
+	case logic.Int:
+		return WInt(t.Value)
+	default:
+		panic(fmt.Sprintf("toConstant: unhandled type %T (%v)", term, term))
+	}
 }
 
 func fromCell(c Cell) logic.Term {
@@ -21,7 +28,7 @@ func fromCell(c Cell) logic.Term {
 		return fromRef(c)
 	case *Struct:
 		return fromStruct(c)
-	case *Constant:
+	case Constant:
 		return fromConstant(c)
 	case *List:
 		return fromList(c)
@@ -48,8 +55,15 @@ func fromStruct(s *Struct) *logic.Comp {
 	return logic.NewComp(s.Name, fromCells(s.Args)...)
 }
 
-func fromConstant(c *Constant) logic.Atom {
-	return logic.Atom{Name: c.Value}
+func fromConstant(c Constant) logic.Term {
+	switch c := c.(type) {
+	case WAtom:
+		return logic.Atom{Name: string(c)}
+	case WInt:
+		return logic.Int{Value: int(c)}
+	default:
+		panic(fmt.Sprintf("fromConstant: unhandled type %T (%v)", c, c))
+	}
 }
 
 func fromList(l *List) logic.Term {

@@ -3,8 +3,6 @@ package wam
 import (
 	"encoding/json"
 	"reflect"
-
-	"github.com/brunokim/logic-engine/logic"
 )
 
 func (i RegAddr) MarshalText() ([]byte, error) {
@@ -19,7 +17,15 @@ func (f Functor) MarshalText() ([]byte, error) {
 	return []byte(f.String()), nil
 }
 
-func (c *Constant) MarshalText() ([]byte, error) {
+func (c WAtom) MarshalText() ([]byte, error) {
+	return []byte(c.String()), nil
+}
+
+func (c WInt) MarshalText() ([]byte, error) {
+	return []byte(c.String()), nil
+}
+
+func (c WPtr) MarshalText() ([]byte, error) {
 	return []byte(c.String()), nil
 }
 
@@ -253,10 +259,10 @@ func (enc *machineEncoder) instructionField(v interface{}) interface{} {
 		return v
 	case InstrAddr:
 		return enc.instrAddr(v)
-	case map[string]InstrAddr:
+	case map[Constant]InstrAddr:
 		im := make(map[string]interface{})
 		for key, instrAddr := range v {
-			im[logic.FormatAtom(key)] = enc.instrAddr(instrAddr)
+			im[key.String()] = enc.instrAddr(instrAddr)
 		}
 		return im
 	case map[Functor]InstrAddr:
