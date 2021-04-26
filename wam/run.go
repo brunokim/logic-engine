@@ -198,14 +198,14 @@ func (m *Machine) getCompoundArg() Cell {
 	switch c := m.Compound.(type) {
 	case *Struct:
 		return c.Args[m.ArgIndex]
-	case *List:
+	case *Pair:
 		switch m.ArgIndex {
 		case 0:
 			return c.Head
 		case 1:
 			return c.Tail
 		default:
-			panic(fmt.Sprintf("invalid ArgIndex for List: %d", m.ArgIndex))
+			panic(fmt.Sprintf("invalid ArgIndex for Pair: %d", m.ArgIndex))
 		}
 	default:
 		panic(fmt.Sprintf("unhandled compound type: %T (%v)", m.Compound, m.Compound))
@@ -216,14 +216,14 @@ func (m *Machine) setCompoundArg(cell Cell) {
 	switch c := m.Compound.(type) {
 	case *Struct:
 		c.Args[m.ArgIndex] = cell
-	case *List:
+	case *Pair:
 		switch m.ArgIndex {
 		case 0:
 			c.Head = cell
 		case 1:
 			c.Tail = cell
 		default:
-			panic(fmt.Sprintf("invalid ArgIndex for List: %d", m.ArgIndex))
+			panic(fmt.Sprintf("invalid ArgIndex for Pair: %d", m.ArgIndex))
 		}
 	default:
 		panic(fmt.Sprintf("unhandled compound type: %T (%v)", m.Compound, m.Compound))
@@ -310,9 +310,9 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 	case PutConstant:
 		// Put constant as argument in register.
 		m.Reg[instr.ArgAddr] = instr.Constant
-	case PutList:
-		// Put list as argument in register.
-		l := &List{}
+	case PutPair:
+		// Put pair as argument in register.
+		l := &Pair{Tag: instr.Tag}
 		m.Reg[instr.ArgAddr] = l
 		m.Compound = l
 		m.ArgIndex = 0
@@ -361,22 +361,25 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		default:
 			return m.backtrack(&unifyError{cell, instr.Constant})
 		}
-	case GetList:
-		// Expect a list from register.
+	case GetPair:
+		// Expect a pair from register.
 		cell := deref(m.get(instr.ArgAddr))
 		switch c := cell.(type) {
-		case *List:
+		case *Pair:
+			if c.Tag != instr.Tag {
+				return m.backtrack(&unifyError{cell, &Pair{Tag: instr.Tag}})
+			}
 			m.Compound = c
 			m.ArgIndex = 0
 			m.Mode = Read
 		case *Ref:
-			l := &List{}
+			l := &Pair{Tag: instr.Tag}
 			m.Compound = l
 			m.ArgIndex = 0
 			m.bind(c, l)
 			m.Mode = Write
 		default:
-			return m.backtrack(&unifyError{cell, &List{}})
+			return m.backtrack(&unifyError{cell, &Pair{Tag: instr.Tag}})
 		}
 	case SetVariable:
 		// Place new unbound ref during query building.
@@ -535,8 +538,8 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 			return instr.IfVar, nil
 		case Constant:
 			return instr.IfConstant, nil
-		case *List:
-			return instr.IfList, nil
+		case *Pair:
+			return instr.IfPair, nil
 		case *Struct:
 			return instr.IfStruct, nil
 		default:
@@ -660,9 +663,9 @@ func (m *Machine) unify(a1, a2 Cell) error {
 			for i := 0; i < f1.Arity; i++ {
 				stack = append(stack, t1.Args[i], t2.Args[i])
 			}
-		case *List:
-			t2, ok := c2.(*List)
-			if !ok {
+		case *Pair:
+			t2, ok := c2.(*Pair)
+			if !(ok && t1.Tag == t2.Tag) {
 				return &unifyError{c1, c2}
 			}
 			stack = append(stack, t1.Head, t2.Head, t1.Tail, t2.Tail)

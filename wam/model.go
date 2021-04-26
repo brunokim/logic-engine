@@ -88,8 +88,9 @@ type PutConstant struct {
 	ArgAddr  RegAddr
 }
 
-// PutList instruction: put_list <reg X>
-type PutList struct {
+// PutPair instruction: put_pair <tag> <reg X>
+type PutPair struct {
+	Tag     PairTag
 	ArgAddr RegAddr
 }
 
@@ -117,8 +118,9 @@ type GetConstant struct {
 	ArgAddr  RegAddr
 }
 
-// GetList instruction: get_list <reg X>
-type GetList struct {
+// GetPair instruction: get_pair <tag> <reg X>
+type GetPair struct {
+	Tag     PairTag
 	ArgAddr RegAddr
 }
 
@@ -226,9 +228,9 @@ type Trust struct {
 	Continuation InstrAddr
 }
 
-// SwitchOnTerm instruction: switch_on_term <instr ifVar> <instr ifConst> <instr ifList> <instr ifStruct>
+// SwitchOnTerm instruction: switch_on_term <instr ifVar> <instr ifConst> <instr ifPair> <instr ifStruct>
 type SwitchOnTerm struct {
-	IfVar, IfConstant, IfList, IfStruct InstrAddr
+	IfVar, IfConstant, IfPair, IfStruct InstrAddr
 }
 
 // SwitchOnConstant instruction: switch_on_constant map{"p": <instr i1>, "q": <instr i2>}
@@ -254,12 +256,12 @@ func (i PutStruct) isInstruction()        {}
 func (i PutVariable) isInstruction()      {}
 func (i PutValue) isInstruction()         {}
 func (i PutConstant) isInstruction()      {}
-func (i PutList) isInstruction()          {}
+func (i PutPair) isInstruction()          {}
 func (i GetStruct) isInstruction()        {}
 func (i GetVariable) isInstruction()      {}
 func (i GetValue) isInstruction()         {}
 func (i GetConstant) isInstruction()      {}
-func (i GetList) isInstruction()          {}
+func (i GetPair) isInstruction()          {}
 func (i SetVariable) isInstruction()      {}
 func (i SetValue) isInstruction()         {}
 func (i SetConstant) isInstruction()      {}
@@ -305,8 +307,8 @@ func (i PutConstant) String() string {
 	return fmt.Sprintf("put_constant %v, A%d", i.Constant, i.ArgAddr)
 }
 
-func (i PutList) String() string {
-	return fmt.Sprintf("put_list A%d", i.ArgAddr)
+func (i PutPair) String() string {
+	return fmt.Sprintf("put_pair %v, A%d", i.Tag, i.ArgAddr)
 }
 
 func (i GetStruct) String() string {
@@ -325,8 +327,8 @@ func (i GetConstant) String() string {
 	return fmt.Sprintf("get_constant %v, A%d", i.Constant, i.ArgAddr)
 }
 
-func (i GetList) String() string {
-	return fmt.Sprintf("get_list A%d", i.ArgAddr)
+func (i GetPair) String() string {
+	return fmt.Sprintf("get_pair %v, A%d", i.Tag, i.ArgAddr)
 }
 
 func (i SetVariable) String() string {
@@ -421,8 +423,8 @@ func (i SwitchOnTerm) String() string {
 	return fmt.Sprintf(`switch_on_term
 	variable: %v
 	constant: %v
-	list: %v
-	struct: %v`, i.IfVar, i.IfConstant, i.IfList, i.IfStruct)
+	pair: %v
+	struct: %v`, i.IfVar, i.IfConstant, i.IfPair, i.IfStruct)
 }
 
 func (instr SwitchOnConstant) String() string {
@@ -557,16 +559,28 @@ func (c WAtom) isConstant() {}
 func (c WInt) isConstant()  {}
 func (c WPtr) isConstant()  {}
 
-// List represents a list term as a linked list of cons cells.
+// PairTag marks the logic type of this cons cell.
+type PairTag int
+
+//go:generate stringer -type=PairTag -linecomment
+const (
+	AssocPair PairTag = iota // assoc
+	ListPair                 // list
+	DictPair                 // dict
+)
+
+// Pair represents a cons cell, which is used to represent lists, assocs and dicts.
 //
-//     [a, b, c] -> List{Atom{"a"}, List{Atom{"b"}, List{Atom{"c"}, Atom{"[]"}}}}
-type List struct {
+//     [a, b, c]    -> .(a, .(b, .(c, [])))
+//     {a: 1, b: 2} -> .(a:1, .(b:2, {})) -> .(.(a, 1), .(.(b, 2), {}))
+type Pair struct {
+	Tag        PairTag
 	Head, Tail Cell
 }
 
 func (c *Struct) isCell() {}
 func (c *Ref) isCell()    {}
-func (c *List) isCell()   {}
+func (c *Pair) isCell()   {}
 func (c WAtom) isCell()   {}
 func (c WInt) isCell()    {}
 func (c WPtr) isCell()    {}
@@ -603,29 +617,46 @@ func (c WPtr) String() string {
 	return fmt.Sprintf("<ptr %p>", c)
 }
 
-// Unroll a List into a sequence of cells.
-func (c *List) toSlice() ([]Cell, Cell) {
+// Unroll a list or dict Pair into a sequence of cells.
+func (c *Pair) toSlice() ([]Cell, Cell) {
+	if c.Tag == AssocPair {
+		return nil, c
+	}
+	tag := c.Tag
 	cells, tail := []Cell{c.Head}, c.Tail
-	l, ok := tail.(*List)
-	for ok {
+	l, ok := tail.(*Pair)
+	for ok && l.Tag == tag {
 		cells = append(cells, l.Head)
 		tail = l.Tail
-		l, ok = tail.(*List)
+		l, ok = tail.(*Pair)
 	}
 	return cells, tail
 }
 
-func (c *List) String() string {
+func (c *Pair) String() string {
 	cells, tail := c.toSlice()
 	args := make([]string, len(cells))
 	for i, cell := range cells {
 		args[i] = fmt.Sprintf("%v", cell)
 	}
 	body := strings.Join(args, ", ")
-	if c, ok := tail.(WAtom); ok && c == "[]" {
-		return fmt.Sprintf("[%s]", body)
+	end, ok := tail.(WAtom)
+	switch c.Tag {
+	case ListPair:
+		if ok && end == "[]" {
+			return fmt.Sprintf("[%s]", body)
+		}
+		return fmt.Sprintf("[%s|%v]", body, tail)
+	case DictPair:
+		if ok && end == "{}" {
+			return fmt.Sprintf("{%s}", body)
+		}
+		return fmt.Sprintf("{%s|%v}", body, tail)
+	case AssocPair:
+		return fmt.Sprintf("%v: %v", c.Head, c.Tail)
+	default:
+		panic(fmt.Sprintf("(*Pair).String: unhandled pair type %v", c.Tag))
 	}
-	return fmt.Sprintf("[%s|%v]", body, tail)
 }
 
 // ---- Stack frames

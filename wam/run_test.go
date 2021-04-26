@@ -340,10 +340,10 @@ func TestRun_List(t *testing.T) {
 	m := wam.NewMachine()
 	// build_list((a . (b . []))).
 	m.AddClause(clause(functor{"build_list", 1},
-		get_list{reg(0)},
+		get_pair{list_pair, reg(0)},
 		unify_constant{watom("a")},
 		unify_variable{reg(1)},
-		get_list{reg(1)},
+		get_pair{list_pair, reg(1)},
 		unify_constant{watom("b")},
 		unify_constant{watom("[]")},
 		proceed{}))
@@ -357,13 +357,13 @@ func TestRun_List(t *testing.T) {
 	m.AddClause(clause(functor{},
 		allocate{2},
 
-		put_list{reg(0)},
+		put_pair{list_pair, reg(0)},
 		set_constant{watom("a")},
 		set_variable{stack(0)},
 		call{functor{"build_list", 1}},
 
 		put_value{stack(0), reg(0)},
-		put_list{reg(1)},
+		put_pair{list_pair, reg(1)},
 		set_variable{stack(1)},
 		set_constant{watom("[]")},
 		call{functor{"=", 2}},
@@ -390,12 +390,12 @@ func TestRun_Void(t *testing.T) {
 	m := wam.NewMachine()
 	// length3((_ . (_ . (_ . [])))).
 	m.AddClause(clause(functor{"length3", 1},
-		get_list{reg(0)},
+		get_pair{list_pair, reg(0)},
 		unify_void{1},
 		unify_variable{reg(1)},
-		get_list{reg(1)},
+		get_pair{list_pair, reg(1)},
 		unify_void{1},
-		get_list{reg(2)},
+		get_pair{list_pair, reg(2)},
 		unify_void{1},
 		unify_constant{watom("[]")},
 		proceed{}))
@@ -408,17 +408,17 @@ func TestRun_Void(t *testing.T) {
 		set_variable{reg(4)},
 
 		// (f(...) . [])
-		put_list{reg(2)},
+		put_pair{list_pair, reg(2)},
 		set_value{reg(3)},
 		set_constant{watom("[]")},
 
 		// (X . (...))
-		put_list{reg(1)},
+		put_pair{list_pair, reg(1)},
 		set_value{reg(4)},
 		set_value{reg(2)},
 
 		// (a . (...))
-		put_list{reg(0)},
+		put_pair{list_pair, reg(0)},
 		set_constant{watom("a")},
 		set_value{reg(1)},
 
@@ -443,13 +443,13 @@ var (
 	concat2 = clause(functor{"concat", 3},
 		trust_me{},
 
-		get_list{reg(0)},
+		get_pair{list_pair, reg(0)},
 		unify_variable{reg(3)},
 		unify_variable{reg(4)},
 
 		// L is already in position for next call.
 
-		get_list{reg(2)},
+		get_pair{list_pair, reg(2)},
 		unify_value{reg(3)},
 		unify_variable{reg(5)},
 
@@ -464,19 +464,19 @@ var (
 		proceed{})
 	// [a, b, c]
 	buildList_abc = []wam.Instruction{
-		put_list{reg(5)},
+		put_pair{list_pair, reg(5)},
 		set_constant{watom("c")},
 		set_constant{watom("[]")},
-		put_list{reg(4)},
+		put_pair{list_pair, reg(4)},
 		set_constant{watom("b")},
 		set_value{reg(5)},
-		put_list{reg(0)},
+		put_pair{list_pair, reg(0)},
 		set_constant{watom("a")},
 		set_value{reg(4)},
 	}
 	// [d]
 	buildList_d = []wam.Instruction{
-		put_list{reg(1)},
+		put_pair{list_pair, reg(1)},
 		set_constant{watom("d")},
 		set_constant{watom("[]")},
 	}
@@ -690,7 +690,7 @@ var (
 	member1 = clause(functor{"member", 2},
 		try_me_else{instr{member2, 0}},
 		get_variable{reg(2), reg(0)},
-		get_list{reg(1)},
+		get_pair{list_pair, reg(1)},
 		unify_value{reg(2)},
 		unify_void{1},
 		neck_cut{},
@@ -698,7 +698,7 @@ var (
 	member2 = clause(functor{"member", 2},
 		trust_me{},
 		get_variable{reg(2), reg(0)},
-		get_list{reg(1)},
+		get_pair{list_pair, reg(1)},
 		unify_void{1},
 		unify_variable{reg(3)},
 		put_value{reg(2), reg(0)},
@@ -723,7 +723,7 @@ var (
 		trust_me{},
 		get_variable{reg(3), reg(0)},
 		get_variable{reg(4), reg(1)},
-		get_list{reg(2)},
+		get_pair{list_pair, reg(2)},
 		unify_value{reg(4)},
 		unify_value{reg(3)},
 		proceed{})
@@ -737,15 +737,15 @@ func TestCut(t *testing.T) {
 	// ?- member(a, [c, a, b]), set_add([a, b], c, L1), set_add(L1, b, L2).
 	m.AddClause(clause(functor{},
 		// [a, b]
-		put_list{reg(4)},
+		put_pair{list_pair, reg(4)},
 		set_constant{watom("b")},
 		set_constant{watom("[]")},
-		put_list{reg(3)},
+		put_pair{list_pair, reg(3)},
 		set_constant{watom("a")},
 		set_value{reg(4)},
 		// member(a, [c, a, b])
 		put_constant{watom("a"), reg(0)},
-		put_list{reg(1)},
+		put_pair{list_pair, reg(1)},
 		set_constant{watom("c")},
 		set_value{reg(3)},
 		call{functor{"member", 2}},
@@ -800,7 +800,7 @@ var (
 		get_variable{stack(1), reg(2)}, // L3
 		put_value{reg(4), reg(0)},
 		put_value{reg(1), reg(1)},
-		put_list{reg(2)},
+		put_pair{list_pair, reg(2)},
 		set_value{reg(3)},
 		set_variable{stack(2)}, // L2
 		call{functor{"tree", 3}},

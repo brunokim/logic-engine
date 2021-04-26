@@ -30,8 +30,8 @@ func fromCell(c Cell) logic.Term {
 		return fromStruct(c)
 	case Constant:
 		return fromConstant(c)
-	case *List:
-		return fromList(c)
+	case *Pair:
+		return fromPair(c)
 	}
 	panic(fmt.Sprintf("fromCell: unexpected cell type %T (%v)", c, c))
 }
@@ -40,6 +40,14 @@ func fromCells(cs []Cell) []logic.Term {
 	args := make([]logic.Term, len(cs))
 	for i, arg := range cs {
 		args[i] = fromCell(arg)
+	}
+	return args
+}
+
+func fromAssocPairs(cs []Cell) []*logic.Assoc {
+	args := make([]*logic.Assoc, len(cs))
+	for i, arg := range cs {
+		args[i] = fromCell(arg).(*logic.Assoc)
 	}
 	return args
 }
@@ -66,14 +74,25 @@ func fromConstant(c Constant) logic.Term {
 	}
 }
 
-func fromList(l *List) logic.Term {
-	terms := []Cell{l.Head}
-	tail := deref(l.Tail)
-	t, ok := tail.(*List)
-	for ok {
+func fromPair(p *Pair) logic.Term {
+	if p.Tag == AssocPair {
+		return logic.NewAssoc(fromCell(p.Head), fromCell(p.Tail))
+	}
+	tag := p.Tag
+	terms := []Cell{p.Head}
+	tail := deref(p.Tail)
+	t, ok := tail.(*Pair)
+	for ok && t.Tag == tag {
 		terms = append(terms, t.Head)
 		tail = deref(t.Tail)
-		t, ok = tail.(*List)
+		t, ok = tail.(*Pair)
 	}
-	return logic.NewIncompleteList(fromCells(terms), fromCell(tail))
+	switch tag {
+	case ListPair:
+		return logic.NewIncompleteList(fromCells(terms), fromCell(tail))
+	case DictPair:
+		return logic.NewIncompleteDict(fromAssocPairs(terms), fromCell(tail))
+	default:
+		panic(fmt.Sprintf("fromPair: unhandled pair type %v", tag))
+	}
 }

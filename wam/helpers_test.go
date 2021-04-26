@@ -5,6 +5,12 @@ import (
 	"github.com/brunokim/logic-engine/wam"
 )
 
+const (
+	assoc_pair = wam.AssocPair
+	list_pair  = wam.ListPair
+	dict_pair  = wam.DictPair
+)
+
 type (
 	functor  = wam.Functor
 	reg      = wam.RegAddr
@@ -19,12 +25,12 @@ type (
 	put_variable       = wam.PutVariable
 	put_value          = wam.PutValue
 	put_constant       = wam.PutConstant
-	put_list           = wam.PutList
+	put_pair           = wam.PutPair
 	get_struct         = wam.GetStruct
 	get_variable       = wam.GetVariable
 	get_value          = wam.GetValue
 	get_constant       = wam.GetConstant
-	get_list           = wam.GetList
+	get_pair           = wam.GetPair
 	set_variable       = wam.SetVariable
 	set_value          = wam.SetValue
 	set_constant       = wam.SetConstant
@@ -80,7 +86,7 @@ func registers(instr wam.Instruction) (reg, reg) {
 		return toReg(i.Addr), i.ArgAddr
 	case put_constant:
 		return 0, i.ArgAddr
-	case put_list:
+	case put_pair:
 		return 0, i.ArgAddr
 	case get_struct:
 		return 0, i.ArgAddr
@@ -90,7 +96,7 @@ func registers(instr wam.Instruction) (reg, reg) {
 		return toReg(i.Addr), i.ArgAddr
 	case get_constant:
 		return 0, i.ArgAddr
-	case get_list:
+	case get_pair:
 		return 0, i.ArgAddr
 	case set_variable:
 		return toReg(i.Addr), 0

@@ -37,7 +37,7 @@ func (c *Struct) MarshalText() ([]byte, error) {
 	return []byte(c.String()), nil
 }
 
-func (c *List) MarshalText() ([]byte, error) {
+func (c *Pair) MarshalText() ([]byte, error) {
 	return []byte(c.String()), nil
 }
 
@@ -175,7 +175,7 @@ func clausePtrs(instr Instruction) []*Clause {
 		return []*Clause{
 			instr.IfVar.Clause,
 			instr.IfConstant.Clause,
-			instr.IfList.Clause,
+			instr.IfPair.Clause,
 			instr.IfStruct.Clause}
 	case SwitchOnConstant:
 		clauses := make([]*Clause, len(instr.Continuation))
@@ -242,7 +242,7 @@ func (enc *machineEncoder) instructions(ins []Instruction) []interface{} {
 		m := make(map[string]interface{})
 		v := reflect.ValueOf(instr)
 		t := v.Type()
-		m["Tag"] = t.Name()
+		m["Type"] = t.Name()
 		for k := 0; k < v.NumField(); k++ {
 			field := t.Field(k)
 			value := v.Field(k).Interface()

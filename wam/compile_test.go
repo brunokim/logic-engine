@@ -37,10 +37,10 @@ func TestCompile(t *testing.T) {
 			dsl.Clause(comp("take-1", var_("H"), list(var_("H")), ilist(var_("H"), var_("_")))),
 			clause(functor{"take-1", 3},
 				get_variable{reg(3), reg(0)},
-				get_list{reg(1)},
+				get_pair{list_pair, reg(1)},
 				unify_value{reg(3)},
 				unify_constant{watom("[]")},
-				get_list{reg(2)},
+				get_pair{list_pair, reg(2)},
 				unify_value{reg(3)},
 				unify_void{1},
 				proceed{}),
@@ -74,7 +74,7 @@ func TestCompile(t *testing.T) {
 		{
 			dsl.Clause(comp("non-empty", ilist(var_("_"), var_("_")))),
 			clause(functor{"non-empty", 1},
-				get_list{reg(0)},
+				get_pair{list_pair, reg(0)},
 				unify_void{2},
 				proceed{}),
 		},
@@ -92,12 +92,12 @@ func TestCompile(t *testing.T) {
 		{
 			dsl.Clause(comp("f", list(comp("g", atom("a")), comp("h", atom("b"))))),
 			clause(functor{"f", 1},
-				get_list{reg(0)},
+				get_pair{list_pair, reg(0)},
 				unify_variable{reg(1)},
 				unify_variable{reg(2)},
 				get_struct{functor{"g", 1}, reg(1)},
 				unify_constant{watom("a")},
-				get_list{reg(2)},
+				get_pair{list_pair, reg(2)},
 				unify_variable{reg(3)},
 				unify_constant{watom("[]")},
 				get_struct{functor{"h", 1}, reg(3)},
@@ -247,7 +247,7 @@ var (
 		proceed{})
 	fList1 = clause(functor{"f", 1},
 		retry_me_else{instr{fStructG2, 0}},
-		get_list{reg(0)},
+		get_pair{list_pair, reg(0)},
 		unify_variable{reg(1)},
 		unify_variable{reg(2)},
 		proceed{})
@@ -258,13 +258,13 @@ var (
 		proceed{})
 	fList2 = clause(functor{"f", 1},
 		retry_me_else{instr{fList3, 0}},
-		get_list{reg(0)},
+		get_pair{list_pair, reg(0)},
 		unify_constant{watom("x")},
 		unify_constant{watom("[]")},
 		proceed{})
 	fList3 = clause(functor{"f", 1},
 		trust_me{},
-		get_list{reg(0)},
+		get_pair{list_pair, reg(0)},
 		unify_constant{watom("y")},
 		unify_constant{watom("[]")},
 		proceed{})
@@ -276,7 +276,7 @@ var (
 				IfVar:      instr{fAtomA1, 0},
 				IfConstant: instr{nil, 1},
 				IfStruct:   instr{nil, 4},
-				IfList:     instr{nil, 7},
+				IfPair:     instr{nil, 7},
 			},
 			/*1*/ switch_on_constant{map[constant]instr{
 				watom("a"):  instr{nil, 2},
@@ -349,7 +349,7 @@ func TestCompileClauses(t *testing.T) {
 		cmpopts.IgnoreFields(switch_on_term{},
 			"IfConstant.Clause",
 			"IfStruct.Clause",
-			"IfList.Clause"),
+			"IfPair.Clause"),
 		cmp.Transformer("switch_on_constant.Continuation", func(cont map[constant]instr) map[constant]instr {
 			m := make(map[constant]instr)
 			for key, ins := range cont {

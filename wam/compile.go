@@ -196,7 +196,7 @@ func (ctx *compileCtx) getTerm(term logic.Term, addr RegAddr) []Instruction {
 		return instrs
 	case *logic.List:
 		return []Instruction{
-			GetList{addr},
+			GetPair{ListPair, addr},
 			ctx.unifyArg(t.Terms[0]),
 			ctx.unifyArg(t.Slice(1)),
 		}
@@ -242,7 +242,7 @@ func (ctx *compileCtx) putTerm(term logic.Term, addr RegAddr) []Instruction {
 		ctx.setArgs(t.Args, instrs)
 		return instrs
 	case *logic.List:
-		instrs := []Instruction{PutList{addr}, nil, nil}
+		instrs := []Instruction{PutPair{ListPair, addr}, nil, nil}
 		head, tail := t.Terms[0], t.Slice(1)
 		ctx.setArgs([]logic.Term{head, tail}, instrs)
 		return instrs
@@ -551,7 +551,7 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 	switchOnTerm := SwitchOnTerm{
 		IfVar:      InstrAddr{codes[0], 0},
 		IfConstant: InstrAddr{fail, 0},
-		IfList:     InstrAddr{fail, 0},
+		IfPair:     InstrAddr{fail, 0},
 		IfStruct:   InstrAddr{fail, 0},
 	}
 	indexClause := &Clause{
@@ -591,9 +591,9 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 	// Index lists.
 	if len(listIndex) > 0 {
 		if len(listIndex) == 1 {
-			switchOnTerm.IfList = listIndex[0]
+			switchOnTerm.IfPair = listIndex[0]
 		} else {
-			switchOnTerm.IfList = putCode(addrsToInstrs(listIndex)...)
+			switchOnTerm.IfPair = putCode(addrsToInstrs(listIndex)...)
 		}
 	}
 	indexClause.Code[0] = switchOnTerm

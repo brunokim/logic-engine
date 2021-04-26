@@ -304,7 +304,7 @@ export class Wam {
 
     instructionRow(instr) {
         let row = $("<tr>");
-        row.append($("<td>").text(instructionTag(instr.Tag)))
+        row.append($("<td>").text(instructionType(instr.Type)))
         for (let arg of this.instructionArgs(instr)) {
             row.append($("<td>").append(arg))
         }
@@ -319,7 +319,7 @@ export class Wam {
     }
 
     instructionFirstArg(instr) {
-        switch (instr.Tag) {
+        switch (instr.Type) {
         case "PutStruct":
         case "GetStruct":
         case "Call":
@@ -345,9 +345,9 @@ export class Wam {
         case "UnifyVoid":
         case "Allocate":
             return instr.NumVars
-        case "PutList":
-        case "GetList":
-            return instr.ArgAddr
+        case "PutPair":
+        case "GetPair":
+            return instr.Tag
         case "TryMeElse":
         case "RetryMeElse":
             return this.instructionAddress(instr.Alternative)
@@ -359,7 +359,7 @@ export class Wam {
             return this.switchTable({
                 'if_var': instr.IfVar,
                 'if_const': instr.IfConstant,
-                'if_list': instr.IfList,
+                'if_pair': instr.IfPair,
                 'if_struct': instr.IfStruct,
             })
         case "SwitchOnConstant":
@@ -370,15 +370,17 @@ export class Wam {
     }
 
     instructionSecondArg(instr) {
-        switch (instr.Tag) {
+        switch (instr.Type) {
         case "PutStruct":
         case "PutVariable":
         case "PutValue":
         case "PutConstant":
+        case "PutPair":
         case "GetStruct":
         case "GetVariable":
         case "GetValue":
         case "GetConstant":
+        case "GetPair":
             return instr.ArgAddr
         case "CallMeta":
         case "ExecuteMeta":
@@ -420,8 +422,8 @@ function olist(items) {
     return list
 }
 
-function instructionTag(tag) {
-    return toSnakeCase(fromCamelCase(tag))
+function instructionType(type) {
+    return toSnakeCase(fromCamelCase(type))
 }
 
 function toSnakeCase(parts) {
