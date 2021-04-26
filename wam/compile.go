@@ -200,6 +200,18 @@ func (ctx *compileCtx) getTerm(term logic.Term, addr RegAddr) []Instruction {
 			ctx.unifyArg(t.Terms[0]),
 			ctx.unifyArg(t.Slice(1)),
 		}
+	case *logic.Assoc:
+		return []Instruction{
+			GetPair{AssocPair, addr},
+			ctx.unifyArg(t.Key),
+			ctx.unifyArg(t.Val),
+		}
+	case *logic.Dict:
+		return []Instruction{
+			GetPair{DictPair, addr},
+			ctx.unifyArg(t.Assocs[0]),
+			ctx.unifyArg(t.Tail()),
+		}
 	default:
 		panic(fmt.Sprintf("wam.getTerm: unhandled type %T (%v)", term, term))
 	}
@@ -246,6 +258,15 @@ func (ctx *compileCtx) putTerm(term logic.Term, addr RegAddr) []Instruction {
 		head, tail := t.Terms[0], t.Slice(1)
 		ctx.setArgs([]logic.Term{head, tail}, instrs)
 		return instrs
+	case *logic.Assoc:
+		instrs := []Instruction{PutPair{AssocPair, addr}, nil, nil}
+		ctx.setArgs([]logic.Term{t.Key, t.Val}, instrs)
+		return instrs
+	case *logic.Dict:
+		instrs := []Instruction{PutPair{DictPair, addr}, nil, nil}
+		head, tail := t.Assocs[0], t.Tail()
+		ctx.setArgs([]logic.Term{head, tail}, instrs)
+		return instrs
 	default:
 		panic(fmt.Sprintf("wam.putTerm: unhandled type %T (%v)", term, term))
 	}
@@ -285,18 +306,23 @@ func (ctx *compileCtx) setArg(arg logic.Term) Instruction {
 	case logic.Var:
 		return ctx.setVar(a)
 	case *logic.Comp:
-		addr := ctx.topReg
-		ctx.topReg++
-		ctx.instrs = append(ctx.instrs, ctx.putTerm(a, addr)...)
-		return SetValue{addr}
+		return ctx.setComplexArg(arg)
 	case *logic.List:
-		addr := ctx.topReg
-		ctx.topReg++
-		ctx.instrs = append(ctx.instrs, ctx.putTerm(a, addr)...)
-		return SetValue{addr}
+		return ctx.setComplexArg(arg)
+	case *logic.Assoc:
+		return ctx.setComplexArg(arg)
+	case *logic.Dict:
+		return ctx.setComplexArg(arg)
 	default:
 		panic(fmt.Sprintf("wam.setArg: unhandled type %T (%v)", arg, arg))
 	}
+}
+
+func (ctx *compileCtx) setComplexArg(arg logic.Term) Instruction {
+	addr := ctx.topReg
+	ctx.topReg++
+	ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, addr)...)
+	return SetValue{addr}
 }
 
 // Compile compiles a single logic clause.

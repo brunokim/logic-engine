@@ -1,6 +1,7 @@
 package wam_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -1028,5 +1029,54 @@ func TestReset(t *testing.T) {
 	want := []map[logic.Var]logic.Term{want1, want2, want3}
 	if diff := cmp.Diff(want, bindings, test_helpers.IgnoreUnexported); diff != "" {
 		t.Errorf("-want, +got:%s", diff)
+	}
+}
+
+func TestUnifyDicts(t *testing.T) {
+	m := wam.NewMachine()
+	m.IterLimit = 200
+
+	tests := []struct {
+		d1, d2 logic.Term
+		want   map[logic.Var]logic.Term
+	}{
+		// ?- {a:1} = {a:X}.
+		{
+			dict(atom("a"), int_(1)),
+			dict(atom("a"), var_("X")),
+			map[logic.Var]logic.Term{var_("X"): int_(1)},
+		},
+		// ?- {a:1, b:Y} = {a:X, b:2}.
+		{
+			dict(atom("a"), int_(1), atom("b"), var_("Y")),
+			dict(atom("b"), int_(2), atom("a"), var_("X")),
+			map[logic.Var]logic.Term{var_("X"): int_(1), var_("Y"): int_(2)},
+		},
+		// ?- {a:1|Dict} = {b:2, a:X}.
+		{
+			idict(atom("a"), int_(1), var_("Dict")),
+			dict(atom("b"), int_(2), atom("a"), var_("X")),
+			map[logic.Var]logic.Term{var_("X"): int_(1), var_("Dict"): dict(atom("b"), int_(2))},
+		},
+		// ?- {a:1, c:3|Dict1} = {a:X, b:2|Dict2}
+		/*{
+		    idict(atom("a"), int_(1), atom("c"), int_(3), var_("Dict1")),
+		    idict(atom("b"), int_(2), atom("a"), var_("X"), var_("Dict2")),
+		    map[logic.Var]logic.Term{
+		        var_("X"): int_(1),
+		        var_("Dict1"): idict(atom("b"), int_(2), var_("Dict2")),
+		        var_("Dict2"): idict(atom("c"), int_(3), var_("Dict1"))},
+		},*/
+	}
+	for i, test := range tests {
+		m.Reset()
+		m.DebugFilename = fmt.Sprintf("debugtest/unify-dicts-%02d.jsonl", i)
+		bindings, err := m.RunQuery(comp("=", test.d1, test.d2))
+		if err != nil {
+			t.Fatalf("#%d: got err: %v", i, err)
+		}
+		if diff := cmp.Diff(test.want, bindings, test_helpers.IgnoreUnexported); diff != "" {
+			t.Errorf("#%d (-want, +got)\n%s", i, diff)
+		}
 	}
 }

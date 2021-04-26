@@ -379,6 +379,17 @@ func newIncompleteDict(assocs AssocSet, parent Term) *Dict {
 	return &Dict{Assocs: assocs, Parent: parent, hasVar_: hasVar}
 }
 
+// Tail returns a new dict excluding the first (minimum) element.
+func (d *Dict) Tail() Term {
+	if len(d.Assocs) == 1 {
+		return d.Parent
+	}
+	if !d.hasVar_ {
+		return &Dict{Assocs: d.Assocs[1:], Parent: d.Parent, hasVar_: false}
+	}
+	return NewIncompleteDict(d.Assocs[1:], d.Parent)
+}
+
 // ---- Clauses
 
 // NewClause returns a clause with the provided head and terms as body.

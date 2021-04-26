@@ -67,6 +67,9 @@ var (
 	ilist = dsl.IList
 	list  = dsl.List
 	var_  = dsl.Var
+	dict  = dsl.Dict
+	idict = dsl.IDict
+	assoc = dsl.Assoc
 )
 
 func toReg(addr wam.Addr) reg {

@@ -586,16 +586,6 @@ func (m *Machine) backtrack(err error) (InstrAddr, error) {
 	return m.ChoicePoint.NextAlternative, nil
 }
 
-// deref walks the reference chain until if finds a non-ref cell, or an unbound ref.
-func deref(cell Cell) Cell {
-	ref, ok := cell.(*Ref)
-	for ok && ref.Cell != nil {
-		cell = ref.Cell
-		ref, ok = cell.(*Ref)
-	}
-	return cell
-}
-
 // bind must be called with at least one unbound ref.
 func (m *Machine) bind(c1, c2 Cell) {
 	if ref1, ok := c1.(*Ref); ok && ref1.Cell == nil {
@@ -668,7 +658,15 @@ func (m *Machine) unify(a1, a2 Cell) error {
 			if !(ok && t1.Tag == t2.Tag) {
 				return &unifyError{c1, c2}
 			}
-			stack = append(stack, t1.Head, t2.Head, t1.Tail, t2.Tail)
+			if t1.Tag == DictPair {
+				pairs, err := dictMatchingPairs(t1, t2)
+				if err != nil {
+					return err
+				}
+				stack = append(stack, pairs...)
+			} else {
+				stack = append(stack, t1.Head, t2.Head, t1.Tail, t2.Tail)
+			}
 		default:
 			panic(fmt.Sprintf("wam.Machine.unify: unhandled type %T (%v)", c1, c1))
 		}
