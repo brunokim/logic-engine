@@ -590,21 +590,6 @@ func (c *Struct) Functor() Functor {
 	return Functor{c.Name, len(c.Args)}
 }
 
-func (c *Ref) String() string {
-	if c.Cell == nil {
-		return fmt.Sprintf("_X%d", c.id)
-	}
-	return fmt.Sprintf("&%v", c.Cell)
-}
-
-func (c *Struct) String() string {
-	args := make([]string, len(c.Args))
-	for i, arg := range c.Args {
-		args[i] = fmt.Sprintf("%v", arg)
-	}
-	return fmt.Sprintf("%s(%s)", c.Name, strings.Join(args, ", "))
-}
-
 func (c WAtom) String() string {
 	return logic.FormatAtom(string(c))
 }
@@ -617,46 +602,16 @@ func (c WPtr) String() string {
 	return fmt.Sprintf("<ptr %p>", c)
 }
 
-// Unroll a list or dict Pair into a sequence of cells.
-func (c *Pair) toSlice() ([]Cell, Cell) {
-	if c.Tag == AssocPair {
-		return nil, c
-	}
-	tag := c.Tag
-	cells, tail := []Cell{c.Head}, c.Tail
-	l, ok := tail.(*Pair)
-	for ok && l.Tag == tag {
-		cells = append(cells, l.Head)
-		tail = l.Tail
-		l, ok = tail.(*Pair)
-	}
-	return cells, tail
+func (c *Ref) String() string {
+	return formatCell(c)
+}
+
+func (c *Struct) String() string {
+	return formatCell(c)
 }
 
 func (c *Pair) String() string {
-	cells, tail := c.toSlice()
-	args := make([]string, len(cells))
-	for i, cell := range cells {
-		args[i] = fmt.Sprintf("%v", cell)
-	}
-	body := strings.Join(args, ", ")
-	end, ok := tail.(WAtom)
-	switch c.Tag {
-	case ListPair:
-		if ok && end == "[]" {
-			return fmt.Sprintf("[%s]", body)
-		}
-		return fmt.Sprintf("[%s|%v]", body, tail)
-	case DictPair:
-		if ok && end == "{}" {
-			return fmt.Sprintf("{%s}", body)
-		}
-		return fmt.Sprintf("{%s|%v}", body, tail)
-	case AssocPair:
-		return fmt.Sprintf("%v: %v", c.Head, c.Tail)
-	default:
-		panic(fmt.Sprintf("(*Pair).String: unhandled pair type %v", c.Tag))
-	}
+	return formatCell(c)
 }
 
 // ---- Stack frames

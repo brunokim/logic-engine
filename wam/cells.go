@@ -45,27 +45,46 @@ func isGround(cell Cell) bool {
 	return true
 }
 
-// unrollDict returns all assoc Pairs that compose a dict, and its parent if present.
+// unroll returns all cells that compose a linked-list object, and its tail.
+func unroll(p *Pair) ([]Cell, Cell) {
+	if p.Tag == AssocPair {
+		return nil, p
+	}
+	var elems []Cell
+	var head, tail Cell
+	isPair := true
+	seen := make(map[Cell]struct{})
+	tag := p.Tag
+	for isPair && p.Tag == tag {
+		if _, ok := seen[p]; ok {
+			break
+		}
+		seen[p] = struct{}{}
+		head, tail = deref(p.Head), deref(p.Tail)
+		elems = append(elems, head)
+		p, isPair = tail.(*Pair)
+	}
+	return elems, tail
+}
+
+// unrollDict returns all assoc Pairs that compose a dict, and its parent.
 func unrollDict(d *Pair) ([]*Pair, Cell, error) {
 	if d.Tag != DictPair {
 		return nil, nil, fmt.Errorf("unrollDict: not a dict: %v", d)
 	}
-	var assocs []*Pair
-	var head, tail Cell
-	isPair := true
-	for isPair && d.Tag == DictPair {
-		head, tail = deref(d.Head), deref(d.Tail)
-		pair, ok := head.(*Pair)
+	elems, parent := unroll(d)
+	assocs := make([]*Pair, len(elems))
+	for i, elem := range elems {
+		pair, ok := elem.(*Pair)
 		if !(ok && pair.Tag == AssocPair) {
-			return nil, nil, fmt.Errorf("non-assoc content in dict: %v", head)
+			return nil, nil, fmt.Errorf("non-assoc content in dict: %v", elem)
 		}
 		if !isGround(pair.Head) {
 			return nil, nil, fmt.Errorf("non-ground key in dict: %v", pair.Head)
 		}
-		assocs = append(assocs, pair)
-		d, isPair = tail.(*Pair)
+		assocs[i] = pair
 	}
-	return assocs, tail, nil
+	return assocs, parent, nil
 }
 
 // rollDict creates a new dict Pair from the provided assoc list.

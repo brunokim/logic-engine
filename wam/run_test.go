@@ -504,7 +504,7 @@ func TestConcat(t *testing.T) {
 	}
 
 	x := m.Reg[6]
-	xWant := "&[a|&[b|&[c|&[d]]]]"
+	xWant := "&[a, b, c, d]"
 	if x.String() != xWant {
 		t.Errorf("X = %v != %s", x, xWant)
 	}
@@ -535,7 +535,7 @@ func TestConcat_TryTrust(t *testing.T) {
 	}
 
 	x := m.Reg[6]
-	xWant := "&[a|&[b|&[c|&[d]]]]"
+	xWant := "&[a, b, c, d]"
 	if x.String() != xWant {
 		t.Errorf("X = %v != %s", x, xWant)
 	}
@@ -848,7 +848,7 @@ func TestNestedCalls(t *testing.T) {
 	}
 
 	l := m.Reg[6]
-	lWant := `&[b|&[c|&[a|&[d|&"[]"]]]]`
+	lWant := `&[b, c, a, d]`
 	if l.String() != lWant {
 		t.Errorf("L = %v != %s", l, lWant)
 	}
