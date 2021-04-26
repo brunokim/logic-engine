@@ -1,4 +1,4 @@
-import {Wam2} from '/wam2_view.js'
+import {Wam} from '/wam_view.js'
 
 document.forms[0].addEventListener("submit", (evt) => {
     evt.preventDefault();
@@ -36,6 +36,6 @@ function init(states) {
     if (wam !== undefined) {
         wam.destroy()
     }
-    wam = new Wam2(states, clauses)
+    wam = new Wam(states, clauses)
     wam.render()
 }

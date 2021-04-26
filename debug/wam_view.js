@@ -1,5 +1,5 @@
 
-export class Wam2 {
+export class Wam {
     constructor(states, clauses) {
         this.states = states;
         this.clauses = clauses;
@@ -37,7 +37,7 @@ export class Wam2 {
     }
 
     render() {
-        $("#wam2")
+        $("#wam")
             .html("")
             .append(this.controls())
             .append($("<div>").append(this.globalsTable()))
