@@ -324,21 +324,17 @@ export class Wam {
             return instr.Functor
         case "PutConstant":
         case "GetConstant":
-        case "SetConstant":
         case "UnifyConstant":
             return instr.Constant
         case "PutVariable":
         case "PutValue":
         case "GetVariable":
         case "GetValue":
-        case "SetVariable":
-        case "SetValue":
         case "UnifyVariable":
         case "UnifyValue":
         case "CallMeta":
         case "ExecuteMeta":
             return instr.Addr
-        case "SetVoid":
         case "UnifyVoid":
         case "Allocate":
             return instr.NumVars
