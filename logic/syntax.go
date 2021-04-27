@@ -69,20 +69,19 @@ func IsQuotedAtom(text string) bool {
 }
 
 var escapeChars = map[rune]string{
-	' ':  " ",
-	'\n': "\\n",
-	'\t': "\\t",
-	'\v': "\\v",
-	'\f': "\\f",
-	'\r': "\\r",
-	',':  ",",
-	'(':  "(",
-	')':  ")",
-	'[':  "[",
-	']':  "]",
-	'"':  "\\\"",
-	'\\': "\\\\",
-	'_':  "_",
+	' ':  ` `,
+	'\n': `\n`,
+	'\t': `\t`,
+	'\v': `\v`,
+	'\f': `\f`,
+	'\r': `\r`,
+	',':  `,`,
+	'(':  `(`,
+	')':  `)`,
+	'[':  `[`,
+	']':  `]`,
+	'\\': `\\`,
+	'_':  `_`,
 }
 
 // Formats an atom, escaping and quoting the text if necessary.
@@ -90,7 +89,7 @@ func FormatAtom(text string) string {
 	// Check if there's any character that needs escaping.
 	var hasEscape bool
 	for _, ch := range text {
-		if _, ok := escapeChars[ch]; ok {
+		if _, ok := escapeChars[ch]; ok || ch == '\'' || ch == '"' {
 			hasEscape = true
 			break
 		}
@@ -100,10 +99,28 @@ func FormatAtom(text string) string {
 	}
 	// Build a quoted atom.
 	var b strings.Builder
+	b.WriteRune('\'')
+	for _, ch := range text {
+		if exp, ok := escapeChars[ch]; ok {
+			b.WriteString(exp)
+		} else if ch == '\'' {
+			b.WriteString(`\'`)
+		} else {
+			b.WriteRune(ch)
+		}
+	}
+	b.WriteRune('\'')
+	return b.String()
+}
+
+func FormatString(text []rune) string {
+	var b strings.Builder
 	b.WriteRune('"')
 	for _, ch := range text {
 		if exp, ok := escapeChars[ch]; ok {
 			b.WriteString(exp)
+		} else if ch == '"' {
+			b.WriteString(`\"`)
 		} else {
 			b.WriteRune(ch)
 		}

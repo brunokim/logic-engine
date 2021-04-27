@@ -70,7 +70,7 @@ func TestString(t *testing.T) {
 		{comp("f"), "f()"},
 		{comp("f", var_("A")), "f(A)"},
 		{comp("f", var_("A"), var_("B")), "f(A, B)"},
-		{list(), `"[]"`},
+		{list(), `'[]'`},
 		{list(var_("A")), "[A]"},
 		{list(var_("A"), var_("B")), "[A, B]"},
 		{ilist(var_("A"), var_("B"), var_("Tail")), "[A, B|Tail]"},

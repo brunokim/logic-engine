@@ -61,16 +61,16 @@ var (
 			comp("symbol", var_("Ch")),
 			comp("symbols", var_("L"), var_("L1"), var_("L2"))),
 		// Quoted atom
-		dsl.Clause(comp("atom", comp("atom", var_("Chars")), ilist(atom(`"`), var_("L1")), var_("L2")),
-			comp("quoted", var_("Chars"), var_("L1"), ilist(atom(`"`), var_("L2")))),
-		dsl.Clause(comp("quoted", ilist(atom(`"`), var_("Chars")), ilist(atom(`\`), atom(`"`), var_("L1")), var_("L2")),
+		dsl.Clause(comp("atom", comp("atom", var_("Chars")), ilist(atom(`'`), var_("L1")), var_("L2")),
+			comp("quoted", var_("Chars"), var_("L1"), ilist(atom(`'`), var_("L2")))),
+		dsl.Clause(comp("quoted", ilist(atom(`'`), var_("Chars")), ilist(atom(`\`), atom(`'`), var_("L1")), var_("L2")),
 			comp("quoted", var_("Chars"), var_("L1"), var_("L2"))),
 		dsl.Clause(comp("quoted", ilist(atom(`\`), var_("Chars")), ilist(atom(`\`), atom(`\`), var_("L1")), var_("L2")),
 			comp("quoted", var_("Chars"), var_("L1"), var_("L2"))),
 		dsl.Clause(comp("quoted", ilist(atom("\n"), var_("Chars")), ilist(atom(`\`), atom(`n`), var_("L1")), var_("L2")),
 			comp("quoted", var_("Chars"), var_("L1"), var_("L2"))),
 		dsl.Clause(comp("quoted", ilist(var_("Ch"), var_("Chars")), ilist(var_("Ch"), var_("L1")), var_("L2")),
-			comp("\\=", var_("Ch"), atom(`"`)),
+			comp("\\=", var_("Ch"), atom(`'`)),
 			comp("\\=", var_("Ch"), atom(`\`)),
 			comp("\\=", var_("Ch"), atom("\n")),
 			comp("quoted", var_("Chars"), var_("L1"), var_("L2"))),
@@ -236,12 +236,12 @@ var text = `
     ws(L, L).
 
     % Comments
-    comment(["%"|L1], L2) :-
-        line(L1, ["\n"|L2]).
-    comment(["%"|L1], []) :-
+    comment(['%'|L1], L2) :-
+        line(L1, ['\n'|L2]).
+    comment(['%'|L1], []) :-
         line(L1, []).
     line([Ch|L1], L2) :-
-        \=(Ch, "\n"),
+        \=(Ch, '\n'),
         line(L1, L2).
     line(L, L).
 
@@ -270,20 +270,20 @@ var text = `
     atom(atom([Ch|L]), [Ch|L1], L2) :-
         symbol(Ch),
         symbols(L, L1, L2).
-    atom(atom(Chars), ["\""|L1], L2) :-
-        quoted(Chars, L1, ["\""|L2]).
+    atom(atom(Chars), ['\''|L1], L2) :-
+        quoted(Chars, L1, ['\''|L2]).
 
     % Quoted atoms
-    quoted(["\""|Chars], ["\\", "\""|L1], L2) :-
+    quoted(['\''|Chars], ['\\', '\''|L1], L2) :-
         quoted(Chars, L1, L2).
-    quoted(["\\"|Chars], ["\\", "\\"|L1], L2) :-
+    quoted(['\\'|Chars], ['\\', '\\'|L1], L2) :-
         quoted(Chars, L1, L2).
-    quoted(["\n"|Chars], ["\\", "n"|L1], L2) :-
+    quoted(['\n'|Chars], ['\\', 'n'|L1], L2) :-
         quoted(Chars, L1, L2).
     quoted([Ch|Chars], [Ch|L1], L2) :-
-        \=(Ch, "\""),
-        \=(Ch, "\\"),
-        \=(Ch, "\n"),
+        \=(Ch, '\''),
+        \=(Ch, '\\'),
+        \=(Ch, '\n'),
         quoted(Chars, L1, L2).
     quoted([], L, L).
 
@@ -296,31 +296,31 @@ var text = `
     var(var([Ch|L]), [Ch|L1], L2) :-
         upper(Ch),
         idents(L, L1, L2).
-    var(var(["_"|L]), ["_"|L1], L2) :-
+    var(var(['_'|L]), ['_'|L1], L2) :-
         idents(L, L1, L2).
 
     % Compound terms
     comp(comp(Functor, Args), L1, L5) :-
-        atom(atom(Functor), L1, ["("|L2]),
+        atom(atom(Functor), L1, ['('|L2]),
         ws(L2, L3),
         terms(Args, L3, L4),
-        ws(L4, [")"|L5]).
+        ws(L4, [')'|L5]).
 
     % List and incomplete lists
-    list(list(Terms), ["["|L1], L4) :-
+    list(list(Terms), ['['|L1], L4) :-
         ws(L1, L2),
         terms(Terms, L2, L3),
-        ws(L3, ["]"|L4]).
-    list(list(Terms, Tail), ["["|L1], L7) :-
+        ws(L3, [']'|L4]).
+    list(list(Terms, Tail), ['['|L1], L7) :-
         ws(L1, L2),
         terms(Terms, L2, L3),
-        ws(L3, ["|"|L4]),
+        ws(L3, ['|'|L4]),
         ws(L4, L5),
         term(Tail, L5, L6),
-        ws(L6, ["]"|L7]).
+        ws(L6, [']'|L7]).
 
     % Assoc
-    assoc(assoc(Key, Val), [":"|L1], L5) :-
+    assoc(assoc(Key, Val), [':'|L1], L5) :-
         % Note: we need to have ':' as prefix instead of infix, otherwise we'll have a
         % left recursion.
         ws(L1, L2),
@@ -329,24 +329,24 @@ var text = `
         term(Val, L4, L5).
 
     % Dict and incomplete dict
-    dict(dict(Assocs), ["{"|L1], L4) :-
+    dict(dict(Assocs), ['{'|L1], L4) :-
         ws(L1, L2),
         assocs(Assocs, L2, L3),
-        ws(L3, ["}"|L4]).
-    dict(dict(Assocs, Parent), ["{"|L1], L7) :-
+        ws(L3, ['}'|L4]).
+    dict(dict(Assocs, Parent), ['{'|L1], L7) :-
         ws(L1, L2),
         assocs(Assocs, L2, L3),
-        ws(L3, ["|"|L4]),
+        ws(L3, ['|'|L4]),
         ws(L4, L5),
         term(Parent, L5, L6),
-        ws(L6, ["}"|L7]).
+        ws(L6, ['}'|L7]).
 
     % Assoc sequence
     assocs([Assoc], L1, L2) :-
         assoc(Assoc, L1, L2).
     assocs([Assoc|Assocs], L1, L5) :-
         assoc(Assoc, L1, L2),
-        ws(L2, [","|L3]),
+        ws(L2, [','|L3]),
         ws(L3, L4),
         assocs(Assocs, L4, L5).
     assocs([], L, L).
@@ -356,7 +356,7 @@ var text = `
         term(Term, L1, L2).
     terms([Term|Terms], L1, L5) :-
         term(Term, L1, L2),
-        ws(L2, [","|L3]),
+        ws(L2, [','|L3]),
         ws(L3, L4),
         terms(Terms, L4, L5).
     terms([], L, L).
@@ -373,13 +373,13 @@ var text = `
     % Clause: fact and rule
 	clause(clause(Fact), L1, L3) :-
         comp(Fact, L1, L2),
-        ws(L2, ["."|L3]).
+        ws(L2, ['.'|L3]).
     clause(clause(Head, Body), L1, L6) :-
         comp(Head, L1, L2),
-        ws(L2, [":", "-"|L3]),
+        ws(L2, [':', '-'|L3]),
         ws(L3, L4),
         terms(Body, L4, L5),
-        ws(L5, ["."|L6]).
+        ws(L5, ['.'|L6]).
 
     % Clause list
     clauses([Clause|L], L1, L4) :-

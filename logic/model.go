@@ -256,6 +256,23 @@ func (l *List) Slice(n int) Term {
 	return NewIncompleteList(l.Terms[n:], l.Tail)
 }
 
+func (l *List) asString() (string, bool) {
+	if l.Tail != EmptyList {
+		return "", false
+	}
+	chars := make([]rune, len(l.Terms))
+	for i, term := range l.Terms {
+		if a, ok := term.(Atom); !ok {
+			return "", false
+		} else if ch, ok := singleRune(a.Name); !ok {
+			return "", false
+		} else {
+			chars[i] = ch
+		}
+	}
+	return FormatString(chars), true
+}
+
 // ---- Assoc and Dict
 
 // NewAssoc returns an assoc with provided key and value.
@@ -778,6 +795,9 @@ func (t *Comp) String() string {
 }
 
 func (t *List) String() string {
+	if s, ok := t.asString(); ok {
+		return s
+	}
 	terms := make([]string, len(t.Terms))
 	for i, term := range t.Terms {
 		terms[i] = term.String()

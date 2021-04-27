@@ -13,6 +13,11 @@ func firstRune(s string) (rune, error) {
 	return r, nil
 }
 
+func singleRune(s string) (rune, bool) {
+	r, size := utf8.DecodeRuneInString(s)
+	return r, size == len(s)
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a
