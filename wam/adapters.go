@@ -21,48 +21,6 @@ func toConstant(term logic.Term) Constant {
 	}
 }
 
-func fromCell(c Cell) logic.Term {
-	c = deref(c)
-	switch c := c.(type) {
-	case *Ref:
-		return fromRef(c)
-	case *Struct:
-		return fromStruct(c)
-	case Constant:
-		return fromConstant(c)
-	case *Pair:
-		return fromPair(c)
-	}
-	panic(fmt.Sprintf("fromCell: unexpected cell type %T (%v)", c, c))
-}
-
-func fromCells(cs []Cell) []logic.Term {
-	args := make([]logic.Term, len(cs))
-	for i, arg := range cs {
-		args[i] = fromCell(arg)
-	}
-	return args
-}
-
-func fromAssocPairs(cs []Cell) []*logic.Assoc {
-	args := make([]*logic.Assoc, len(cs))
-	for i, arg := range cs {
-		args[i] = fromCell(arg).(*logic.Assoc)
-	}
-	return args
-}
-
-func fromRef(ref *Ref) logic.Term {
-	if ref.Cell != nil {
-		return fromCell(ref.Cell)
-	}
-	return logic.Var{Name: "_X"}.WithSuffix(ref.id)
-}
-
-func fromStruct(s *Struct) *logic.Comp {
-	return logic.NewComp(s.Name, fromCells(s.Args)...)
-}
-
 func fromConstant(c Constant) logic.Term {
 	switch c := c.(type) {
 	case WAtom:
@@ -74,25 +32,89 @@ func fromConstant(c Constant) logic.Term {
 	}
 }
 
-func fromPair(p *Pair) logic.Term {
-	if p.Tag == AssocPair {
-		return logic.NewAssoc(fromCell(p.Head), fromCell(p.Tail))
+func fromCells(xs []logic.Var, cells []Cell) map[logic.Var]logic.Term {
+	ctx := new(convertCtx)
+	ctx.parents = make(map[Cell]struct{})
+	ctx.looping = make(map[Cell]logic.Var)
+	ctx.bindings = make(map[logic.Var]logic.Term)
+	for i, x := range xs {
+		ctx.looping[cells[i]] = x
 	}
-	tag := p.Tag
-	terms := []Cell{p.Head}
-	tail := deref(p.Tail)
-	t, ok := tail.(*Pair)
-	for ok && t.Tag == tag {
-		terms = append(terms, t.Head)
-		tail = deref(t.Tail)
-		t, ok = tail.(*Pair)
+	for _, cell := range cells {
+		ctx.fromCell(cell)
 	}
-	switch tag {
-	case ListPair:
-		return logic.NewIncompleteList(fromCells(terms), fromCell(tail))
-	case DictPair:
-		return logic.NewIncompleteDict(fromAssocPairs(terms), fromCell(tail))
+	return ctx.bindings
+}
+
+type convertCtx struct {
+	id       int
+	parents  map[Cell]struct{}
+	looping  map[Cell]logic.Var
+	bindings map[logic.Var]logic.Term
+}
+
+func (ctx *convertCtx) newVar() logic.Var {
+	ctx.id++
+	x := logic.NewVar("_S").WithSuffix(ctx.id)
+	return x
+}
+
+func (ctx *convertCtx) fromCell(cell Cell) logic.Term {
+	if c, ok := cell.(Constant); ok {
+		return fromConstant(c)
+	}
+	// 1. Cell already appears as a parent of itself, create and return a var.
+	if _, ok := ctx.parents[cell]; ok {
+		x, ok := ctx.looping[cell]
+		if !ok {
+			x = ctx.newVar()
+			ctx.looping[cell] = x
+		}
+		return x
+	}
+	// 2. Build complex term
+	term := ctx.complexTerm(cell)
+	// 3. Cell was referenced within children, returns the var and add itself
+	// to the bindings.
+	if x, ok := ctx.looping[cell]; ok {
+		ctx.bindings[x] = term
+		return x
+	}
+	return term
+}
+
+func (ctx *convertCtx) complexTerm(cell Cell) logic.Term {
+	// Add cell to the parent set, and remove itself on exit.
+	ctx.parents[cell] = struct{}{}
+	defer delete(ctx.parents, cell)
+
+	switch c := cell.(type) {
+	case *Ref:
+		if c.Cell == nil {
+			return logic.NewVar("_X").WithSuffix(c.id)
+		}
+		return ctx.fromCell(c.Cell)
+	case *Struct:
+		args := make([]logic.Term, len(c.Args))
+		for i, arg := range c.Args {
+			args[i] = ctx.fromCell(arg)
+		}
+		return logic.NewComp(c.Name, args...)
+	case *Pair:
+		head := ctx.fromCell(c.Head)
+		tail := ctx.fromCell(c.Tail)
+		switch c.Tag {
+		case AssocPair:
+			return logic.NewAssoc(head, tail)
+		case ListPair:
+			return logic.NewIncompleteList([]logic.Term{head}, tail)
+		case DictPair:
+			assoc := head.(*logic.Assoc)
+			return logic.NewIncompleteDict([]*logic.Assoc{assoc}, tail)
+		default:
+			panic(fmt.Sprintf("(*convertCtx).complexTerm: unhandled pair type %T (%v)", c.Tag, c))
+		}
 	default:
-		panic(fmt.Sprintf("fromPair: unhandled pair type %v", tag))
+		panic(fmt.Sprintf("(*convertCtx).complexTerm: unhandled type %T (%v)", cell, cell))
 	}
 }

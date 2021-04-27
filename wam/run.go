@@ -42,11 +42,7 @@ func (m *Machine) runOnce() (map[logic.Var]logic.Term, error) {
 	if m.Env == nil {
 		return nil, fmt.Errorf("RunQuery: nil env at the end of execution")
 	}
-	bindings := make(map[logic.Var]logic.Term)
-	for i, term := range fromCells(m.Env.PermanentVars) {
-		bindings[m.xs[i]] = term
-	}
-	return bindings, nil
+	return fromCells(m.xs, m.Env.PermanentVars), nil
 }
 
 var debugFilenameRE = regexp.MustCompile(`(.*?)(-(\d+))?.jsonl`)
@@ -231,8 +227,8 @@ func (m *Machine) setCompoundArg(cell Cell) {
 }
 
 func (m *Machine) newRef() *Ref {
-	x := &Ref{nil, m.LastRefID}
 	m.LastRefID++
+	x := &Ref{nil, m.LastRefID}
 	return x
 }
 
@@ -659,7 +655,7 @@ func (m *Machine) unify(a1, a2 Cell) error {
 				return &unifyError{c1, c2}
 			}
 			if t1.Tag == DictPair {
-				pairs, err := dictMatchingPairs(t1, t2)
+				pairs, err := m.dictMatchingPairs(t1, t2)
 				if err != nil {
 					return err
 				}
@@ -672,6 +668,55 @@ func (m *Machine) unify(a1, a2 Cell) error {
 		}
 	}
 	return nil
+}
+
+// Walks the list of (sorted) assocs from each dict, trying to match their keys.
+// Assocs whose key are not present in the other are matched with the other dict's parent.
+func (m *Machine) dictMatchingPairs(d1, d2 *Pair) ([]Cell, error) {
+	assocs1, parent1, err1 := unrollDict(d1)
+	assocs2, parent2, err2 := unrollDict(d2)
+	if err1 != nil {
+		return nil, err1
+	}
+	if err2 != nil {
+		return nil, err2
+	}
+	var cells []Cell
+	var diff1, diff2 []*Pair
+	var i, j int
+	for i < len(assocs1) && j < len(assocs2) {
+		assoc1, assoc2 := assocs1[i], assocs2[j]
+		switch compareCells(assoc1.Head, assoc2.Head) {
+		case equal:
+			cells = append(cells, assoc1.Tail, assoc2.Tail)
+			i++
+			j++
+		case less:
+			diff1 = append(diff1, assoc1)
+			i++
+		case more:
+			diff2 = append(diff2, assoc2)
+			j++
+		}
+	}
+	diff1 = append(diff1, assocs1[i:]...)
+	diff2 = append(diff2, assocs2[j:]...)
+	// {a:A, b:B|D1} = {a:X|D2}  =>  A=X, D2={b:B|D1}
+	if len(diff1) > 0 && len(diff2) == 0 {
+		cells = append(cells, rollDict(diff1, parent1), parent2)
+	}
+	// {a:A|D1} = {a:X, z:Z|D2}  =>  A=X, D1={z:Z|D2}
+	if len(diff2) > 0 && len(diff1) == 0 {
+		cells = append(cells, rollDict(diff2, parent2), parent1)
+	}
+	// {a:A, b:B|D1} = {a:X, z:Z|D2}  =>  A=X, D1={z:Z|D}, D2={b:B|D}
+	if len(diff1) > 0 && len(diff2) > 0 {
+		d := m.newRef()
+		cells = append(cells,
+			rollDict(diff1, d), parent2,
+			rollDict(diff2, d), parent1)
+	}
+	return cells, nil
 }
 
 // If a ref was created before the current choice point, than it's a conditional

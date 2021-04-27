@@ -54,11 +54,11 @@ func TestRun_BuildQuery(t *testing.T) {
 		t.Fatalf("expected nil, got err: %v", err)
 	}
 	z, w := m.Reg[1], m.Reg[4]
-	if z.String() != "_X0" {
-		t.Errorf("Z = %v != _X0", z)
+	if z.String() != "_X1" {
+		t.Errorf("Z = %v != _X1", z)
 	}
-	if w.String() != "_X1" {
-		t.Errorf("W = %v != _X1", z)
+	if w.String() != "_X2" {
+		t.Errorf("W = %v != _X2", z)
 	}
 }
 
@@ -433,7 +433,7 @@ func TestRun_Void(t *testing.T) {
 	}
 
 	x := m.Reg[4]
-	xWant := "_X2"
+	xWant := "_X3"
 	if x.String() != xWant {
 		t.Errorf("X = %v != %s", x, xWant)
 	}
@@ -1058,15 +1058,25 @@ func TestUnifyDicts(t *testing.T) {
 			dict(atom("b"), int_(2), atom("a"), var_("X")),
 			map[logic.Var]logic.Term{var_("X"): int_(1), var_("Dict"): dict(atom("b"), int_(2))},
 		},
+		// ?- {a:1, b:2|Dict1} = {a:X|Dict2}.
+		{
+			idict(atom("a"), int_(1), atom("b"), int_(2), var_("Dict1")),
+			idict(atom("a"), var_("X"), var_("Dict2")),
+			map[logic.Var]logic.Term{
+				var_("X"):     int_(1),
+				var_("Dict1"): svar("_X", 1),
+				var_("Dict2"): idict(atom("b"), int_(2), var_("Dict1")),
+			},
+		},
 		// ?- {a:1, c:3|Dict1} = {a:X, b:2|Dict2}
-		/*{
-		    idict(atom("a"), int_(1), atom("c"), int_(3), var_("Dict1")),
-		    idict(atom("b"), int_(2), atom("a"), var_("X"), var_("Dict2")),
-		    map[logic.Var]logic.Term{
-		        var_("X"): int_(1),
-		        var_("Dict1"): idict(atom("b"), int_(2), var_("Dict2")),
-		        var_("Dict2"): idict(atom("c"), int_(3), var_("Dict1"))},
-		},*/
+		{
+			idict(atom("a"), int_(1), atom("c"), int_(3), var_("Dict1")),
+			idict(atom("b"), int_(2), atom("a"), var_("X"), var_("Dict2")),
+			map[logic.Var]logic.Term{
+				var_("X"):     int_(1),
+				var_("Dict1"): idict(atom("b"), int_(2), svar("_X", 4)),
+				var_("Dict2"): idict(atom("c"), int_(3), svar("_X", 4))},
+		},
 	}
 	for i, test := range tests {
 		m.Reset()

@@ -67,6 +67,7 @@ var (
 	ilist = dsl.IList
 	list  = dsl.List
 	var_  = dsl.Var
+	svar  = dsl.SVar
 	dict  = dsl.Dict
 	idict = dsl.IDict
 	assoc = dsl.Assoc
