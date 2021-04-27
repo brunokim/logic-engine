@@ -333,6 +333,11 @@ func parseQuery(term logic.Term) (terms []logic.Term, err error) {
 	return decodeTerms(term), nil
 }
 
+// ParseMachine returns a copy of the parsing WAM used in this package.
+func ParseMachine() *wam.Machine {
+	return m.Reset()
+}
+
 // ---- decode
 
 func decodeClauses(term logic.Term) []*logic.Clause {

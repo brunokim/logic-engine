@@ -1,10 +1,12 @@
 .*.swo
 .*.swp
 *.pdf
+*.zip
 
-minmax
-kln2go
-lisp2kln
+parse_only
+!parse_only/
+
+fuzz/*/
 
 coverage.out
 *.html
