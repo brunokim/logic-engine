@@ -584,12 +584,20 @@ func (m *Machine) backtrack(err error) (InstrAddr, error) {
 
 // bind must be called with at least one unbound ref.
 func (m *Machine) bind(c1, c2 Cell) {
-	if ref1, ok := c1.(*Ref); ok && ref1.Cell == nil {
+	ref1, isRef1 := c1.(*Ref)
+	ref2, isRef2 := c2.(*Ref)
+	// Safety measure: always bind newer variables to older variables.
+	// This is "WAM Binding Rule 1", but shouldn't be necessary in our
+	// impl, because we don't care if a stack variable references a "heap"
+	// one, as there's no heap to manage.
+	// Still, establishing an order may prevent reference loops in Refs,
+	// and is a very cheap check.
+	if isRef1 && ref1.Cell == nil && (!isRef2 || ref2.id < ref1.id) {
 		ref1.Cell = c2
 		m.trail(ref1)
 		return
 	}
-	if ref2, ok := c2.(*Ref); ok && ref2.Cell == nil {
+	if isRef2 && ref2.Cell == nil {
 		ref2.Cell = c1
 		m.trail(ref2)
 		return

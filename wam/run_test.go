@@ -76,7 +76,7 @@ func TestRun_BuildQueryAndProgram(t *testing.T) {
 		t.Fatalf("expected nil, got err: %v", err)
 	}
 	z, w := m.Reg[1], m.Reg[4]
-	zWant, wWant := "&f(&f(&a))", "&&f(&a)"
+	zWant, wWant := "&f(&&f(&a))", "&f(&a)"
 	if z.String() != zWant {
 		t.Errorf("Z = %v != %s", z, zWant)
 	}
@@ -103,7 +103,7 @@ func TestRun_Call(t *testing.T) {
 	}
 
 	z, w := m.Reg[1], m.Reg[4]
-	zWant, wWant := "&f(&f(&a))", "&&f(&a)"
+	zWant, wWant := "&f(&&f(&a))", "&f(&a)"
 	if z.String() != zWant {
 		t.Errorf("Z = %v != %s", z, zWant)
 	}
