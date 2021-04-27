@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/brunokim/logic-engine/logic"
+	"github.com/brunokim/logic-engine/parser"
 	"github.com/brunokim/logic-engine/wam"
 )
 
@@ -43,7 +44,11 @@ func (s Solution) String() string {
 }
 
 // NewSolver compiles the provided clauses and returns a Solver object.
-func NewSolver(clauses []*logic.Clause) (*Solver, error) {
+func NewSolver(text string) (*Solver, error) {
+	clauses, err := parser.ParseClauses(text)
+	if err != nil {
+		return nil, err
+	}
 	compiled, err := wam.CompileClauses(clauses)
 	if err != nil {
 		return nil, err
@@ -65,7 +70,12 @@ func (solver *Solver) Debug(filename string) {
 // and a cancel function to interrupt the execution.
 //
 // The last error found is stored in solver.Err.
-func (solver *Solver) Query(terms ...logic.Term) (<-chan Solution, func()) {
+func (solver *Solver) Query(text string) (<-chan Solution, func()) {
+	terms, err := parser.ParseQuery(text)
+	if err != nil {
+		solver.Err = err
+		return nil, func() {}
+	}
 	solver.Err = nil
 	m := solver.m.Reset()
 	stream := make(chan Solution)

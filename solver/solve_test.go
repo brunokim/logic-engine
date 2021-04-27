@@ -23,19 +23,15 @@ var (
 )
 
 func TestSolve(t *testing.T) {
-	// nat(0).
-	// nat(s(X)) :- nat(X).
-	s, err := solver.NewSolver(clauses(
-		clause(comp("nat", int_(0))),
-		clause(comp("nat", comp("s", var_("X"))),
-			comp("nat", var_("X"))),
-	))
+	s, err := solver.NewSolver(`
+        nat(0).
+        nat(s(X)) :- nat(X).
+    `)
 	s.Debug("debugtest/test-solve.jsonl")
 	if err != nil {
 		t.Fatalf("NewSolver: got err: %v", err)
 	}
-	// ?- nat(X).
-	solutions, cancel := s.Query(comp("nat", var_("X")))
+	solutions, cancel := s.Query("nat(X)")
 	var got [5]solver.Solution
 	for i := 0; i < 5; i++ {
 		result, ok := <-solutions
@@ -59,20 +55,16 @@ func TestSolve(t *testing.T) {
 
 func TestSolve_All(t *testing.T) {
 	succ := func(t logic.Term) logic.Term { return comp("s", t) }
-
-	// add(0, S, S).
-	// add(s(A), B, s(S)) :- add(A, B, S).
-	s, err := solver.NewSolver(clauses(
-		clause(comp("add", int_(0), var_("S"), var_("S"))),
-		clause(comp("add", succ(var_("A")), var_("B"), succ(var_("S"))),
-			comp("add", var_("A"), var_("B"), var_("S"))),
-	))
+	s, err := solver.NewSolver(`
+        add(0, S, S).
+        add(s(A), B, s(S)) :-
+            add(A, B, S).
+    `)
 	s.Debug("debugtest/test-solve-all.jsonl")
 	if err != nil {
 		t.Fatalf("NewSolver: got err: %v", err)
 	}
-	// ?- add(X, Y, s(s(s(0)))).
-	solutions, _ := s.Query(comp("add", var_("X"), var_("Y"), succ(succ(succ(int_(0))))))
+	solutions, _ := s.Query("add(X, Y, s(s(s(0))))")
 	var got []solver.Solution
 	for result := range solutions {
 		got = append(got, result)
@@ -89,15 +81,11 @@ func TestSolve_All(t *testing.T) {
 }
 
 func TestSolve_Cancel(t *testing.T) {
-	// loop :- loop.
-	s, err := solver.NewSolver(clauses(
-		clause(atom("loop"), atom("loop")),
-	))
+	s, err := solver.NewSolver("loop() :- loop().")
 	if err != nil {
 		t.Fatalf("NewSolver, got err: %v", err)
 	}
-	// ?- loop.
-	solutions, cancel := s.Query(atom("loop"))
+	solutions, cancel := s.Query("loop()")
 	<-time.After(10 * time.Millisecond)
 	cancel()
 	result, ok := <-solutions

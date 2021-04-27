@@ -21,6 +21,12 @@ var text = `
         clauses(Clauses, Ch1, Ch2),
         ws(Ch2, []).
 
+    % Parse query
+    parse_query(Chars, Terms) :-
+        ws(Chars, Ch1),
+        terms(Terms, Ch1, Ch2),
+        ws(Ch2, []).
+
     % Whitespace
     ws([Ch|L1], L2) :-
         space(Ch),

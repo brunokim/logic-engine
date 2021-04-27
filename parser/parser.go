@@ -33,6 +33,11 @@ var (
 			comp("ws", var_("Chars"), var_("Ch1")),
 			comp("clauses", var_("Clauses"), var_("Ch1"), var_("Ch2")),
 			comp("ws", var_("Ch2"), list())),
+		// Parse query
+		clause(comp("parse_query", var_("Chars"), var_("Terms")),
+			comp("ws", var_("Chars"), var_("Ch1")),
+			comp("terms", var_("Terms"), var_("Ch1"), var_("Ch2")),
+			comp("ws", var_("Ch2"), list())),
 		// Whitespace
 		clause(comp("ws", ilist(var_("Ch"), var_("L1")), var_("L2")),
 			comp("space", var_("Ch")),
@@ -291,6 +296,30 @@ func parseClauses(term logic.Term) (clauses []*logic.Clause, err error) {
 		}
 	}()
 	return decodeClauses(term), nil
+}
+
+// ParseQuery parses a sequence of terms.
+func ParseQuery(text string) ([]logic.Term, error) {
+	m := m.Reset()
+	var letters []logic.Term
+	for _, ch := range text {
+		letters = append(letters, dsl.Atom(string(ch)))
+	}
+	x := dsl.Var("Terms")
+	bindings, err := m.RunQuery(dsl.Comp("parse_query", dsl.List(letters...), x))
+	if err != nil {
+		return nil, err
+	}
+	return parseQuery(bindings[x])
+}
+
+func parseQuery(term logic.Term) (terms []logic.Term, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = r.(error)
+		}
+	}()
+	return decodeTerms(term), nil
 }
 
 // ---- decode
