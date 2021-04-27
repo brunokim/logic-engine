@@ -104,6 +104,13 @@ var (
 			comp("ws", var_("L4"), var_("L5")),
 			comp("term", var_("Tail"), var_("L5"), var_("L6")),
 			comp("ws", var_("L6"), ilist(atom("]"), var_("L7")))),
+		// Strings: lists of single-rune atoms
+		dsl.Clause(comp("list", comp("list", var_("Terms")), ilist(atom(`"`), var_("L1")), var_("L2")),
+			comp("quoted", atom(`"`), var_("Chars"), var_("L1"), var_("L2")),
+			comp("atoms", var_("Chars"), var_("Terms"))),
+		dsl.Clause(comp("atoms", ilist(var_("Ch"), var_("Chars")), ilist(comp("atom", var_("Ch")), var_("Terms"))),
+			comp("atoms", var_("Chars"), var_("Terms"))),
+		dsl.Clause(comp("atoms", list(), list())),
 		// Assoc
 		dsl.Clause(comp("assoc", comp("assoc", var_("Key"), var_("Val")), ilist(atom(":"), var_("L1")), var_("L5")),
 			// Parsing limitation: can't have inline ':' yet, or we will loop!
@@ -318,6 +325,14 @@ var text = `
         ws(L4, L5),
         term(Tail, L5, L6),
         ws(L6, [']'|L7]).
+
+    % Strings: lists of single-rune atoms
+    list(list(Terms), ['"'|L1], L2) :-
+        quoted('"', Chars, L1, L2),
+        atoms(Chars, Terms).
+    atoms([Ch|Chars], [atom(Ch)|Terms]) :-
+        atoms(Chars, Terms).
+    atoms([], []).
 
     % Assoc
     assoc(assoc(Key, Val), [':'|L1], L5) :-
