@@ -80,8 +80,12 @@ var escapeChars = map[rune]string{
 	')':  `)`,
 	'[':  `[`,
 	']':  `]`,
+	'{':  `{`,
+	'}':  `}`,
 	'\\': `\\`,
 	'_':  `_`,
+	'%':  `%`,
+	':':  `:`,
 }
 
 // Formats an atom, escaping and quoting the text if necessary.
