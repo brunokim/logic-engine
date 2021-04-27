@@ -1,6 +1,6 @@
 // Package logic implements the interface for a logic engine, with terms and solvers.
 //
-// A logic term can be fall in one of three categories:
+// A logic term can fall in one of three categories:
 //
 // * atomic: a term that represents an immutable value.
 //
@@ -8,58 +8,9 @@
 //
 // * complex: a term that contains other terms, recursively.
 //
-// A logic program takes a list of rules and, given a query, tries to obtain
-// a list of variable assignments that satisfy this query, subject to the rules
-// provided.
-//
-// The simplest rule is a fact, that simply enunciates some known relationship.
-// For example, we can write the parent-child relationship of some members of the
-// British royal family:
-//
-//     parent(elizabeth, charles).
-//     parent(philip, charles).
-//     parent(charles, william).
-//     parent(diana, william).
-//     parent(charles, harry).
-//     parent(diana, harry).
-//
-// The fact 'parent(X, Y)' should be read as "X is parent of Y". We can use these
-// facts to query for relationships that satisfy both the query and the fact database.
-//
-//     ?- parent(P, charles).  % Query for P that satisfy "P is parent of charles"
-//     P = elizabeth ;
-//     P = philip .
-//
-//     ?- parent(diana, C).    % Query for C that satisfy "diana is parent of C"
-//     C = william ;
-//     C = harry .
-//
-//     ?- parent(X, philip).   % Query for X that satisfy "X is parent of philip".
-//     false                   % There's no fact in the database that satisfy that.
-//
-// More complex rules can be written as clauses like "X :- A, B, C.", that can be
-// read as "X holds if A, B, C also hold".
-//
-//     % G is a grandparent of C if G is parent of (some) P, and P is parent of C.
-//     grandparent(G, C) :- parent(G, P), parent(P, C).
-//
-//     % P1 is a partner of P2 if P1 and P2 have (some) child C, and P1 is not P2.
-//     partner(P1, P2) :- parent(P1, C), parent(P2, C), P1 \= P2.
-//
-// We can query these rules just as facts. The logic engine will look for facts that
-// satisfy the clause recursively and output all solutions.
-//
-//     ?- grandparent(G, harry).    % Query for grandparents G of harry
-//     G = elizabeth ;
-//     G = philip .
-//
-//     ?- partner(X, Y).            % Query for all partners in the database.
-//     X = elizabeth, Y = philip ;
-//     X = philip, Y = elizabeth ;
-//     X = charles, Y = diana ;     % charles-diana appears twice because they
-//     X = charles, Y = diana ;     % are partners in two ways: with
-//     X = diana, Y = charles ;     % C = william and C = harry.
-//     X = diana, Y = charles .
+// A logic program is composed of clauses of the form 'head :- term1, term2.', that
+// must be read as "head holds if term1 and term2 holds". A clause with no terms in
+// the body is called a fact.
 package logic
 
 import (
