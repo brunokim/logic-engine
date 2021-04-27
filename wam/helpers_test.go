@@ -102,10 +102,6 @@ func registers(instr wam.Instruction) (reg, reg) {
 		return 0, i.ArgAddr
 	case get_pair:
 		return 0, i.ArgAddr
-	case set_variable:
-		return toReg(i.Addr), 0
-	case set_value:
-		return toReg(i.Addr), 0
 	case unify_variable:
 		return toReg(i.Addr), 0
 	case unify_value:

@@ -42,7 +42,7 @@ func TestCompile(t *testing.T) {
 				unify_constant{watom("[]")},
 				get_pair{list_pair, reg(2)},
 				unify_value{reg(3)},
-				unify_void{1},
+				unify_void{},
 				proceed{}),
 		},
 		{
@@ -75,7 +75,8 @@ func TestCompile(t *testing.T) {
 			dsl.Clause(comp("non-empty", ilist(var_("_"), var_("_")))),
 			clause(functor{"non-empty", 1},
 				get_pair{list_pair, reg(0)},
-				unify_void{2},
+				unify_void{},
+				unify_void{},
 				proceed{}),
 		},
 		{
@@ -86,7 +87,7 @@ func TestCompile(t *testing.T) {
 				get_struct{functor{"s", 1}, reg(1)},
 				unify_variable{reg(2)},
 				get_struct{functor{"s", 1}, reg(2)},
-				unify_void{1},
+				unify_void{},
 				proceed{}),
 		},
 		{

@@ -392,12 +392,13 @@ func TestRun_Void(t *testing.T) {
 	// length3((_ . (_ . (_ . [])))).
 	m.AddClause(clause(functor{"length3", 1},
 		get_pair{list_pair, reg(0)},
-		unify_void{1},
+		unify_void{},
 		unify_variable{reg(1)},
 		get_pair{list_pair, reg(1)},
-		unify_void{1},
+		unify_void{},
+		unify_variable{reg(2)},
 		get_pair{list_pair, reg(2)},
-		unify_void{1},
+		unify_void{},
 		unify_constant{watom("[]")},
 		proceed{}))
 
@@ -405,7 +406,8 @@ func TestRun_Void(t *testing.T) {
 	m.AddClause(clause(functor{},
 		// f(_, _, X)
 		put_struct{functor{"f", 3}, reg(3)},
-		set_void{2},
+		set_void{},
+		set_void{},
 		set_variable{reg(4)},
 
 		// (f(...) . [])
@@ -576,7 +578,7 @@ var (
 		try_me_else{instr{callTrace, 0}},
 		get_struct{functor{"or", 2}, reg(0)},
 		unify_variable{reg(1)},
-		unify_void{1},
+		unify_void{},
 		put_value{reg(1), reg(0)},
 		execute{functor{"call", 1}})
 	// call(trace) :- trace().
@@ -588,7 +590,7 @@ var (
 	callOr2 = clause(functor{"call", 1},
 		retry_me_else{instr{callNotrace, 0}},
 		get_struct{functor{"or", 2}, reg(0)},
-		unify_void{1},
+		unify_void{},
 		unify_variable{reg(1)},
 		put_value{reg(1), reg(0)},
 		execute{functor{"call", 1}})
@@ -693,14 +695,14 @@ var (
 		get_variable{reg(2), reg(0)},
 		get_pair{list_pair, reg(1)},
 		unify_value{reg(2)},
-		unify_void{1},
+		unify_void{},
 		neck_cut{},
 		proceed{})
 	member2 = clause(functor{"member", 2},
 		trust_me{},
 		get_variable{reg(2), reg(0)},
 		get_pair{list_pair, reg(1)},
-		unify_void{1},
+		unify_void{},
 		unify_variable{reg(3)},
 		put_value{reg(2), reg(0)},
 		put_value{reg(3), reg(1)},
@@ -856,7 +858,7 @@ func TestNestedCalls(t *testing.T) {
 
 func TestCallMeta(t *testing.T) {
 	m := wam.NewMachine()
-	m.IterLimit = 20
+	m.IterLimit = 30
 	m.DebugFilename = "debugtest/call-meta.jsonl"
 
 	// p(a).

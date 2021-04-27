@@ -140,7 +140,7 @@ func (ctx *compileCtx) getVar(x logic.Var, regAddr RegAddr) Instruction {
 
 func (ctx *compileCtx) unifyVar(x logic.Var) Instruction {
 	if x == logic.AnonymousVar {
-		return UnifyVoid{1}
+		return UnifyVoid{}
 	}
 	if _, ok := ctx.seen[x]; ok {
 		return UnifyValue{ctx.varAddr[x]}
@@ -164,7 +164,7 @@ func (ctx *compileCtx) putVar(x logic.Var, regAddr RegAddr) Instruction {
 
 func (ctx *compileCtx) setVar(x logic.Var) Instruction {
 	if x == logic.AnonymousVar {
-		return SetVoid{1}
+		return SetVoid{}
 	}
 	if _, ok := ctx.seen[x]; ok {
 		return SetValue{ctx.varAddr[x]}
@@ -441,21 +441,6 @@ func optimizeInstructions(code []Instruction) []Instruction {
 		if n < 1 {
 			buf = append(buf, instr)
 			continue
-		}
-		lastInstr := buf[n-1]
-		// Coalesce consecutive UnifyVoid instructions.
-		if instr, ok := instr.(UnifyVoid); ok {
-			if lastInstr, ok := lastInstr.(UnifyVoid); ok {
-				buf[n-1] = UnifyVoid{NumVars: instr.NumVars + lastInstr.NumVars}
-				continue
-			}
-		}
-		// Coalesce consecutive SetVoid instructions.
-		if instr, ok := instr.(SetVoid); ok {
-			if lastInstr, ok := lastInstr.(SetVoid); ok {
-				buf[n-1] = SetVoid{NumVars: instr.NumVars + lastInstr.NumVars}
-				continue
-			}
 		}
 		// Inline CallMeta instruction
 		if instr, ok := instr.(Call); ok && instr.Functor.Name == "call" {

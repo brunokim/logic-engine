@@ -124,25 +124,10 @@ type GetPair struct {
 	ArgAddr RegAddr
 }
 
-// SetVariable instruction: set_variable <addr>
-type SetVariable struct {
-	Addr Addr
-}
-
-// SetValue instruction: set_value <addr>
-type SetValue struct {
-	Addr Addr
-}
-
-// SetConstant instruction: set_constant <const>
-type SetConstant struct {
-	Constant Constant
-}
-
-// SetVoid instruction: set_void <n>
-type SetVoid struct {
-	NumVars int
-}
+type SetVariable = UnifyVariable
+type SetValue = UnifyValue
+type SetConstant = UnifyConstant
+type SetVoid = UnifyVoid
 
 // UnifyVariable instruction: unify_variable <addr>
 type UnifyVariable struct {
@@ -159,10 +144,8 @@ type UnifyConstant struct {
 	Constant Constant
 }
 
-// UnifyVoid instruction: unify_void <n>
-type UnifyVoid struct {
-	NumVars int
-}
+// UnifyVoid instruction: unify_void
+type UnifyVoid struct{}
 
 // Call instruction: call <f/n>
 type Call struct {
@@ -262,10 +245,6 @@ func (i GetVariable) isInstruction()      {}
 func (i GetValue) isInstruction()         {}
 func (i GetConstant) isInstruction()      {}
 func (i GetPair) isInstruction()          {}
-func (i SetVariable) isInstruction()      {}
-func (i SetValue) isInstruction()         {}
-func (i SetConstant) isInstruction()      {}
-func (i SetVoid) isInstruction()          {}
 func (i UnifyVariable) isInstruction()    {}
 func (i UnifyValue) isInstruction()       {}
 func (i UnifyConstant) isInstruction()    {}
@@ -331,22 +310,6 @@ func (i GetPair) String() string {
 	return fmt.Sprintf("get_pair %v, A%d", i.Tag, i.ArgAddr)
 }
 
-func (i SetVariable) String() string {
-	return fmt.Sprintf("set_variable %v", i.Addr)
-}
-
-func (i SetValue) String() string {
-	return fmt.Sprintf("set_value %v", i.Addr)
-}
-
-func (i SetConstant) String() string {
-	return fmt.Sprintf("set_constant %v", i.Constant)
-}
-
-func (i SetVoid) String() string {
-	return fmt.Sprintf("set_void %d", i.NumVars)
-}
-
 func (i UnifyVariable) String() string {
 	return fmt.Sprintf("unify_variable %v", i.Addr)
 }
@@ -360,7 +323,7 @@ func (i UnifyConstant) String() string {
 }
 
 func (i UnifyVoid) String() string {
-	return fmt.Sprintf("unify_void %d", i.NumVars)
+	return "unify_void"
 }
 
 func (i Call) String() string {
@@ -488,7 +451,17 @@ func (ia InstrAddr) instr() Instruction {
 }
 
 func (ia InstrAddr) inc() InstrAddr {
-	return InstrAddr{ia.Clause, ia.Pos + 1}
+	return ia.jump(1)
+}
+
+func (ia InstrAddr) jump(n int) InstrAddr {
+	return InstrAddr{ia.Clause, ia.Pos + n}
+}
+
+func (ia InstrAddr) next(n int) []Instruction {
+	start := ia.Pos + 1
+	end := start + n
+	return ia.Clause.Code[start:end]
 }
 
 func (ia InstrAddr) fullString() string {
@@ -645,16 +618,6 @@ type ChoicePoint struct {
 	Continuation InstrAddr
 }
 
-//go:generate stringer -type=UnificationMode
-
-// UnificationMode is an enum for the current machine's read or write unification approach.
-type UnificationMode int
-
-const (
-	Read UnificationMode = iota
-	Write
-)
-
 // Machine represents an abstract machine state.
 type Machine struct {
 	// Instruction list. A query is represented by an empty functor.
@@ -668,13 +631,6 @@ type Machine struct {
 
 	// Temporary cell region. Should be max of all Clause.NumRegister's.
 	Reg []Cell
-
-	// Read or write mode for term unification.
-	Mode UnificationMode
-
-	// Current compound arg being processed.
-	Compound Cell
-	ArgIndex int
 
 	// Latest environment.
 	Env *Env
@@ -777,10 +733,7 @@ func (m *Machine) String() string {
 clause:%s
 continuation:%s
 registers:%s
-unification_mode: %s
-compound_term: %v
-arg_index: %d
 environments:%s
 choice_points:%s`,
-		m, codePtr, continuationPtr, regs, m.Mode, m.Compound, m.ArgIndex, environments, choicePoints)
+		m, codePtr, continuationPtr, regs, environments, choicePoints)
 }
