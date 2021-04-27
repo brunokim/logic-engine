@@ -41,6 +41,10 @@ func (c *Pair) MarshalText() ([]byte, error) {
 	return []byte(c.String()), nil
 }
 
+func (t PairTag) MarshalText() ([]byte, error) {
+	return []byte(t.String()), nil
+}
+
 func (m *Machine) MarshalJSON() ([]byte, error) {
 	enc := newMachineEncoder(m)
 	var clauses []interface{}
