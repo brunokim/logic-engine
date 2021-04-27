@@ -124,11 +124,6 @@ type GetPair struct {
 	ArgAddr RegAddr
 }
 
-type SetVariable = UnifyVariable
-type SetValue = UnifyValue
-type SetConstant = UnifyConstant
-type SetVoid = UnifyVoid
-
 // UnifyVariable instruction: unify_variable <addr>
 type UnifyVariable struct {
 	Addr Addr

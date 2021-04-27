@@ -164,13 +164,13 @@ func (ctx *compileCtx) putVar(x logic.Var, regAddr RegAddr) Instruction {
 
 func (ctx *compileCtx) setVar(x logic.Var) Instruction {
 	if x == logic.AnonymousVar {
-		return SetVoid{}
+		return UnifyVoid{}
 	}
 	if _, ok := ctx.seen[x]; ok {
-		return SetValue{ctx.varAddr[x]}
+		return UnifyValue{ctx.varAddr[x]}
 	}
 	ctx.seen[x] = struct{}{}
-	return SetVariable{ctx.varAddr[x]}
+	return UnifyVariable{ctx.varAddr[x]}
 }
 
 func (ctx *compileCtx) getTerm(term logic.Term, addr RegAddr) []Instruction {
@@ -273,10 +273,10 @@ func (ctx *compileCtx) putTerm(term logic.Term, addr RegAddr) []Instruction {
 // Example
 //   f(A, g(A))
 //   --> put_struct g/1, X3
-//       set_variable X2     % A's reference within g/1 comes first
+//       unify_variable X2     % A's reference within g/1 comes first
 //       put_struct f/2, X0
-//       set_value X2        % A's reference within f/2 comes later
-//       set_value X3
+//       unify_value X2        % A's reference within f/2 comes later
+//       unify_value X3
 func (ctx *compileCtx) setArgs(args []logic.Term, instrs []Instruction) {
 	var varIdxs []int
 	for i, arg := range args {
@@ -294,9 +294,9 @@ func (ctx *compileCtx) setArgs(args []logic.Term, instrs []Instruction) {
 func (ctx *compileCtx) setArg(arg logic.Term) Instruction {
 	switch a := arg.(type) {
 	case logic.Atom:
-		return SetConstant{toConstant(a)}
+		return UnifyConstant{toConstant(a)}
 	case logic.Int:
-		return SetConstant{toConstant(a)}
+		return UnifyConstant{toConstant(a)}
 	case logic.Var:
 		return ctx.setVar(a)
 	case *logic.Comp:
@@ -316,7 +316,7 @@ func (ctx *compileCtx) setComplexArg(arg logic.Term) Instruction {
 	addr := ctx.topReg
 	ctx.topReg++
 	ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, addr)...)
-	return SetValue{addr}
+	return UnifyValue{addr}
 }
 
 // Compile compiles a single logic clause.

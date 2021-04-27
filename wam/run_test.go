@@ -16,14 +16,14 @@ var (
 	// ?- p(Z, h(Z, W), f(W))
 	queryInstrs = []wam.Instruction{
 		put_struct{functor{"h", 2}, reg(2)},
-		set_variable{reg(1)},
-		set_variable{reg(4)},
+		unify_variable{reg(1)},
+		unify_variable{reg(4)},
 		put_struct{functor{"f", 1}, reg(3)},
-		set_value{reg(4)},
+		unify_value{reg(4)},
 		put_struct{functor{"p", 3}, reg(0)},
-		set_value{reg(1)},
-		set_value{reg(2)},
-		set_value{reg(3)},
+		unify_value{reg(1)},
+		unify_value{reg(2)},
+		unify_value{reg(3)},
 	}
 
 	// p(f(X), h(Y, f(a)), Y).
@@ -271,7 +271,7 @@ var (
 		call{functor{"b", 2}},
 		put_value{stack(0), reg(0)},
 		put_struct{functor{"f", 1}, reg(1)},
-		set_value{stack(1)},
+		unify_value{stack(1)},
 		call{functor{"c", 2}},
 		deallocate{},
 		proceed{})
@@ -359,14 +359,14 @@ func TestRun_List(t *testing.T) {
 		allocate{2},
 
 		put_pair{list_pair, reg(0)},
-		set_constant{watom("a")},
-		set_variable{stack(0)},
+		unify_constant{watom("a")},
+		unify_variable{stack(0)},
 		call{functor{"build_list", 1}},
 
 		put_value{stack(0), reg(0)},
 		put_pair{list_pair, reg(1)},
-		set_variable{stack(1)},
-		set_constant{watom("[]")},
+		unify_variable{stack(1)},
+		unify_constant{watom("[]")},
 		call{functor{"=", 2}},
 
 		halt{}))
@@ -406,24 +406,24 @@ func TestRun_Void(t *testing.T) {
 	m.AddClause(clause(functor{},
 		// f(_, _, X)
 		put_struct{functor{"f", 3}, reg(3)},
-		set_void{},
-		set_void{},
-		set_variable{reg(4)},
+		unify_void{},
+		unify_void{},
+		unify_variable{reg(4)},
 
 		// (f(...) . [])
 		put_pair{list_pair, reg(2)},
-		set_value{reg(3)},
-		set_constant{watom("[]")},
+		unify_value{reg(3)},
+		unify_constant{watom("[]")},
 
 		// (X . (...))
 		put_pair{list_pair, reg(1)},
-		set_value{reg(4)},
-		set_value{reg(2)},
+		unify_value{reg(4)},
+		unify_value{reg(2)},
 
 		// (a . (...))
 		put_pair{list_pair, reg(0)},
-		set_constant{watom("a")},
-		set_value{reg(1)},
+		unify_constant{watom("a")},
+		unify_value{reg(1)},
 
 		call{functor{"length3", 1}},
 		halt{}))
@@ -468,20 +468,20 @@ var (
 	// [a, b, c]
 	buildList_abc = []wam.Instruction{
 		put_pair{list_pair, reg(5)},
-		set_constant{watom("c")},
-		set_constant{watom("[]")},
+		unify_constant{watom("c")},
+		unify_constant{watom("[]")},
 		put_pair{list_pair, reg(4)},
-		set_constant{watom("b")},
-		set_value{reg(5)},
+		unify_constant{watom("b")},
+		unify_value{reg(5)},
 		put_pair{list_pair, reg(0)},
-		set_constant{watom("a")},
-		set_value{reg(4)},
+		unify_constant{watom("a")},
+		unify_value{reg(4)},
 	}
 	// [d]
 	buildList_d = []wam.Instruction{
 		put_pair{list_pair, reg(1)},
-		set_constant{watom("d")},
-		set_constant{watom("[]")},
+		unify_constant{watom("d")},
+		unify_constant{watom("[]")},
 	}
 )
 
@@ -672,10 +672,10 @@ func TestSwitch(t *testing.T) {
 		put_constant{watom("true"), reg(0)},
 		call{functor{"call", 1}},
 		put_struct{functor{"call", 1}, reg(1)},
-		set_constant{watom("a")},
+		unify_constant{watom("a")},
 		put_struct{functor{"or", 2}, reg(0)},
-		set_value{reg(1)},
-		set_constant{watom("repeat")},
+		unify_value{reg(1)},
+		unify_constant{watom("repeat")},
 		call{functor{"call", 1}},
 		halt{}))
 
@@ -741,16 +741,16 @@ func TestCut(t *testing.T) {
 	m.AddClause(clause(functor{},
 		// [a, b]
 		put_pair{list_pair, reg(4)},
-		set_constant{watom("b")},
-		set_constant{watom("[]")},
+		unify_constant{watom("b")},
+		unify_constant{watom("[]")},
 		put_pair{list_pair, reg(3)},
-		set_constant{watom("a")},
-		set_value{reg(4)},
+		unify_constant{watom("a")},
+		unify_value{reg(4)},
 		// member(a, [c, a, b])
 		put_constant{watom("a"), reg(0)},
 		put_pair{list_pair, reg(1)},
-		set_constant{watom("c")},
-		set_value{reg(3)},
+		unify_constant{watom("c")},
+		unify_value{reg(3)},
 		call{functor{"member", 2}},
 		// set_add([a, b], c, L1)
 		put_value{reg(3), reg(0)},
@@ -804,8 +804,8 @@ var (
 		put_value{reg(4), reg(0)},
 		put_value{reg(1), reg(1)},
 		put_pair{list_pair, reg(2)},
-		set_value{reg(3)},
-		set_variable{stack(2)}, // L2
+		unify_value{reg(3)},
+		unify_variable{stack(2)}, // L2
 		call{functor{"tree", 3}},
 		put_value{stack(0), reg(0)},
 		put_value{stack(2), reg(1)},
@@ -822,21 +822,21 @@ func TestNestedCalls(t *testing.T) {
 	// L = [b, c, a, d]
 	m.AddClause(clause(functor{},
 		put_struct{functor{"node", 3}, reg(5)},
-		set_constant{watom("d")},
-		set_constant{watom("nil")},
-		set_constant{watom("nil")},
+		unify_constant{watom("d")},
+		unify_constant{watom("nil")},
+		unify_constant{watom("nil")},
 		put_struct{functor{"node", 3}, reg(4)},
-		set_constant{watom("c")},
-		set_constant{watom("nil")},
-		set_constant{watom("nil")},
+		unify_constant{watom("c")},
+		unify_constant{watom("nil")},
+		unify_constant{watom("nil")},
 		put_struct{functor{"node", 3}, reg(3)},
-		set_constant{watom("b")},
-		set_constant{watom("nil")},
-		set_value{reg(4)},
+		unify_constant{watom("b")},
+		unify_constant{watom("nil")},
+		unify_value{reg(4)},
 		put_struct{functor{"node", 3}, reg(0)},
-		set_constant{watom("a")},
-		set_value{reg(3)},
-		set_value{reg(5)},
+		unify_constant{watom("a")},
+		unify_value{reg(3)},
+		unify_value{reg(5)},
 		put_variable{reg(6), reg(1)},
 		put_constant{watom("[]"), reg(2)},
 		call{functor{"tree", 3}},

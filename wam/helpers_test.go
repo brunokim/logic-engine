@@ -31,10 +31,6 @@ type (
 	get_value          = wam.GetValue
 	get_constant       = wam.GetConstant
 	get_pair           = wam.GetPair
-	set_variable       = wam.SetVariable
-	set_value          = wam.SetValue
-	set_constant       = wam.SetConstant
-	set_void           = wam.SetVoid
 	unify_variable     = wam.UnifyVariable
 	unify_value        = wam.UnifyValue
 	unify_constant     = wam.UnifyConstant
