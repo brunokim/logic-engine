@@ -68,24 +68,24 @@ func IsQuotedAtom(text string) bool {
 	return !isIdents(text)
 }
 
-var escapeChars = map[rune]string{
-	' ':  ` `,
-	'\n': `\n`,
-	'\t': `\t`,
-	'\v': `\v`,
-	'\f': `\f`,
-	'\r': `\r`,
-	',':  `,`,
-	'(':  `(`,
-	')':  `)`,
-	'[':  `[`,
-	']':  `]`,
-	'{':  `{`,
-	'}':  `}`,
-	'\\': `\\`,
-	'_':  `_`,
-	'%':  `%`,
-	':':  `:`,
+var (
+	escapeChars = map[rune]string{
+		'\n': `\n`,
+		'\t': `\t`,
+		'\v': `\v`,
+		'\f': `\f`,
+		'\r': `\r`,
+		'\\': `\\`,
+	}
+	syntactic    = " \n\t\v\f\r%()[]{}\"',.:|_\\"
+	syntacticSet map[rune]struct{}
+)
+
+func init() {
+	syntacticSet = make(map[rune]struct{})
+	for _, r := range syntactic {
+		syntacticSet[r] = struct{}{}
+	}
 }
 
 // Formats an atom, escaping and quoting the text if necessary.
@@ -93,7 +93,7 @@ func FormatAtom(text string) string {
 	// Check if there's any character that needs escaping.
 	var hasEscape bool
 	for _, ch := range text {
-		if _, ok := escapeChars[ch]; ok || ch == '\'' || ch == '"' {
+		if _, ok := syntacticSet[ch]; ok {
 			hasEscape = true
 			break
 		}

@@ -64,6 +64,9 @@ func TestString(t *testing.T) {
 		want string
 	}{
 		{atom("a"), `a`},
+		{atom("\"a\""), `'"a"'`},
+		{atom("'"), `'\''`},
+		{atom("\\"), `'\\'`},
 		{int_(42), `42`},
 		{var_("A"), "A"},
 		{svar("A", 1), "A_1_"},
