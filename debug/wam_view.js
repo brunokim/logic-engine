@@ -276,10 +276,22 @@ export class Wam {
     instructionTable(ptr = this.state().CodePtr, ptrStyle = "active") {
         let clause = this.clause(ptr)
         let tbody = $("<tbody>")
+        let highlighted = new Set([ptr.Pos])
+        let currInstr = clause.Code[ptr.Pos]
+        if (currInstr.Type == "PutPair" || currInstr.Type == "GetPair") {
+            highlighted.add(ptr.Pos+1)
+            highlighted.add(ptr.Pos+2)
+        }
+        if (currInstr.Type == "PutStruct" || currInstr.Type == "GetStruct") {
+            let arity = parseFunctor(currInstr.Functor)[1]
+            for (let i = 1; i <= arity; i++) {
+                highlighted.add(ptr.Pos+i)
+            }
+        }
         for (let i = 0; i < clause.Code.length; i++) {
             let instr = clause.Code[i]
             let row = this.instructionRow(instr)
-            if (i == ptr.Pos) {
+            if (highlighted.has(i)) {
                 row.addClass(ptrStyle);
             }
             tbody.append(row);
@@ -413,6 +425,12 @@ function olist(items) {
         list.append($("<li>").text(item))
     }
     return list
+}
+
+function parseFunctor(functor) {
+    const re = /(.*)\/(\d+)$/
+    let [, name, arity] = functor.match(re)
+    return [name, +arity]
 }
 
 function instructionType(type) {
