@@ -162,6 +162,26 @@ func TestCompile(t *testing.T) {
 				deallocate{},
 				execute_meta{reg(0), nil}),
 		},
+		{
+			dsl.Clause(comp("term", var_("Term"), var_("L1"), var_("L2")),
+				comp("atom", var_("Term"), var_("L1"), var_("L2")),
+				atom("!")),
+			clause(functor{"term", 3},
+				allocate{0},
+				// head
+				get_variable{reg(3), reg(0)},
+				get_variable{reg(4), reg(1)},
+				get_variable{reg(5), reg(2)},
+				// atom(...)
+				put_value{reg(3), reg(0)},
+				put_value{reg(4), reg(1)},
+				put_value{reg(5), reg(2)},
+				call{functor{"atom", 3}},
+				// cut
+				cut{},
+				deallocate{},
+				proceed{}),
+		},
 	}
 	for _, test := range tests {
 		got := wam.Compile(test.clause)

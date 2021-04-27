@@ -29,7 +29,7 @@ var text = `
 
     % Whitespace
     ws([Ch|L1], L2) :-
-        space(Ch),
+        space(Ch), !,
         ws(L1, L2).
     ws(L1, L3) :-
         comment(L1, L2),
@@ -66,10 +66,10 @@ var text = `
 
     % Plain atoms
     atom(atom([Ch|L]), [Ch|L1], L2) :-
-        lower(Ch),
+        lower(Ch), !,
         idents(L, L1, L2).
     atom(atom([Ch|L]), [Ch|L1], L2) :-
-        symbol(Ch),
+        symbol(Ch), !,
         symbols(L, L1, L2).
     atom(atom(Chars), ['\''|L1], L2) :-
         quoted('\'', Chars, L1, ['\''|L2]).
@@ -151,32 +151,32 @@ var text = `
         ws(L6, ['}'|L7]).
 
     % Assoc sequence
-    assocs([Assoc], L1, L2) :-
-        assoc(Assoc, L1, L2).
     assocs([Assoc|Assocs], L1, L5) :-
         assoc(Assoc, L1, L2),
-        ws(L2, [','|L3]),
+        ws(L2, [','|L3]), !,
         ws(L3, L4),
         assocs(Assocs, L4, L5).
+    assocs([Assoc], L1, L2) :-
+        assoc(Assoc, L1, L2).
     assocs([], L, L).
 
     % Term sequence
-    terms([Term], L1, L2) :-
-        term(Term, L1, L2).
     terms([Term|Terms], L1, L5) :-
         term(Term, L1, L2),
-        ws(L2, [','|L3]),
+        ws(L2, [','|L3]), !,
         ws(L3, L4),
         terms(Terms, L4, L5).
+    terms([Term], L1, L2) :-
+        term(Term, L1, L2).
     terms([], L, L).
 
     % Terms
-    term(Term, L1, L2) :- atom(Term, L1, L2).
-    term(Term, L1, L2) :- int(Term, L1, L2).
-    term(Term, L1, L2) :- var(Term, L1, L2).
-    term(Term, L1, L2) :- comp(Term, L1, L2).
-    term(Term, L1, L2) :- list(Term, L1, L2).
-    term(Term, L1, L2) :- assoc(Term, L1, L2).
+    term(Term, L1, L2) :- comp(Term, L1, L2), !.
+    term(Term, L1, L2) :- atom(Term, L1, L2), !.
+    term(Term, L1, L2) :- int(Term, L1, L2), !.
+    term(Term, L1, L2) :- var(Term, L1, L2), !.
+    term(Term, L1, L2) :- list(Term, L1, L2), !.
+    term(Term, L1, L2) :- assoc(Term, L1, L2), !.
     term(Term, L1, L2) :- dict(Term, L1, L2).
 
     % Clause: fact and rule

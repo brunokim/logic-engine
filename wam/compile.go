@@ -354,6 +354,11 @@ func compileQuery(query []logic.Term) (*Clause, error) {
 	return c, nil
 }
 
+func isBuiltin(term *logic.Comp) bool {
+	ind := term.Indicator()
+	return ind == dsl.Indicator("!", 0) || ind == dsl.Indicator("fail", 0)
+}
+
 func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction {
 	// Special cases.
 	switch term.Indicator() {
@@ -408,11 +413,14 @@ func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
 			c.Code = append(c.Code, ctx.getTerm(compound.t, compound.addr)...)
 		}
 	}
-	// Compile clause body, or add "proceed" instruction for facts.
+	// Compile clause body
 	for i, term := range clause.Body {
 		c.Code = append(c.Code, ctx.compileBodyTerm(i, term.(*logic.Comp))...)
 	}
-	if len(clause.Body) == 0 {
+	// Add "proceed" instruction for facts, and when a body ends with a builtin call,
+	// e.g., '!'
+	n := len(clause.Body)
+	if n == 0 || isBuiltin(clause.Body[n-1].(*logic.Comp)) {
 		c.Code = append(c.Code, Proceed{})
 	}
 	c.Code = append(header, c.Code...)
