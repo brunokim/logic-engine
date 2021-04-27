@@ -60,21 +60,21 @@ var (
 		dsl.Clause(comp("atom", comp("atom", ilist(var_("Ch"), var_("L"))), ilist(var_("Ch"), var_("L1")), var_("L2")),
 			comp("symbol", var_("Ch")),
 			comp("symbols", var_("L"), var_("L1"), var_("L2"))),
-		// Quoted atom
 		dsl.Clause(comp("atom", comp("atom", var_("Chars")), ilist(atom(`'`), var_("L1")), var_("L2")),
-			comp("quoted", var_("Chars"), var_("L1"), ilist(atom(`'`), var_("L2")))),
-		dsl.Clause(comp("quoted", ilist(atom(`'`), var_("Chars")), ilist(atom(`\`), atom(`'`), var_("L1")), var_("L2")),
-			comp("quoted", var_("Chars"), var_("L1"), var_("L2"))),
-		dsl.Clause(comp("quoted", ilist(atom(`\`), var_("Chars")), ilist(atom(`\`), atom(`\`), var_("L1")), var_("L2")),
-			comp("quoted", var_("Chars"), var_("L1"), var_("L2"))),
-		dsl.Clause(comp("quoted", ilist(atom("\n"), var_("Chars")), ilist(atom(`\`), atom(`n`), var_("L1")), var_("L2")),
-			comp("quoted", var_("Chars"), var_("L1"), var_("L2"))),
-		dsl.Clause(comp("quoted", ilist(var_("Ch"), var_("Chars")), ilist(var_("Ch"), var_("L1")), var_("L2")),
-			comp("\\=", var_("Ch"), atom(`'`)),
+			comp("quoted", atom(`'`), var_("Chars"), var_("L1"), ilist(atom(`'`), var_("L2")))),
+		// Quoted atoms and strings
+		dsl.Clause(comp("quoted", var_("Delim"), ilist(var_("Delim"), var_("Chars")), ilist(atom(`\`), var_("Delim"), var_("L1")), var_("L2")),
+			comp("quoted", var_("Delim"), var_("Chars"), var_("L1"), var_("L2"))),
+		dsl.Clause(comp("quoted", var_("Delim"), ilist(atom(`\`), var_("Chars")), ilist(atom(`\`), atom(`\`), var_("L1")), var_("L2")),
+			comp("quoted", var_("Delim"), var_("Chars"), var_("L1"), var_("L2"))),
+		dsl.Clause(comp("quoted", var_("Delim"), ilist(atom("\n"), var_("Chars")), ilist(atom(`\`), atom(`n`), var_("L1")), var_("L2")),
+			comp("quoted", var_("Delim"), var_("Chars"), var_("L1"), var_("L2"))),
+		dsl.Clause(comp("quoted", var_("Delim"), ilist(var_("Ch"), var_("Chars")), ilist(var_("Ch"), var_("L1")), var_("L2")),
+			comp("\\=", var_("Ch"), var_("Delim")),
 			comp("\\=", var_("Ch"), atom(`\`)),
 			comp("\\=", var_("Ch"), atom("\n")),
-			comp("quoted", var_("Chars"), var_("L1"), var_("L2"))),
-		dsl.Clause(comp("quoted", list(), var_("L"), var_("L"))),
+			comp("quoted", var_("Delim"), var_("Chars"), var_("L1"), var_("L2"))),
+		dsl.Clause(comp("quoted", var_("_"), list(), var_("L"), var_("L"))),
 		// Int
 		dsl.Clause(comp("int", comp("int", ilist(var_("Ch"), var_("L"))), ilist(var_("Ch"), var_("L1")), var_("L2")),
 			comp("digit", var_("Ch")),
@@ -271,21 +271,21 @@ var text = `
         symbol(Ch),
         symbols(L, L1, L2).
     atom(atom(Chars), ['\''|L1], L2) :-
-        quoted(Chars, L1, ['\''|L2]).
+        quoted('\'', Chars, L1, ['\''|L2]).
 
-    % Quoted atoms
-    quoted(['\''|Chars], ['\\', '\''|L1], L2) :-
-        quoted(Chars, L1, L2).
-    quoted(['\\'|Chars], ['\\', '\\'|L1], L2) :-
-        quoted(Chars, L1, L2).
-    quoted(['\n'|Chars], ['\\', 'n'|L1], L2) :-
-        quoted(Chars, L1, L2).
+    % Quoted atoms and strings
+    quoted(Delim, [Delim|Chars], ['\\', Delim|L1], L2) :-
+        quoted(Delim, Chars, L1, L2).
+    quoted(Delim, ['\\'|Chars], ['\\', '\\'|L1], L2) :-
+        quoted(Delim, Chars, L1, L2).
+    quoted(Delim, ['\n'|Chars], ['\\', 'n'|L1], L2) :-
+        quoted(Delim, Chars, L1, L2).
     quoted([Ch|Chars], [Ch|L1], L2) :-
-        \=(Ch, '\''),
+        \=(Ch, Delim),
         \=(Ch, '\\'),
         \=(Ch, '\n'),
-        quoted(Chars, L1, L2).
-    quoted([], L, L).
+        quoted(Delim, Chars, L1, L2).
+    quoted(_, [], L, L).
 
     % Int
     int(int([Ch|L]), [Ch|L1], L2) :-
