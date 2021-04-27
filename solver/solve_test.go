@@ -81,11 +81,11 @@ func TestSolve_All(t *testing.T) {
 }
 
 func TestSolve_Cancel(t *testing.T) {
-	s, err := solver.NewSolver("loop() :- loop().")
+	s, err := solver.NewSolver("loop :- loop.")
 	if err != nil {
 		t.Fatalf("NewSolver, got err: %v", err)
 	}
-	solutions, cancel := s.Query("loop()")
+	solutions, cancel := s.Query("loop")
 	<-time.After(10 * time.Millisecond)
 	cancel()
 	result, ok := <-solutions

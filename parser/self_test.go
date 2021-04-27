@@ -180,11 +180,13 @@ var text = `
     term(Term, L1, L2) :- dict(Term, L1, L2).
 
     % Clause: fact and rule
+    clause_head(Term, L1, L2) :- comp(Term, L1, L2).
+    clause_head(Term, L1, L2) :- atom(Term, L1, L2).
 	clause(clause(Fact), L1, L3) :-
-        comp(Fact, L1, L2),
+        clause_head(Fact, L1, L2),
         ws(L2, ['.'|L3]).
     clause(clause(Head, Body), L1, L6) :-
-        comp(Head, L1, L2),
+        clause_head(Head, L1, L2),
         ws(L2, [':', '-'|L3]),
         ws(L3, L4),
         terms(Body, L4, L5),

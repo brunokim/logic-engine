@@ -181,12 +181,17 @@ var (
 			comp("assoc", var_("Term"), var_("L1"), var_("L2"))),
 		clause(comp("term", var_("Term"), var_("L1"), var_("L2")),
 			comp("dict", var_("Term"), var_("L1"), var_("L2"))),
+		// Clause head: atom and comp
+		clause(comp("clause_head", var_("Term"), var_("L1"), var_("L2")),
+			comp("comp", var_("Term"), var_("L1"), var_("L2"))),
+		clause(comp("clause_head", var_("Term"), var_("L1"), var_("L2")),
+			comp("atom", var_("Term"), var_("L1"), var_("L2"))),
 		// Clause
 		clause(comp("clause", comp("clause", var_("Fact")), var_("L1"), var_("L3")),
-			comp("comp", var_("Fact"), var_("L1"), var_("L2")),
+			comp("clause_head", var_("Fact"), var_("L1"), var_("L2")),
 			comp("ws", var_("L2"), ilist(atom("."), var_("L3")))),
 		clause(comp("clause", comp("clause", var_("Head"), var_("Body")), var_("L1"), var_("L6")),
-			comp("comp", var_("Head"), var_("L1"), var_("L2")),
+			comp("clause_head", var_("Head"), var_("L1"), var_("L2")),
 			comp("ws", var_("L2"), ilist(atom(":"), atom("-"), var_("L3"))),
 			comp("ws", var_("L3"), var_("L4")),
 			comp("terms", var_("Body"), var_("L4"), var_("L5")),
@@ -249,6 +254,8 @@ func init() {
 		m.AddClause(clause)
 	}
 }
+
+// ---- parse functions
 
 // ParseTerm parses a single term.
 func ParseTerm(text string) (logic.Term, error) {
@@ -338,16 +345,31 @@ func decodeClauses(term logic.Term) []*logic.Clause {
 
 func decodeClause(term logic.Term) *logic.Clause {
 	c := expectComp(term, "clause", 1, 2)
-	var head *logic.Comp
+	var head logic.Term
 	var body []logic.Term
 	switch len(c.Args) {
 	case 1:
-		head = decodeComp(c.Args[0])
+		head = decodeClauseHead(c.Args[0])
 	case 2:
-		head = decodeComp(c.Args[0])
+		head = decodeClauseHead(c.Args[0])
 		body = decodeTerms(c.Args[1])
 	}
 	return logic.NewClause(head, body...)
+}
+
+func decodeClauseHead(term logic.Term) logic.Term {
+	c, ok := term.(*logic.Comp)
+	if !ok {
+		panic(fmt.Errorf("expected comp, got %v", term))
+	}
+	switch c.Functor {
+	case "atom":
+		return decodeAtom(c)
+	case "comp":
+		return decodeComp(c)
+	default:
+		panic(fmt.Errorf(`expected "atom" or "comp" functors, got %q`, c.Functor))
+	}
 }
 
 func decodeTerm(term logic.Term) logic.Term {
@@ -371,7 +393,7 @@ func decodeTerm(term logic.Term) logic.Term {
 	case "dict":
 		return decodeDict(term)
 	default:
-		panic(fmt.Errorf(""))
+		panic(fmt.Errorf("unknown functor %q", c.Functor))
 	}
 }
 
