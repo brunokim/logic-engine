@@ -243,7 +243,6 @@ func (m *Machine) newChoicePoint(alternative InstrAddr) *ChoicePoint {
 		Continuation:    m.Continuation,
 		NextAlternative: alternative,
 		Args:            make([]Cell, numArgs),
-		TrailSize:       len(m.Trail),
 		LastRefID:       m.LastRefID,
 		Env:             m.Env,
 		CutChoice:       m.CutChoice,
@@ -743,7 +742,7 @@ func (m *Machine) trail(ref *Ref) {
 	if !m.isConditional(ref) {
 		return
 	}
-	m.Trail = append(m.Trail, ref)
+	m.ChoicePoint.Trail = append(m.ChoicePoint.Trail, ref)
 }
 
 // Restore all conditional bindings since current choice point back to
@@ -752,30 +751,30 @@ func (m *Machine) unwindTrail() {
 	if m.ChoicePoint == nil {
 		return
 	}
-	n := m.ChoicePoint.TrailSize
-	for _, ref := range m.Trail[n:] {
+	cpt := m.ChoicePoint
+	for _, ref := range cpt.Trail {
 		ref.Cell = nil
 	}
-	m.Trail = m.Trail[:n]
-	m.LastRefID = m.ChoicePoint.LastRefID
+	cpt.Trail = nil
+	m.LastRefID = cpt.LastRefID
 }
 
 // Remove all refs that are no longer conditional after a cut.
 func (m *Machine) tidyTrail() {
 	if m.ChoicePoint == nil {
-		m.Trail = nil
 		return
 	}
-	i := m.ChoicePoint.TrailSize
-	for i < len(m.Trail) {
-		ref := m.Trail[i]
+	cpt := m.ChoicePoint
+	var i int
+	for i < len(cpt.Trail) {
+		ref := cpt.Trail[i]
 		// Still a conditional ref, keep it in the trail.
 		if m.isConditional(ref) {
 			i++
 			continue
 		}
 		// Pop the last ref and overwrite the i-th position with it.
-		n := len(m.Trail)
-		m.Trail[i], m.Trail = m.Trail[n-1], m.Trail[:n-1]
+		n := len(cpt.Trail)
+		cpt.Trail[i], cpt.Trail = cpt.Trail[n-1], cpt.Trail[:n-1]
 	}
 }

@@ -182,17 +182,14 @@ export class Wam {
     choiceStack(state = this.state()) {
         let pos = state.ChoicePos;
         let i = 0;
-        let trailSize = 10000;
 
         let stack = $("<div>")
         while (pos !== null) {
             let choice = state.ChoicePoints[pos]
             let ptr = choice.NextAlternative
-            let boundRefs = state.Trail.slice(choice.TrailSize, trailSize);
-            trailSize = choice.TrailSize;
 
             let tableId = `choice-${i}`;
-            let choiceTable = this.choiceTable(state, pos, boundRefs)
+            let choiceTable = this.choiceTable(state, pos)
                 .attr("id", tableId)
                 .addClass("hidden");
             let isExpanded = false
@@ -226,7 +223,7 @@ export class Wam {
             .append(this.permVarsTable(this.env(state, pos)))
     }
 
-    choiceTable(state = this.state(), pos = state.ChoicePos, refs) {
+    choiceTable(state = this.state(), pos = state.ChoicePos) {
         let choice = this.choice(state, pos)
         if (choice === null) {
             return $("<div>")
@@ -237,7 +234,7 @@ export class Wam {
             .append($("<div>")
                 .append(this.tempVarsTable(choice.Args))
                 .append(this.permVarsTable(this.env(state, choice.EnvPos)))
-                .append(this.trailTable(refs)))
+                .append(this.trailTable(choice.Trail)))
     }
 
     // Local ("permanent") variables

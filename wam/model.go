@@ -634,10 +634,11 @@ type ChoicePoint struct {
 	Prev *ChoicePoint
 	// Next clause to try.
 	NextAlternative InstrAddr
+	// Trail of variables that need to be unbound on backtrack.
+	Trail []*Ref
 
 	// Machine vars to restore
 	Args         []Cell
-	TrailSize    int
 	LastRefID    int
 	Env          *Env
 	CutChoice    *ChoicePoint
@@ -667,10 +668,6 @@ type Machine struct {
 
 	// Temporary cell region. Should be max of all Clause.NumRegister's.
 	Reg []Cell
-
-	// Trail of variables that may need to be unbound on backtrack.
-	// TODO: move this to the choicepoint themselves?
-	Trail []*Ref
 
 	// Read or write mode for term unification.
 	Mode UnificationMode
@@ -711,6 +708,14 @@ type Machine struct {
 	hasBacktracked bool
 }
 
+func asCells(xs []*Ref) []Cell {
+	cs := make([]Cell, len(xs))
+	for i, x := range xs {
+		cs[i] = x
+	}
+	return cs
+}
+
 func formatCells(cells []Cell) string {
 	if len(cells) == 0 {
 		return ""
@@ -738,12 +743,12 @@ func (cpt *ChoicePoint) String() string {
 	return fmt.Sprintf(`%% %p
 env: %p
 last_ref_id: %d
-trail_size: %d
+trail:%s
 next_alternative: %v
 args:%s
 continuation:
 	%v`,
-		cpt, cpt.Env, cpt.LastRefID, cpt.TrailSize, cpt.NextAlternative, formatCells(cpt.Args), cpt.Continuation)
+		cpt, cpt.Env, cpt.LastRefID, formatCells(asCells(cpt.Trail)), cpt.NextAlternative, formatCells(cpt.Args), cpt.Continuation)
 }
 
 func (m *Machine) String() string {
@@ -751,12 +756,6 @@ func (m *Machine) String() string {
 	continuationPtr := indent(m.Continuation.fullString())
 	// Registers
 	regs := formatCells(m.Reg[:m.CodePtr.Clause.NumRegisters])
-	// Trail
-	refs := make([]Cell, len(m.Trail))
-	for i, x := range m.Trail {
-		refs[i] = x
-	}
-	trail := formatCells(refs)
 	// Environments
 	var envs []string
 	env := m.Env
@@ -778,11 +777,10 @@ func (m *Machine) String() string {
 clause:%s
 continuation:%s
 registers:%s
-trail:%s
 unification_mode: %s
 compound_term: %v
 arg_index: %d
 environments:%s
 choice_points:%s`,
-		m, codePtr, continuationPtr, regs, trail, m.Mode, m.Compound, m.ArgIndex, environments, choicePoints)
+		m, codePtr, continuationPtr, regs, m.Mode, m.Compound, m.ArgIndex, environments, choicePoints)
 }
