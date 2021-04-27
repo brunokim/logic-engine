@@ -5,76 +5,87 @@ import (
 	"strings"
 )
 
-func formatComplex(b *strings.Builder, stack *[]interface{}, body []Cell, tail, empty Cell, open, close_ string) {
-	b.WriteString(open)
-	*stack = append(*stack, close_)
-	if tail != empty {
-		*stack = append(*stack, tail, "|")
+func formatCell(cell Cell) string {
+	ctx := &formatCtx{
+		b:       new(strings.Builder),
+		parents: make(map[Cell]struct{}),
+		loops:   make(map[Cell]string),
 	}
-	for i := len(body) - 1; i >= 0; i-- {
-		*stack = append(*stack, body[i])
-		if i > 0 {
-			*stack = append(*stack, ", ")
+	ctx.formatCell(cell)
+	return ctx.b.String()
+}
+
+type formatCtx struct {
+	b       *strings.Builder
+	parents map[Cell]struct{}
+	loops   map[Cell]string
+	id      int
+}
+
+func (ctx *formatCtx) formatCell(cell Cell) {
+	if cell == nil {
+		ctx.b.WriteString("<nil>")
+		return
+	}
+	if c, ok := cell.(Constant); ok {
+		ctx.b.WriteString(c.String())
+		return
+	}
+	// Handle self-reference.
+	if _, ok := ctx.parents[cell]; ok {
+		ctx.id++
+		x := fmt.Sprintf("_S%d", ctx.id)
+		ctx.loops[cell] = x
+		ctx.b.WriteString(x)
+		return
+	}
+	// Add cell to parent set, and remove after return.
+	ctx.parents[cell] = struct{}{}
+	defer delete(ctx.parents, cell)
+	// Handle complex types
+	switch c := cell.(type) {
+	case *Ref:
+		if c.Cell == nil {
+			fmt.Fprintf(ctx.b, "_X%d", c.id)
+			return
 		}
+		ctx.b.WriteString("&")
+		ctx.formatCell(c.Cell)
+	case *Struct:
+		ctx.b.WriteString(c.Name)
+		ctx.formatComplex(c.Args, nil, nil, "(", ")")
+	case *Pair:
+		switch c.Tag {
+		case AssocPair:
+			ctx.formatCell(c.Head)
+			ctx.b.WriteString(":")
+			ctx.formatCell(c.Tail)
+		case ListPair:
+			terms, tail := unroll(c)
+			ctx.formatComplex(terms, tail, WAtom("[]"), "[", "]")
+		case DictPair:
+			assocs, parent := unroll(c)
+			ctx.formatComplex(assocs, parent, WAtom("{}"), "{", "}")
+		}
+	}
+	// Annotate parents that loop.
+	if label, ok := ctx.loops[cell]; ok {
+		delete(ctx.loops, cell)
+		fmt.Fprintf(ctx.b, "=%s", label)
 	}
 }
 
-func formatCell(cell Cell) string {
-	if c, ok := cell.(Constant); ok {
-		return c.String()
-	}
-	var b strings.Builder
-	seen := make(map[Cell]int)
-	stack := []interface{}{cell}
-	for len(stack) > 0 {
-		n := len(stack)
-		cell := stack[n-1]
-		stack = stack[:n-1]
-		if s, ok := cell.(string); ok {
-			b.WriteString(s)
-			continue
-		}
-		if cell == nil {
-			b.WriteString("<nil>")
-			continue
-		}
-		c := cell.(Cell)
-		// Check for self-reference.
-		if pos, ok := seen[c]; ok {
-			fmt.Fprintf(&b, "_S%d", pos)
-			continue
-		}
-		seen[c] = len(seen)
-		// Cell may be a constant or a complex type.
-		// Components and separators/delimiters of complex types are placed
-		// in reverse order on the stack.
-		switch c := c.(type) {
-		case Constant:
-			b.WriteString(c.String())
-		case *Ref:
-			if c.Cell == nil {
-				fmt.Fprintf(&b, "_X%d", c.id)
-				continue
-			}
-			b.WriteRune('&')
-			stack = append(stack, c.Cell)
-		case *Struct:
-			b.WriteString(c.Name)
-			formatComplex(&b, &stack, c.Args, nil, nil, "(", ")")
-		case *Pair:
-			switch c.Tag {
-			case AssocPair:
-				stack = append(stack, c.Tail, ":", c.Head)
-			case ListPair:
-				terms, tail := unroll(c)
-				formatComplex(&b, &stack, terms, tail, WAtom("[]"), "[", "]")
-			case DictPair:
-				assocs, parent := unroll(c)
-				formatComplex(&b, &stack, assocs, parent, WAtom("{}"), "{", "}")
-			}
-		default:
-			fmt.Fprintf(&b, "<!cell %T>", c)
+func (ctx *formatCtx) formatComplex(body []Cell, tail, empty Cell, open, close_ string) {
+	ctx.b.WriteString(open)
+	for i, cell := range body {
+		ctx.formatCell(cell)
+		if i < len(body)-1 {
+			ctx.b.WriteString(", ")
 		}
 	}
-	return b.String()
+	if tail != empty {
+		ctx.b.WriteString("|")
+		ctx.formatCell(tail)
+	}
+	ctx.b.WriteString(close_)
 }
