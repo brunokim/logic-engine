@@ -24,7 +24,10 @@ func Example() {
             add(B, Partial, Product).
     `)
 
-	solutions, _ := s.Query("mul(s(s(0)), s(s(s(0))), Y), add(s(0), X, Y)")
+	solutions, _ := s.Query(`
+        mul(s(s(0)), s(s(s(0))), Y), % 2*3=Y
+        add(s(0), X, Y),             % 1+X=Y
+    `)
 	for solution := range solutions {
 		fmt.Println(solution)
 	}

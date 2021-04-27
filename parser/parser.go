@@ -1,3 +1,7 @@
+// Package parser implements a Prolog parser using the engine itself.
+//
+// NOTE: currently assoc pairs must be written as ':key val' instead of 'key:val',
+// because we can't yet support infix operators.
 package parser
 
 import (

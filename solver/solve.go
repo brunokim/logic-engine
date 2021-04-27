@@ -43,12 +43,17 @@ func (s Solution) String() string {
 	return b.String()
 }
 
-// NewSolver compiles the provided clauses and returns a Solver object.
+// NewSolver parses and compiles the provided clauses.
 func NewSolver(text string) (*Solver, error) {
 	clauses, err := parser.ParseClauses(text)
 	if err != nil {
 		return nil, err
 	}
+	return NewSolverFromClauses(clauses)
+}
+
+// NewSolverFromClauses is like NewSolver, with already parsed clauses.
+func NewSolverFromClauses(clauses []*logic.Clause) (*Solver, error) {
 	compiled, err := wam.CompileClauses(clauses)
 	if err != nil {
 		return nil, err
@@ -76,6 +81,11 @@ func (solver *Solver) Query(text string) (<-chan Solution, func()) {
 		solver.Err = err
 		return nil, func() {}
 	}
+	return solver.QueryTerms(terms...)
+}
+
+// QueryTerms is like Query, with already parsed terms.
+func (solver *Solver) QueryTerms(terms ...logic.Term) (<-chan Solution, func()) {
 	solver.Err = nil
 	m := solver.m.Reset()
 	stream := make(chan Solution)
