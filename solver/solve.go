@@ -67,16 +67,16 @@ func (solver *Solver) Debug(filename string) {
 // The last error found is stored in solver.Err.
 func (solver *Solver) Query(terms ...logic.Term) (<-chan Solution, func()) {
 	solver.Err = nil
-	solver.m.Reset()
+	m := solver.m.Reset()
 	stream := make(chan Solution)
 	go func() {
-		bindings, err := solver.m.RunQuery(terms...)
+		bindings, err := m.RunQuery(terms...)
 		for err == nil {
 			stream <- bindings
-			bindings, err = solver.m.NextSolution()
+			bindings, err = m.NextSolution()
 		}
 		solver.Err = err
 		close(stream)
 	}()
-	return stream, func() { solver.m.Interrupt() }
+	return stream, func() { m.Interrupt() }
 }

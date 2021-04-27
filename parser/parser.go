@@ -247,7 +247,7 @@ func init() {
 
 // ParseTerm parses a single term.
 func ParseTerm(text string) (logic.Term, error) {
-	m.Reset()
+	m := m.Reset()
 	var letters []logic.Term
 	for _, ch := range text {
 		letters = append(letters, dsl.Atom(string(ch)))
@@ -271,7 +271,7 @@ func parseTerm(term logic.Term) (t logic.Term, err error) {
 
 // ParseClauses parses a sequence of facts and rules.
 func ParseClauses(text string) ([]*logic.Clause, error) {
-	m.Reset()
+	m := m.Reset()
 	var letters []logic.Term
 	for _, ch := range text {
 		letters = append(letters, dsl.Atom(string(ch)))

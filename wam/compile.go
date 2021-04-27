@@ -18,20 +18,14 @@ func NewMachine() *Machine {
 	return m
 }
 
-// Reset discards all states for the machine, except for the compiled clauses.
-func (m *Machine) Reset() {
-	m.CodePtr = InstrAddr{}
-	m.Continuation = InstrAddr{}
-	for i := range m.Reg {
-		m.Reg[i] = nil
-	}
-	m.Trail = nil
-	m.Env = nil
-	m.ChoicePoint = nil
-	m.CutChoice = nil
-	m.LastRefID = 0
-	m.encoder = nil
-	m.interrupt = make(chan struct{})
+// Reset creates a new machine with clean state, copying only the compiled clauses.
+func (m *Machine) Reset() *Machine {
+	cloned := new(Machine)
+	cloned.Code = m.Code
+	cloned.Reg = make([]Cell, len(m.Reg))
+	cloned.DebugFilename = m.DebugFilename
+	cloned.interrupt = make(chan struct{})
+	return cloned
 }
 
 // AddClause adds a compiled clause to the machine.

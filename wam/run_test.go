@@ -1015,7 +1015,7 @@ func TestReset(t *testing.T) {
 
 	// ?- parent(charles, X).
 	bindings1, err1 := m.RunQuery(comp("parent", atom("charles"), var_("X")))
-	m.Reset()
+	m = m.Reset()
 	bindings2, err2 := m.RunQuery(comp("parent", var_("X"), atom("harry")))
 	bindings3, err3 := m.NextSolution()
 	bindings := []map[logic.Var]logic.Term{bindings1, bindings2, bindings3}
@@ -1079,7 +1079,7 @@ func TestUnifyDicts(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		m.Reset()
+		m := m.Reset()
 		m.DebugFilename = fmt.Sprintf("debugtest/unify-dicts-%02d.jsonl", i)
 		bindings, err := m.RunQuery(comp("=", test.d1, test.d2))
 		if err != nil {
