@@ -16,7 +16,8 @@ full Prolog environment, which necessarily involve some ser-/deserialization.
 ## Features
 
 - [x] Last-call optimization
-- [ ] Prolog parser
+- [x] Dicts
+- [x] Prolog parser
 - [ ] DCGs
 - [ ] Attributed variables
 - [ ] Delimited continuations
