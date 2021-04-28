@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 
 	"github.com/brunokim/logic-engine/logic"
@@ -668,41 +669,68 @@ func (m *Machine) dictMatchingPairs(d1, d2 *Pair) ([]Cell, error) {
 		return nil, err2
 	}
 	var cells []Cell
-	var diff1, diff2 []*Pair
-	var i, j int
-	for i < len(assocs1) && j < len(assocs2) {
-		assoc1, assoc2 := assocs1[i], assocs2[j]
-		switch compareCells(assoc1.Head, assoc2.Head) {
-		case equal:
-			cells = append(cells, assoc1.Tail, assoc2.Tail)
-			i++
-			j++
-		case less:
-			diff1 = append(diff1, assoc1)
-			i++
-		case more:
-			diff2 = append(diff2, assoc2)
-			j++
-		}
+	matching, diff1, diff2 := assocsDifference(assocs1, assocs2)
+	for _, match := range matching {
+		cells = append(cells, match.left, match.right)
 	}
-	diff1 = append(diff1, assocs1[i:]...)
-	diff2 = append(diff2, assocs2[j:]...)
-	// {a:A, b:B|D1} = {a:X|D2}  =>  A=X, D2={b:B|D1}
+	// {a:A, b:B|D1} = {a:X|D2}       =>  A=X, D2={a:_, b:B|D1}
 	if len(diff1) > 0 && len(diff2) == 0 {
-		cells = append(cells, rollDict(diff1, parent1), parent2)
+		cells = append(cells, m.rollDict(matching, diff2, diff1, parent1), parent2)
 	}
-	// {a:A|D1} = {a:X, z:Z|D2}  =>  A=X, D1={z:Z|D2}
-	if len(diff2) > 0 && len(diff1) == 0 {
-		cells = append(cells, rollDict(diff2, parent2), parent1)
+	// {a:A|D1} = {a:X, z:Z|D2}       =>  A=X, D1={a:_, z:Z|D2}
+	if len(diff1) == 0 && len(diff2) > 0 {
+		cells = append(cells, parent1, m.rollDict(matching, diff1, diff2, parent2))
 	}
-	// {a:A, b:B|D1} = {a:X, z:Z|D2}  =>  A=X, D1={z:Z|D}, D2={b:B|D}
+	// {a:A, b:B|D1} = {a:X, z:Z|D2}  =>  A=X, D1={a:_, b:_, z:Z|D}, D2={a:_, b:B, z:_|D}
 	if len(diff1) > 0 && len(diff2) > 0 {
 		d := m.newRef()
 		cells = append(cells,
-			rollDict(diff1, d), parent2,
-			rollDict(diff2, d), parent1)
+			m.rollDict(matching, diff1, diff2, d), parent1,
+			m.rollDict(matching, diff2, diff1, d), parent2)
 	}
 	return cells, nil
+}
+
+func (m *Machine) voidAssoc(key Cell) *Pair {
+	return &Pair{
+		Tag:  AssocPair,
+		Head: key,
+		Tail: m.newRef(),
+	}
+}
+
+// rollDict creates a new dict Pair with some present and other void associations.
+//
+//   {a:A, b:1, d:3, e:E, f:5, i:I|D1} = {a:A, c:10, e:E, i:I, s:20, y:30|D2}
+//   =>
+//   matching=[a, e, i]        % Intersection
+//   diff1=[b:1, d:3, f:5]     % Own keys
+//   diff2=[c:10, s:20, y:30]  % Other keys, not present
+//   parent=D1
+//   =>
+//   D = {a:_, b:_, c:10, d:_, e:_, f:_, i:_, s:20, y:30|D1}
+func (m *Machine) rollDict(matching []match, diff1, diff2 []*Pair, parent Cell) Cell {
+	// Concatenate assocs and keys from difference data.
+	n0, n1, n2 := len(matching), len(diff1), len(diff2)
+	assocs := make([]*Pair, n0+n1+n2)
+	for i, match := range matching {
+		assocs[i] = m.voidAssoc(match.key)
+	}
+	for i, assoc := range diff1 {
+		assocs[n0+i] = m.voidAssoc(assoc.Head)
+	}
+	copy(assocs[n0+n1:], diff2)
+	// Sort assocs by key.
+	// TODO: we can improve this with a 3-way merge if necessary.
+	sort.Slice(assocs, func(i, j int) bool {
+		return compareCells(assocs[i].Head, assocs[j].Head) == less
+	})
+	// Create linked list traversing in reverse order.
+	d := parent
+	for i := len(assocs) - 1; i >= 0; i-- {
+		d = &Pair{Tag: DictPair, Head: assocs[i], Tail: d}
+	}
+	return d
 }
 
 // If a ref was created before the current choice point, than it's a conditional

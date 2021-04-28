@@ -2,6 +2,7 @@ package wam
 
 import (
 	"fmt"
+	"sort"
 )
 
 // deref walks the reference chain until if finds a non-ref cell, or an unbound ref.
@@ -67,14 +68,64 @@ func unroll(p *Pair) ([]Cell, Cell) {
 	return elems, tail
 }
 
+func searchAssoc(assocs []*Pair, key Cell) (int, bool) {
+	i := sort.Search(len(assocs), func(i int) bool {
+		return compareCells(assocs[i].Head, key) != less
+	})
+	return i, i < len(assocs) && compareCells(assocs[i].Head, key) == equal
+}
+
+func insertAssoc(assocs []*Pair, assoc *Pair) []*Pair {
+	i, ok := searchAssoc(assocs, assoc.Head)
+	if ok {
+		// Do not overwrite already-present value.
+		return assocs
+	}
+	as := make([]*Pair, len(assocs)+1)
+	copy(as, assocs[:i])
+	as[i] = assoc
+	copy(as[i+1:], assocs[i:])
+	return as
+}
+
+type match struct {
+	key, left, right Cell
+}
+
+// Returns the keys that are shared among both assocs, as well as the assocs
+// in each one whose key is not present in the other.
+func assocsDifference(assocs1, assocs2 []*Pair) ([]match, []*Pair, []*Pair) {
+	var matching []match
+	var diff1, diff2 []*Pair
+	var i, j int
+	for i < len(assocs1) && j < len(assocs2) {
+		assoc1, assoc2 := assocs1[i], assocs2[j]
+		switch compareCells(assoc1.Head, assoc2.Head) {
+		case equal:
+			matching = append(matching, match{assoc1.Head, assoc1.Tail, assoc2.Tail})
+			i++
+			j++
+		case less:
+			diff1 = append(diff1, assoc1)
+			i++
+		case more:
+			diff2 = append(diff2, assoc2)
+			j++
+		}
+	}
+	diff1 = append(diff1, assocs1[i:]...)
+	diff2 = append(diff2, assocs2[j:]...)
+	return matching, diff1, diff2
+}
+
 // unrollDict returns all assoc Pairs that compose a dict, and its parent.
 func unrollDict(d *Pair) ([]*Pair, Cell, error) {
 	if d.Tag != DictPair {
 		return nil, nil, fmt.Errorf("unrollDict: not a dict: %v", d)
 	}
 	elems, parent := unroll(d)
-	assocs := make([]*Pair, len(elems))
-	for i, elem := range elems {
+	var assocs []*Pair
+	for _, elem := range elems {
 		pair, ok := elem.(*Pair)
 		if !(ok && pair.Tag == AssocPair) {
 			return nil, nil, fmt.Errorf("non-assoc content in dict: %v", elem)
@@ -82,16 +133,7 @@ func unrollDict(d *Pair) ([]*Pair, Cell, error) {
 		if !isGround(pair.Head) {
 			return nil, nil, fmt.Errorf("non-ground key in dict: %v", pair.Head)
 		}
-		assocs[i] = pair
+		assocs = insertAssoc(assocs, pair)
 	}
 	return assocs, parent, nil
-}
-
-// rollDict creates a new dict Pair from the provided assoc list.
-func rollDict(assocs []*Pair, parent Cell) Cell {
-	d := parent
-	for i := len(assocs) - 1; i >= 0; i-- {
-		d = &Pair{Tag: DictPair, Head: assocs[i], Tail: d}
-	}
-	return d
 }

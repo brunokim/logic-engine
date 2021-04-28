@@ -60,6 +60,9 @@ func (ctx *convertCtx) newVar() logic.Var {
 }
 
 func (ctx *convertCtx) fromCell(cell Cell) logic.Term {
+	if cell == nil {
+		return nil
+	}
 	if c, ok := cell.(Constant); ok {
 		return fromConstant(c)
 	}

@@ -1058,7 +1058,10 @@ func TestUnifyDicts(t *testing.T) {
 		{
 			idict(atom("a"), int_(1), var_("Dict")),
 			dict(atom("b"), int_(2), atom("a"), var_("X")),
-			map[logic.Var]logic.Term{var_("X"): int_(1), var_("Dict"): dict(atom("b"), int_(2))},
+			map[logic.Var]logic.Term{
+				var_("X"):    int_(1),
+				var_("Dict"): dict(atom("a"), svar("_X", 3), atom("b"), int_(2)),
+			},
 		},
 		// ?- {a:1, b:2|Dict1} = {a:X|Dict2}.
 		{
@@ -1067,7 +1070,7 @@ func TestUnifyDicts(t *testing.T) {
 			map[logic.Var]logic.Term{
 				var_("X"):     int_(1),
 				var_("Dict1"): svar("_X", 1),
-				var_("Dict2"): idict(atom("b"), int_(2), var_("Dict1")),
+				var_("Dict2"): idict(atom("a"), svar("_X", 4), atom("b"), int_(2), var_("Dict1")),
 			},
 		},
 		// ?- {a:1, c:3|Dict1} = {a:X, b:2|Dict2}
@@ -1075,9 +1078,30 @@ func TestUnifyDicts(t *testing.T) {
 			idict(atom("a"), int_(1), atom("c"), int_(3), var_("Dict1")),
 			idict(atom("b"), int_(2), atom("a"), var_("X"), var_("Dict2")),
 			map[logic.Var]logic.Term{
-				var_("X"):     int_(1),
-				var_("Dict1"): idict(atom("b"), int_(2), svar("_X", 4)),
-				var_("Dict2"): idict(atom("c"), int_(3), svar("_X", 4))},
+				var_("X"): int_(1),
+				var_("Dict1"): idict(
+					atom("a"), svar("_X", 5),
+					atom("b"), int_(2),
+					atom("c"), svar("_X", 6),
+					svar("_X", 4)),
+				var_("Dict2"): idict(
+					atom("a"), svar("_X", 7),
+					atom("b"), svar("_X", 8),
+					atom("c"), int_(3),
+					svar("_X", 4)),
+			},
+		},
+		// ?- p(X, {a:1, b:2|X}) = p({b:20, c:30|_}, {a:A, b:B, c:C})
+		{
+			comp("p", var_("X"), idict(atom("a"), int_(1), atom("b"), int_(2), var_("X"))),
+			comp("p", idict(atom("b"), int_(20), atom("c"), int_(30), var_("_")),
+				dict(atom("a"), var_("A"), atom("b"), var_("B"), atom("c"), var_("C"))),
+			map[logic.Var]logic.Term{
+				var_("X"): dict(atom("a"), svar("_X", 6), atom("b"), int_(20), atom("c"), var_("C")),
+				var_("A"): int_(1),
+				var_("B"): int_(2),
+				var_("C"): int_(30),
+			},
 		},
 	}
 	for i, test := range tests {
@@ -1085,10 +1109,10 @@ func TestUnifyDicts(t *testing.T) {
 		m.DebugFilename = fmt.Sprintf("debugtest/unify-dicts-%02d.jsonl", i)
 		bindings, err := m.RunQuery(comp("=", test.d1, test.d2))
 		if err != nil {
-			t.Fatalf("#%d: got err: %v", i, err)
+			t.Fatalf("%v = %v: got err: %v", test.d1, test.d2, err)
 		}
 		if diff := cmp.Diff(test.want, bindings, test_helpers.IgnoreUnexported); diff != "" {
-			t.Errorf("#%d (-want, +got)\n%s", i, diff)
+			t.Errorf("%v = %v: (-want, +got)\n%s", test.d1, test.d2, diff)
 		}
 	}
 }
