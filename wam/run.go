@@ -584,6 +584,8 @@ func (m *Machine) bind(c1, c2 Cell) {
 	panic(fmt.Sprintf("bind(%v, %v): no unbound refs", c1, c2))
 }
 
+// ---- unification
+
 type unifyError struct {
 	c1, c2 interface{}
 }
@@ -732,6 +734,8 @@ func (m *Machine) rollDict(matching []match, diff1, diff2 []*Pair, parent Cell) 
 	}
 	return d
 }
+
+// ---- choicepoints
 
 // If a ref was created before the current choice point, than it's a conditional
 // ref that must be kept in the trail.
