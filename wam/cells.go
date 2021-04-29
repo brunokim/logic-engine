@@ -137,3 +137,43 @@ func unrollDict(d *Pair) ([]*Pair, Cell, error) {
 	}
 	return assocs, parent, nil
 }
+
+// Walks the list of (sorted) assocs from each dict, trying to match their keys.
+// Assocs whose key are not present in the other are matched with the other dict's parent.
+func dictMatchingPairs(d1, d2 *Pair) ([]Cell, error) {
+	assocs1, parent1, err1 := unrollDict(d1)
+	assocs2, parent2, err2 := unrollDict(d2)
+	if err1 != nil {
+		return nil, err1
+	}
+	if err2 != nil {
+		return nil, err2
+	}
+	var cells []Cell
+	matching, rest1, rest2 := assocsDifference(assocs1, assocs2)
+	for _, match := range matching {
+		cells = append(cells, match.left, match.right)
+	}
+	// {a:1|{b:2|X1}} = {a:A|X2}  =>  X2={b:2|X1}
+	if len(rest1) > 0 && len(rest2) == 0 {
+		cells = append(cells, rollDict(rest1, parent1), parent2)
+	}
+	// {a:1|X1} = {a:A|{c:3|X2}}  =>  X1={c:3|X2}
+	if len(rest1) == 0 && len(rest2) > 0 {
+		cells = append(cells, parent1, rollDict(rest2, parent2))
+	}
+	// {a:1|{b:2|X1}} = {a:A|{c:3|X2}}  =>  X1=X2
+	if len(rest1) > 0 && len(rest2) > 0 {
+		cells = append(cells, parent1, parent2)
+	}
+	return cells, nil
+}
+
+// rollDict creates a new dict Pair from a (sorted) list of assocs.
+func rollDict(assocs []*Pair, parent Cell) Cell {
+	d := parent
+	for i := len(assocs) - 1; i >= 0; i-- {
+		d = &Pair{Tag: DictPair, Head: assocs[i], Tail: d}
+	}
+	return d
+}
