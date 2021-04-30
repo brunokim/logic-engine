@@ -447,6 +447,9 @@ func (t Var) vars(seen map[Var]struct{}, xs []Var) []Var {
 }
 
 func (t *Comp) vars(seen map[Var]struct{}, xs []Var) []Var {
+	if !t.hasVar_ {
+		return xs
+	}
 	for _, term := range t.Args {
 		xs = term.vars(seen, xs)
 	}
@@ -454,6 +457,9 @@ func (t *Comp) vars(seen map[Var]struct{}, xs []Var) []Var {
 }
 
 func (t *List) vars(seen map[Var]struct{}, xs []Var) []Var {
+	if !t.hasVar_ {
+		return xs
+	}
 	for _, term := range t.Terms {
 		xs = term.vars(seen, xs)
 	}
@@ -462,12 +468,18 @@ func (t *List) vars(seen map[Var]struct{}, xs []Var) []Var {
 }
 
 func (t *Assoc) vars(seen map[Var]struct{}, xs []Var) []Var {
+	if !t.hasVar_ {
+		return xs
+	}
 	xs = t.Key.vars(seen, xs)
 	xs = t.Val.vars(seen, xs)
 	return xs
 }
 
 func (t *Dict) vars(seen map[Var]struct{}, xs []Var) []Var {
+	if !t.hasVar_ {
+		return xs
+	}
 	for _, assoc := range t.Assocs {
 		xs = assoc.vars(seen, xs)
 	}
@@ -477,6 +489,9 @@ func (t *Dict) vars(seen map[Var]struct{}, xs []Var) []Var {
 
 // Vars returns a set with all variables, in insertion order.
 func (t *Clause) Vars() []Var {
+	if !t.hasVar_ {
+		return nil
+	}
 	seen := make(map[Var]struct{})
 	var xs []Var
 	xs = t.Head.vars(seen, xs)
