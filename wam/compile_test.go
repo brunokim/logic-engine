@@ -183,6 +183,93 @@ func TestCompile(t *testing.T) {
 				deallocate{},
 				proceed{}),
 		},
+		// Bug found while testing dict unification.
+		// unify_variable is emitted after unify_value for P2.
+		// query :- =(
+		//   p({a:1, b:2|P1}, P1, P2),
+		//   p({a:1, c:3|P2}, _, _)).
+		{
+			dsl.Clause(atom("query"),
+				comp("=",
+					comp("p",
+						idict(atom("a"), int_(1), atom("b"), int_(2), var_("P1")),
+						var_("P1"),
+						var_("P2")),
+					comp("p",
+						idict(atom("a"), int_(1), atom("c"), int_(3), var_("P2")),
+						var_("_"),
+						var_("_")))),
+			clause(functor{"query", 0},
+				// a:1
+				put_pair{assoc_pair, reg(5)},
+				unify_constant{watom("a")},
+				unify_constant{wint(1)},
+				// b:2
+				put_pair{assoc_pair, reg(7)},
+				unify_constant{watom("b")},
+				unify_constant{wint(2)},
+				// {b:2|P1}
+				put_pair{dict_pair, reg(6)},
+				unify_value{reg(7)},
+				unify_variable{reg(2)}, // P1=X2
+				// {a:1, b:2|P1}
+				put_pair{dict_pair, reg(4)},
+				unify_value{reg(5)},
+				unify_value{reg(6)},
+				// a:1
+				put_pair{assoc_pair, reg(9)},
+				unify_constant{watom("a")},
+				unify_constant{wint(1)},
+				// c:3
+				put_pair{assoc_pair, reg(11)},
+				unify_constant{watom("c")},
+				unify_constant{wint(3)},
+				// {c:3|P2}
+				put_pair{dict_pair, reg(10)},
+				unify_value{reg(11)},
+				unify_variable{reg(3)}, // P2=X3
+				// {a:1, c:3|P2}
+				put_pair{dict_pair, reg(8)},
+				unify_value{reg(9)},
+				unify_value{reg(10)},
+				// p({...}, P1, P2)
+				put_struct{functor{"p", 3}, reg(0)},
+				unify_value{reg(4)},
+				unify_value{reg(2)},
+				unify_value{reg(3)},
+				// p({...}, _, _)
+				put_struct{functor{"p", 3}, reg(1)},
+				unify_value{reg(8)},
+				unify_void{},
+				unify_void{},
+				// =(..., ...).
+				execute{functor{"=", 2}}),
+		},
+		// Attempt to simplify above bug, not successful. Perhaps it's dict-related?
+		// query :- f(g(h(W), W, Z), g(h(Z))).
+		{
+			dsl.Clause(atom("query"),
+				comp("f",
+					comp("g", comp("h", var_("W")), var_("W"), var_("Z")),
+					comp("g", comp("h", var_("Z"))))),
+			clause(functor{"query", 0},
+				// h(W)
+				put_struct{functor{"h", 1}, reg(4)},
+				unify_variable{reg(2)}, // W=X2
+				// h(Z)
+				put_struct{functor{"h", 1}, reg(5)},
+				unify_value{reg(3)},
+				// g(., W, Z)
+				put_struct{functor{"g", 3}, reg(0)},
+				unify_value{reg(4)},
+				unify_value{reg(2)},
+				unify_variable{reg(3)}, // Z=X3
+				// g(.)
+				put_struct{functor{"g", 1}, reg(1)},
+				unify_value{reg(5)},
+				// :- f(., .).
+				execute{functor{"f", 2}}),
+		},
 	}
 	for _, test := range tests {
 		got := wam.Compile(test.clause)

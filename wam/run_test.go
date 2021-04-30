@@ -1124,6 +1124,21 @@ func TestUnifyDicts(t *testing.T) {
 				var_("C"): int_(30),
 			},
 		},
+		// ?- {a:1, b:2|P1} = {a:1, c:3|P2}, P1={d:4}, P2={c:30, d:4}.
+		{
+			comp("p",
+				idict(atom("a"), int_(1), atom("b"), int_(2), var_("P1")),
+				var_("P1"),
+				var_("P2")),
+			comp("p",
+				idict(atom("a"), int_(1), atom("c"), int_(3), var_("P2")),
+				dict(atom("d"), int_(4)),
+				dict(atom("c"), int_(30), atom("d"), int_(4))),
+			map[logic.Var]logic.Term{
+				var_("P1"): dict(atom("d"), int_(4)),
+				var_("P2"): dict(atom("c"), int_(30), atom("d"), int_(4)),
+			},
+		},
 	}
 	for i, test := range tests {
 		m := m.Reset()
