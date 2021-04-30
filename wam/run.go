@@ -155,6 +155,9 @@ func (m *Machine) debugClose(f io.WriteCloser) {
 	if f == nil {
 		return
 	}
+	if err := f.Close(); err != nil {
+		log.Printf("Failed closing debug file: %v", err)
+	}
 }
 
 func (m *Machine) debugWrite(f io.WriteCloser, counter int) {
