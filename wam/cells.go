@@ -155,11 +155,11 @@ func dictMatchingPairs(d1, d2 *Pair) ([]Cell, error) {
 		cells = append(cells, match.left, match.right)
 	}
 	// {a:1|{b:2|X1}} = {a:A|X2}  =>  X2={b:2|X1}
-	if len(rest1) > 0 && len(rest2) == 0 {
+	if len(rest1) > 0 && len(rest2) == 0 && parent2 != WAtom("{}") {
 		cells = append(cells, rollDict(rest1, parent1), parent2)
 	}
 	// {a:1|X1} = {a:A|{c:3|X2}}  =>  X1={c:3|X2}
-	if len(rest1) == 0 && len(rest2) > 0 {
+	if len(rest1) == 0 && len(rest2) > 0 && parent1 != WAtom("{}") {
 		cells = append(cells, parent1, rollDict(rest2, parent2))
 	}
 	// {a:1|{b:2|X1}} = {a:A|{c:3|X2}}  =>  X1=X2

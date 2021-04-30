@@ -1063,14 +1063,13 @@ func TestUnifyDicts(t *testing.T) {
 				var_("Dict"): dict(atom("b"), int_(2)),
 			},
 		},
-		// ?- {a:1, b:2|Dict1} = {a:X|Dict2}.
+		// ?- {a:1, b:2} = {a:X|Dict}.
 		{
-			idict(atom("a"), int_(1), atom("b"), int_(2), var_("Dict1")),
-			idict(atom("a"), var_("X"), var_("Dict2")),
+			dict(atom("a"), int_(1), atom("b"), int_(2)),
+			idict(atom("a"), var_("X"), var_("Dict")),
 			map[logic.Var]logic.Term{
-				var_("X"):     int_(1),
-				var_("Dict1"): svar("_X", 1),
-				var_("Dict2"): idict(atom("b"), int_(2), var_("Dict1")),
+				var_("X"):    int_(1),
+				var_("Dict"): dict(atom("b"), int_(2)),
 			},
 		},
 		// ?- {a:1, c:3|Dict1} = {a:X, b:2|Dict2}
@@ -1083,10 +1082,20 @@ func TestUnifyDicts(t *testing.T) {
 				var_("Dict2"): var_("Dict1"),
 			},
 		},
+		// ?- {} = {a:1}
+		{
+			atom("{}"),
+			dict(atom("a"), int_(1)),
+			map[logic.Var]logic.Term{},
+		},
+		// ?- {a:1} = {}
+		{
+			dict(atom("a"), int_(1)),
+			atom("{}"),
+			map[logic.Var]logic.Term{},
+		},
 		// ?- p(X, {a:1, b:2|X}) = p({b:20, c:30}, {a:A, b:B, c:C})
-		// TODO: disabled test because an empty dict doesn't match an atom '{}'.
-		// Will fix this by making empty list/dict as proper *Pairs (with nil Head and Tail)
-		/*{
+		{
 			comp("p", var_("X"), idict(atom("a"), int_(1), atom("b"), int_(2), var_("X"))),
 			comp("p", dict(atom("b"), int_(20), atom("c"), int_(30)),
 				dict(atom("a"), var_("A"), atom("b"), var_("B"), atom("c"), var_("C"))),
@@ -1096,7 +1105,7 @@ func TestUnifyDicts(t *testing.T) {
 				var_("B"): int_(2),
 				var_("C"): int_(30),
 			},
-		},*/
+		},
 	}
 	for i, test := range tests {
 		m := m.Reset()

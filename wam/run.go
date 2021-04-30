@@ -39,8 +39,11 @@ func (m *Machine) runOnce() (map[logic.Var]logic.Term, error) {
 	if err := m.Run(); err != nil {
 		return nil, err
 	}
+	if len(m.xs) == 0 {
+		return map[logic.Var]logic.Term{}, nil
+	}
 	if m.Env == nil {
-		return nil, fmt.Errorf("RunQuery: nil env at the end of execution")
+		return nil, fmt.Errorf("nil env at the end of execution")
 	}
 	return fromCells(m.xs, m.Env.PermanentVars), nil
 }
@@ -608,39 +611,51 @@ func (m *Machine) unify(a1, a2 Cell) error {
 		// Deref cells and compare them.
 		c1, c2 := deref(a1), deref(a2)
 		if c1 == c2 {
-			// 1. They are the same, nothing to do.
+			// They are the same, nothing to do.
 			continue
 		}
 		_, isRef1 := c1.(*Ref)
 		_, isRef2 := c2.(*Ref)
 		if isRef1 || isRef2 {
-			// 2. Some of them is a ref. Bind them.
+			// Some of them is a ref. Bind them.
 			m.bind(c1, c2)
 			continue
 		}
+		// Special case: '{}' unifies with any dict.
+		if c1 == WAtom("{}") || c2 == WAtom("{}") {
+			p1, isPair1 := c1.(*Pair)
+			p2, isPair2 := c2.(*Pair)
+			if c1 == WAtom("{}") && isPair2 && p2.Tag == DictPair {
+				continue
+			}
+			if c2 == WAtom("{}") && isPair1 && p1.Tag == DictPair {
+				continue
+			}
+		}
 		switch t1 := c1.(type) {
 		case Constant:
-			// 3. If they are both constants, check that they are equal.
+			// If they are both constants, check that they are equal.
 			t2, ok := c2.(Constant)
 			if !(ok && t1 == t2) {
 				return &unifyError{c1, c2}
 			}
 		case *Struct:
-			// 4. Check if they are both struct cells.
+			// Check if they are both struct cells.
 			t2, ok := c2.(*Struct)
 			if !ok {
 				return &unifyError{c1, c2}
 			}
-			// 5. Get the functors being pointed by the structs.
+			// Get the functors being pointed by the structs.
 			f1, f2 := t1.Functor(), t2.Functor()
 			if f1 != f2 {
 				return &unifyError{f1, f2}
 			}
-			// 6. Push addresses of args pair-wise onto stack.
+			// Push addresses of args pair-wise onto stack.
 			for i := 0; i < f1.Arity; i++ {
 				stack = append(stack, t1.Args[i], t2.Args[i])
 			}
 		case *Pair:
+			// Check if they are the same type of pair cells.
 			t2, ok := c2.(*Pair)
 			if !(ok && t1.Tag == t2.Tag) {
 				return &unifyError{c1, c2}
@@ -652,6 +667,7 @@ func (m *Machine) unify(a1, a2 Cell) error {
 				}
 				stack = append(stack, pairs...)
 			} else {
+				// Assocs, Lists: compare heads and tails.
 				stack = append(stack, t1.Head, t2.Head, t1.Tail, t2.Tail)
 			}
 		default:
