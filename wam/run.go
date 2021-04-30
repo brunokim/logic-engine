@@ -651,7 +651,7 @@ func (m *Machine) unify(a1, a2 Cell) error {
 				return &unifyError{f1, f2}
 			}
 			// Push addresses of args pair-wise onto stack.
-			for i := 0; i < f1.Arity; i++ {
+			for i := f1.Arity - 1; i >= 0; i-- {
 				stack = append(stack, t1.Args[i], t2.Args[i])
 			}
 		case *Pair:
@@ -661,20 +661,68 @@ func (m *Machine) unify(a1, a2 Cell) error {
 				return &unifyError{c1, c2}
 			}
 			if t1.Tag == DictPair {
-				pairs, err := dictMatchingPairs(t1, t2)
+				pairs, err := m.dictMatchingPairs(t1, t2)
 				if err != nil {
 					return err
 				}
 				stack = append(stack, pairs...)
 			} else {
 				// Assocs, Lists: compare heads and tails.
-				stack = append(stack, t1.Head, t2.Head, t1.Tail, t2.Tail)
+				stack = append(stack, t1.Tail, t2.Tail, t1.Head, t2.Head)
 			}
 		default:
 			panic(fmt.Sprintf("wam.Machine.unify: unhandled type %T (%v)", c1, c1))
 		}
 	}
 	return nil
+}
+
+// Walks the list of (sorted) assocs from each dict, trying to match their keys.
+// Assocs whose key are not present in the other are matched with the other dict's parent.
+func (m *Machine) dictMatchingPairs(d1, d2 *Pair) ([]Cell, error) {
+	assocs1, parent1, err1 := unrollDict(d1)
+	assocs2, parent2, err2 := unrollDict(d2)
+	if err1 != nil {
+		return nil, err1
+	}
+	if err2 != nil {
+		return nil, err2
+	}
+	matching, rest1, rest2 := assocsDifference(assocs1, assocs2)
+	hasRest1 := len(rest1) > 0
+	hasRest2 := len(rest2) > 0
+	isComplete1 := parent1 == WAtom("{}")
+	isComplete2 := parent2 == WAtom("{}")
+
+	var cells []Cell
+	// {a:1|P1} = {a:1|P2} => P1=P2
+	if !hasRest1 && !hasRest2 && !isComplete1 && !isComplete2 {
+		cells = append(cells, parent1, parent2)
+	}
+	// {a:1|P1}      = {a:1, b:2}    => P1={b:2}
+	// {a:1|P1}      = {a:1, b:2|P2} => P1={b:2|P2}
+	// {a:1, c:3|P1} = {a:1, b:2}    => P1={b:2}
+	if !isComplete1 && hasRest2 && (!hasRest1 || isComplete2) {
+		cells = append(cells, parent1, rollDict(rest2, parent2))
+	}
+	// {a:1, b:2}    = {a:1|P2}      => {b:2}=P2
+	// {a:1, b:2|P1} = {a:1|P2}      => {b:2|P1}=P2
+	// {a:1, b:2}    = {a:1, c:3|P2} => {b:2}=P2
+	if !isComplete2 && hasRest1 && (!hasRest2 || isComplete1) {
+		cells = append(cells, rollDict(rest1, parent1), parent2)
+	}
+	// {a:1, b:2|P1} = {a:2, c:3|P2} => P1={c:3|P}, {b:2|P}=P2
+	if hasRest1 && hasRest2 && !isComplete1 && !isComplete2 {
+		parent := m.newRef()
+		cells = append(cells,
+			parent1, rollDict(rest2, parent),
+			rollDict(rest1, parent), parent2)
+	}
+	for i := len(matching) - 1; i >= 0; i-- {
+		match := matching[i]
+		cells = append(cells, match.left, match.right)
+	}
+	return cells, nil
 }
 
 // ---- choicepoints

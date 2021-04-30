@@ -93,6 +93,83 @@ The implementation must be smart *not* to mindlessly unify dict parents, or else
                A=1, {a:10}={a:A1}
                A=1,     A1=10
 
+## Monotonicity
+
+What should happen when both parents are unbound, as in
+
+    ?- {a:1, b:2|P1} = {a:X, c:3|P2}.
+
+If you read `P1` as "input", then it may have keys `a` and `b`; the same for `P2` and `a` and `c`.
+If you read them as "output" or "rest", they shouldn't have any of these keys.
+Either way, they have the further **constraint** that any shared keys are now the same between both.
+
+According to the first interpretation, we would have
+
+    P1={c:3|P}, P2={b:2|P}, P={}; {a:_}; {b:_}; ...; {a:_, b:_, c:_}
+
+And to the second, we would have
+
+    P1={}, P2={}
+
+I think I prefer the intermediate response
+
+    P1={c:3}, P2={b:2}
+
+because the unification can be seen as a symmetric difference.
+
+**BUT**
+
+If we further try to use `P1` and `P2`,
+
+
+    ?- {a:1, b:2|P1} = {a:X, c:3|P2}, P1 = {c:2}.
+    ?- {a:1, b:2|P1} = {a:X, c:3|P2}, P1 = {d:4}, P2={d:40}.
+
+we should expect both of these to **fail** to preserve monotonicity. So the most general
+semantics is the first interpretation, with simply
+
+    P1={c:3|P}, P2={b:2|P}  % P is still unbound.
+
+## Cases
+
+    hasRest1 | hasRest2 | isComplete1 | isComplete2 | Example                       | Pairs
+    ---------|----------|-------------|-------------|-------------------------------|-----------------
+    false    | false    | false       | false       | {a:A, b:B|P1} = {a:1, b:2|P2} | A=1, B=2, P1=P2
+    false    | false    | false       | true        | {a:A, b:B|P1} = {a:1, b:2}    | A=1, B=2
+    false    | false    | true        | false       | {a:A, b:B} = {a:1, b:2|P2}    | A=1, B=2
+    false    | false    | true        | true        | {a:A, b:B} = {a:1, b:2}       | A=1, B=2
+    ---------|----------|-------------|-------------|-------------------------------|-----------------
+    false    | true     | false       | false       | {a:A|P1} = {a:1, b:2|P2}      | A=1, P1={b:2|P2}
+    false    | true     | false       | true        | {a:A|P1} = {a:1, b:2}         | A=1, P1={b:2}
+    false    | true     | true        | false       | {a:A} = {a:1, b:2|P2}         | A=1
+    false    | true     | true        | true        | {a:A} = {a:1, b:2}            | A=1
+    ---------|----------|-------------|-------------|-------------------------------|-----------------
+    true     | false    | false       | false       | {a:A, b:B|P1} = {a:1|P2}      | A=1, {b:B|P1}=P2
+    true     | false    | false       | true        | {a:A, b:B|P1} = {a:1}         | A=1
+    true     | false    | true        | false       | {a:A, b:B} = {a:1|P2}         | A=1, {b:B}=P2
+    true     | false    | true        | true        | {a:A, b:B} = {a:1}            | A=1
+    ---------|----------|-------------|-------------|-------------------------------|-----------------
+    true     | true     | false       | false       | {a:A, c:C|P1} = {a:1, b:2|P2} | A=1, P1={b:2|P}, {c:C|P}=P2
+    true     | true     | false       | true        | {a:A, c:C|P1} = {a:1, b:2}    | A=1, P1={b:2}
+    true     | true     | true        | false       | {a:A, c:C} = {a:1, b:2|P2}    | A=1, {c:C}=P2
+    true     | true     | true        | true        | {a:A, c:C} = {a:1, b:2}       | A=1
+
+
+    case | build P1                      case | build P2
+    -----|--------------------------     -----|--------------------------
+    FFFF | P1 = P2                       FFFF | P1 = P2
+    -----|--------------------------     -----|--------------------------
+    FTFF | P1 = rollDict(rest2, P2)      TFFF | P2 = rollDict(rest1, P1)
+    FTFT |                               TFTF |
+    TTFT |                               TTTF |
+    -----|--------------------------     -----|--------------------------
+    TTFF | P1 = rollDict(rest2, P)       TTFF | P2 = rollDict(rest1, P)
+
+    if !x1 && !x2 && !x3 && !x4 { P1 = P2 }
+    if x2 && !x3 && (!x1 || x4) { P1 = rollDict(rest2, P2) }
+    if x1 && !x4 && (!x2 || x3) { P2 = rollDict(rest1, P1) }
+    if x1 && x2 && !x3 && !x4   { P1 = rollDict(rest2, P), P2 = rollDict(rest1, P) }
+
 ## Syntax
 
 SWI also requires dicts to have a tag, that doesn't need to be always an atom like compound terms.

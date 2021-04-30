@@ -1078,8 +1078,8 @@ func TestUnifyDicts(t *testing.T) {
 			idict(atom("b"), int_(2), atom("a"), var_("X"), var_("Dict2")),
 			map[logic.Var]logic.Term{
 				var_("X"):     int_(1),
-				var_("Dict1"): svar("_X", 1),
-				var_("Dict2"): var_("Dict1"),
+				var_("Dict1"): idict(atom("b"), int_(2), svar("_X", 4)),
+				var_("Dict2"): idict(atom("c"), int_(3), svar("_X", 4)),
 			},
 		},
 		// ?- {} = {a:1}
@@ -1096,9 +1096,27 @@ func TestUnifyDicts(t *testing.T) {
 		},
 		// ?- p(X, {a:1, b:2|X}) = p({b:20, c:30}, {a:A, b:B, c:C})
 		{
-			comp("p", var_("X"), idict(atom("a"), int_(1), atom("b"), int_(2), var_("X"))),
-			comp("p", dict(atom("b"), int_(20), atom("c"), int_(30)),
+			comp("p",
+				var_("X"),
+				idict(atom("a"), int_(1), atom("b"), int_(2), var_("X"))),
+			comp("p",
+				dict(atom("b"), int_(20), atom("c"), int_(30)),
 				dict(atom("a"), var_("A"), atom("b"), var_("B"), atom("c"), var_("C"))),
+			map[logic.Var]logic.Term{
+				var_("X"): dict(atom("b"), int_(20), atom("c"), int_(30)),
+				var_("A"): int_(1),
+				var_("B"): int_(2),
+				var_("C"): int_(30),
+			},
+		},
+		// ?- p({a:1, b:2|X}, X) = p({a:A, b:B, c:C}, {b:20, c:30})
+		{
+			comp("p",
+				idict(atom("a"), int_(1), atom("b"), int_(2), var_("X")),
+				var_("X")),
+			comp("p",
+				dict(atom("a"), var_("A"), atom("b"), var_("B"), atom("c"), var_("C")),
+				dict(atom("b"), int_(20), atom("c"), int_(30))),
 			map[logic.Var]logic.Term{
 				var_("X"): dict(atom("c"), var_("C")),
 				var_("A"): int_(1),
