@@ -206,9 +206,9 @@ type Trust struct {
 	Continuation InstrAddr
 }
 
-// SwitchOnTerm instruction: switch_on_term <instr ifVar> <instr ifConst> <instr ifPair> <instr ifStruct>
+// SwitchOnTerm instruction: switch_on_term <instr ifVar> <instr ifConst> <instr ifStruct> <instr ifList> <instr ifAssoc> <instr ifDict>
 type SwitchOnTerm struct {
-	IfVar, IfConstant, IfPair, IfStruct InstrAddr
+	IfVar, IfConstant, IfStruct, IfList, IfAssoc, IfDict InstrAddr
 }
 
 // SwitchOnConstant instruction: switch_on_constant map{"p": <instr i1>, "q": <instr i2>}
@@ -381,8 +381,10 @@ func (i SwitchOnTerm) String() string {
 	return fmt.Sprintf(`switch_on_term
 	variable: %v
 	constant: %v
-	pair: %v
-	struct: %v`, i.IfVar, i.IfConstant, i.IfPair, i.IfStruct)
+	list: %v
+	assoc: %v
+	dict: %v
+	struct: %v`, i.IfVar, i.IfConstant, i.IfList, i.IfAssoc, i.IfDict, i.IfStruct)
 }
 
 func (instr SwitchOnConstant) String() string {

@@ -539,7 +539,7 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 	// Group clauses by type and index key.
 	constIndex := make(map[Constant][]InstrAddr)
 	structIndex := make(map[Functor][]InstrAddr)
-	var pairIndex []InstrAddr
+	var listIndex, assocIndex, dictIndex []InstrAddr
 	for i, clause := range clauses {
 		arg := clause.Head.(*logic.Comp).Args[0]
 		switch a := arg.(type) {
@@ -551,11 +551,11 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 			f := toFunctor(a.Indicator())
 			structIndex[f] = append(structIndex[f], InstrAddr{codes[i], 1})
 		case *logic.List:
-			pairIndex = append(pairIndex, InstrAddr{codes[i], 1})
+			listIndex = append(listIndex, InstrAddr{codes[i], 1})
 		case *logic.Assoc:
-			pairIndex = append(pairIndex, InstrAddr{codes[i], 1})
+			assocIndex = append(assocIndex, InstrAddr{codes[i], 1})
 		case *logic.Dict:
-			pairIndex = append(pairIndex, InstrAddr{codes[i], 1})
+			dictIndex = append(dictIndex, InstrAddr{codes[i], 1})
 		default:
 			panic(fmt.Sprintf("compileSubSequences: unexpected term type %T (%v)", arg, arg))
 		}
@@ -564,8 +564,10 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 	switchOnTerm := SwitchOnTerm{
 		IfVar:      InstrAddr{codes[0], 0},
 		IfConstant: InstrAddr{fail, 0},
-		IfPair:     InstrAddr{fail, 0},
 		IfStruct:   InstrAddr{fail, 0},
+		IfList:     InstrAddr{fail, 0},
+		IfAssoc:    InstrAddr{fail, 0},
+		IfDict:     InstrAddr{fail, 0},
 	}
 	indexClause := &Clause{
 		Functor:      toFunctor(clauses[0].Head.(*logic.Comp).Indicator()),
@@ -609,9 +611,17 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 			switchOnStruct.Continuation[functor] = putAddrs(addrs)
 		}
 	}
-	// Index pairs.
-	if len(pairIndex) > 0 {
-		switchOnTerm.IfPair = putAddrs(pairIndex)
+	// Index lists.
+	if len(listIndex) > 0 {
+		switchOnTerm.IfList = putAddrs(listIndex)
+	}
+	// Index assocs.
+	if len(assocIndex) > 0 {
+		switchOnTerm.IfAssoc = putAddrs(assocIndex)
+	}
+	// Index dicts.
+	if len(dictIndex) > 0 {
+		switchOnTerm.IfDict = putAddrs(dictIndex)
 	}
 	indexClause.Code[0] = switchOnTerm
 	return indexClause

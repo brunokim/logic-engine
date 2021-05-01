@@ -175,7 +175,9 @@ func clausePtrs(instr Instruction) []*Clause {
 		return []*Clause{
 			instr.IfVar.Clause,
 			instr.IfConstant.Clause,
-			instr.IfPair.Clause,
+			instr.IfList.Clause,
+			instr.IfAssoc.Clause,
+			instr.IfDict.Clause,
 			instr.IfStruct.Clause}
 	case SwitchOnConstant:
 		clauses := make([]*Clause, len(instr.Continuation))

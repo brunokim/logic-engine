@@ -511,15 +511,23 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		return instr.Continuation, nil
 	case SwitchOnTerm:
 		cell := deref(m.Reg[0])
-		switch cell.(type) {
+		switch c := cell.(type) {
 		case *Ref:
 			return instr.IfVar, nil
 		case Constant:
 			return instr.IfConstant, nil
-		case *Pair:
-			return instr.IfPair, nil
 		case *Struct:
 			return instr.IfStruct, nil
+		case *Pair:
+			switch c.Tag {
+			case AssocPair:
+				return instr.IfAssoc, nil
+			case ListPair:
+				return instr.IfList, nil
+			case DictPair:
+				return instr.IfDict, nil
+				panic(fmt.Sprintf("switch_on_term: pair: unhandled pair type %T (%v)", c.Tag, c))
+			}
 		default:
 			panic(fmt.Sprintf("switch_on_term: unhandled type %T (%v)", cell, cell))
 		}

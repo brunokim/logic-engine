@@ -395,7 +395,9 @@ var (
 				IfVar:      instr{fAtomA1, 0},
 				IfConstant: instr{nil, 1},
 				IfStruct:   instr{nil, 4},
-				IfPair:     instr{nil, 7},
+				IfList:     instr{nil, 7},
+				IfAssoc:    instr{},
+				IfDict:     instr{},
 			},
 			/*1*/ switch_on_constant{map[constant]instr{
 				watom("a"):  instr{nil, 2},
@@ -468,7 +470,9 @@ func TestCompileClauses(t *testing.T) {
 		cmpopts.IgnoreFields(switch_on_term{},
 			"IfConstant.Clause",
 			"IfStruct.Clause",
-			"IfPair.Clause"),
+			"IfList.Clause",
+			"IfAssoc.Clause",
+			"IfDict.Clause"),
 		cmp.Transformer("switch_on_constant.Continuation", func(cont map[constant]instr) map[constant]instr {
 			m := make(map[constant]instr)
 			for key, ins := range cont {

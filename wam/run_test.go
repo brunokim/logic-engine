@@ -555,8 +555,10 @@ var (
 		switch_on_term{
 			instr{callOr1, 0},
 			instr{call_s1_constant, 0},
-			instr{call_s1_list, 0},
 			instr{call_s1_struct, 0},
+			instr{call_s1_list, 0},
+			instr{},
+			instr{},
 		})
 	call_s1_constant = clause(functor{"call", 1},
 		switch_on_constant{map[constant]instr{
@@ -622,8 +624,10 @@ var (
 		switch_on_term{
 			instr{callCall, 0},
 			instr{call_s2_constant, 0},
-			instr{call_s2_list, 0},
 			instr{call_s2_struct, 0},
+			instr{call_s2_list, 0},
+			instr{},
+			instr{},
 		})
 	call_s2_constant = clause(functor{"call", 1},
 		switch_on_constant{map[constant]instr{
