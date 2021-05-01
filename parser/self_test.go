@@ -53,6 +53,9 @@ var text = `
     idents([], L, L).
 
     % Symbolic chars (e.g., "!=")
+    atom_symbol(Ch) :-
+        symbol(Ch),
+        \+(syntactic_char(Ch)).
     atom_symbols([Ch|L], [Ch|L1], L2) :-
         atom_symbol(Ch),
         atom_symbols(L, L1, L2).
