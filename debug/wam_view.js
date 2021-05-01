@@ -346,6 +346,8 @@ export class Wam {
         case "UnifyValue":
         case "CallMeta":
         case "ExecuteMeta":
+        case "PutAttr":
+        case "GetAttr":
             return instr.Addr
         case "UnifyVoid":
         case "Allocate":
@@ -394,6 +396,9 @@ export class Wam {
         case "CallMeta":
         case "ExecuteMeta":
             return olist(instr.Params)
+        case "PutAttr":
+        case "GetAttr":
+            return instr.Attribute
         }
         return null
     }

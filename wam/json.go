@@ -275,6 +275,13 @@ func (enc *machineEncoder) instructionField(v interface{}) interface{} {
 		return im
 	case func(*Machine) error:
 		return funcName(v)
+	case map[int]map[string]Cell:
+		im := make(map[string]interface{})
+		for key, index := range v {
+			x := (&Ref{id: key}).String()
+			im[x] = index
+		}
+		return im
 	}
 }
 

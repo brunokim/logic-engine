@@ -308,6 +308,7 @@ func (m *Machine) newChoicePoint(alternative InstrAddr) *ChoicePoint {
 		Prev:            m.ChoicePoint,
 		Continuation:    m.Continuation,
 		NextAlternative: alternative,
+		AttrTrail:       make(map[*Ref]map[string]Cell),
 		Args:            make([]Cell, numArgs),
 		LastRefID:       m.LastRefID,
 		Env:             m.Env,
@@ -315,6 +316,25 @@ func (m *Machine) newChoicePoint(alternative InstrAddr) *ChoicePoint {
 	}
 	copy(choicePoint.Args, m.Reg)
 	return choicePoint
+}
+
+// ---- attributes
+
+func (m *Machine) setAttribute(ref *Ref, name string, attr Cell) {
+	attrs, ok := m.attributes[ref.id]
+	if !ok {
+		attrs = make(map[string]Cell)
+		m.attributes[ref.id] = attrs
+	}
+	attrs[name] = attr
+}
+
+func (m *Machine) getAttribute(ref *Ref, name string) Cell {
+	attrs, ok := m.attributes[ref.id]
+	if !ok {
+		return nil
+	}
+	return attrs[name]
 }
 
 // ---- control
@@ -570,6 +590,37 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		if err := instr.Func(m); err != nil {
 			return m.backtrack(err)
 		}
+	case PutAttr:
+		// Associates attribute to a ref.
+		ref, ok := deref(m.get(instr.Addr)).(*Ref)
+		if !ok {
+			return m.backtrack(fmt.Errorf("put_attr: variable is bound"))
+		}
+		cell := deref(m.get(instr.Attribute))
+		switch c := cell.(type) {
+		case *Struct:
+			m.trailAttribute(ref, c.Name)
+			m.setAttribute(ref, c.Name, c)
+		default:
+			return m.backtrack(fmt.Errorf("put_attr: invalid attribute"))
+		}
+	case GetAttr:
+		// Retrieves attribute associated to ref.
+		ref, ok := deref(m.get(instr.Addr)).(*Ref)
+		if !ok {
+			return m.backtrack(fmt.Errorf("get_attr: variable is bound"))
+		}
+		cell := deref(m.get(instr.Attribute))
+		var attr Cell
+		switch c := cell.(type) {
+		case *Struct:
+			attr = m.getAttribute(ref, c.Name)
+		default:
+			return m.backtrack(fmt.Errorf("put_attr: invalid attribute"))
+		}
+		if err := m.unify(attr, cell); err != nil {
+			return m.backtrack(err)
+		}
 	default:
 		panic(fmt.Sprintf("execute: unhandled instruction type %T (%v)", instr, instr))
 	}
@@ -765,8 +816,30 @@ func (m *Machine) trail(ref *Ref) {
 	m.ChoicePoint.Trail = append(m.ChoicePoint.Trail, ref)
 }
 
-// Restore all conditional bindings since current choice point back to
-// nil, and reset trail.
+// Record the current value of the ref's attribute in the choicepoint's
+// attribute trail.
+func (m *Machine) trailAttribute(ref *Ref, name string) {
+	if m.ChoicePoint == nil {
+		return
+	}
+	trail, ok := m.ChoicePoint.AttrTrail[ref]
+	if !ok {
+		trail = make(map[string]Cell)
+		m.ChoicePoint.AttrTrail[ref] = trail
+	}
+	if _, ok := trail[name]; ok {
+		// Don't overwrite attribute already recorded.
+		return
+	}
+	var attr Cell
+	if attrs, ok := m.attributes[ref.id]; ok {
+		attr = attrs[name]
+	}
+	trail[name] = attr
+}
+
+// Restore all conditional bindings and attributes since the current
+// choice point back to nil, and reset trail.
 func (m *Machine) unwindTrail() {
 	if m.ChoicePoint == nil {
 		return
@@ -774,6 +847,18 @@ func (m *Machine) unwindTrail() {
 	cpt := m.ChoicePoint
 	for _, ref := range cpt.Trail {
 		ref.Cell = nil
+	}
+	for ref, attrs := range cpt.AttrTrail {
+		for name, attr := range attrs {
+			if attr != nil {
+				m.attributes[ref.id][name] = attr
+			} else {
+				delete(m.attributes[ref.id], name)
+				if len(m.attributes[ref.id]) == 0 {
+					delete(m.attributes, ref.id)
+				}
+			}
+		}
 	}
 	cpt.Trail = nil
 	m.LastRefID = cpt.LastRefID

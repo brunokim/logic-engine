@@ -1156,3 +1156,59 @@ func TestUnifyDicts(t *testing.T) {
 		}
 	}
 }
+
+func TestAttribute(t *testing.T) {
+	m := wam.NewMachine()
+
+	// query :-
+	//   put_attr(X, range(1, 5)),
+	//   put_attr(Y, range(3, 9)),
+	//   X = Y,
+	//   get_attr(X, range(Min, Max)).
+	m.AddClause(&wam.Clause{Functor: functor{"", 0},
+		NumRegisters: 6,
+		Code: []wam.Instruction{
+			put_variable{reg(4), reg(0)}, // X = X4
+			// range(1, 5)
+			put_struct{functor{"range", 2}, reg(1)},
+			unify_constant{wint(1)},
+			unify_constant{wint(5)},
+			// put_attr(X, range(1, 5))
+			put_attr{reg(0), reg(1)},
+			//
+			put_variable{reg(5), reg(0)}, // Y = X5
+			// range(3, 9)
+			put_struct{functor{"range", 2}, reg(1)},
+			unify_constant{wint(3)},
+			unify_constant{wint(9)},
+			// put_attr(X, range(3, 9))
+			put_attr{reg(0), reg(1)},
+			// X = Y
+			get_value{reg(4), reg(5)},
+			//
+			put_value{reg(4), reg(0)},
+			put_struct{functor{"range", 2}, reg(1)},
+			unify_variable{reg(2)}, // Min = X2
+			unify_variable{reg(3)}, // Max = X3
+			// get_attr(X, range(Min, Max))
+			get_attr{reg(0), reg(1)},
+			halt{},
+		},
+	})
+
+	m.IterLimit = 150
+	m.DebugFilename = "debugtest/attribute.jsonl"
+
+	if err := m.Run(); err != nil {
+		t.Fatalf("expected nil, got err: %v", err)
+	}
+
+	min, max := m.Reg[2], m.Reg[3]
+	minWant, maxWant := "&1", "&5"
+	if min.String() != minWant {
+		t.Errorf("Min = %v != %s", min, minWant)
+	}
+	if max.String() != maxWant {
+		t.Errorf("Max = %v != %s", max, maxWant)
+	}
+}

@@ -14,6 +14,7 @@ func NewMachine() *Machine {
 	for _, builtin := range builtins {
 		m.AddClause(builtin)
 	}
+	m.attributes = make(map[int]map[string]Cell)
 	m.interrupt = make(chan struct{})
 	return m
 }
@@ -24,6 +25,7 @@ func (m *Machine) Reset() *Machine {
 	cloned.Code = m.Code
 	cloned.Reg = make([]Cell, len(m.Reg))
 	cloned.DebugFilename = m.DebugFilename
+	cloned.attributes = make(map[int]map[string]Cell)
 	cloned.interrupt = make(chan struct{})
 	return cloned
 }

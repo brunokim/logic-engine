@@ -236,6 +236,18 @@ type Builtin struct {
 	Func func(m *Machine) error
 }
 
+// PutAttr instruction: put_attr <ref addr>, <attr addr>
+type PutAttr struct {
+	Addr      Addr
+	Attribute Addr
+}
+
+// GetAttr instruction: get_attr <ref addr>, <attr addr>
+type GetAttr struct {
+	Addr      Addr
+	Attribute Addr
+}
+
 func (i PutStruct) isInstruction()        {}
 func (i PutVariable) isInstruction()      {}
 func (i PutValue) isInstruction()         {}
@@ -271,6 +283,8 @@ func (i NeckCut) isInstruction()          {}
 func (i Cut) isInstruction()              {}
 func (i Fail) isInstruction()             {}
 func (i Builtin) isInstruction()          {}
+func (i PutAttr) isInstruction()          {}
+func (i GetAttr) isInstruction()          {}
 
 func (i PutStruct) String() string {
 	return fmt.Sprintf("put_struct %v, A%d", i.Functor, i.ArgAddr)
@@ -430,6 +444,14 @@ func (i Fail) String() string {
 
 func (i Builtin) String() string {
 	return fmt.Sprintf("builtin %s, <func %p>", i.Name, i.Func)
+}
+
+func (i PutAttr) String() string {
+	return fmt.Sprintf("put_attr %v, %v", i.Addr, i.Attribute)
+}
+
+func (i GetAttr) String() string {
+	return fmt.Sprintf("get_attr %v, %v", i.Addr, i.Attribute)
 }
 
 // ---- Clauses and code
@@ -617,6 +639,8 @@ type ChoicePoint struct {
 	NextAlternative InstrAddr
 	// Trail of variables that need to be unbound on backtrack.
 	Trail []*Ref
+	// Trail of attributes that were changed since this choicepoint.
+	AttrTrail map[*Ref]map[string]Cell
 
 	// Machine vars to restore
 	Args         []Cell
@@ -657,6 +681,9 @@ type Machine struct {
 
 	// Incrementing ID to identify generated variables.
 	LastRefID int
+
+	// Attributes indexed by ref ID and attribute name.
+	attributes map[int]map[string]Cell
 
 	// interrupt checks for a signal that the current operation should be aborted.
 	interrupt chan struct{}

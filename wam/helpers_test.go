@@ -54,6 +54,8 @@ type (
 	switch_on_struct   = wam.SwitchOnStruct
 	neck_cut           = wam.NeckCut
 	cut                = wam.Cut
+	put_attr           = wam.PutAttr
+	get_attr           = wam.GetAttr
 )
 
 var (
