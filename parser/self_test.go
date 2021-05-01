@@ -55,7 +55,7 @@ var text = `
         idents(L, L1, L2).
     idents([], L, L).
 
-    % Symbolic chars (e.g., "!=")
+    % Chars with syntactic meaning
     syntactic_char('(').
     syntactic_char(')').
     syntactic_char('{').
@@ -70,6 +70,7 @@ var text = `
     syntactic_char('_').
     syntactic_char('\'').
 
+    % Symbolic chars (e.g., "!=")
     atom_symbol(Ch) :-
         unicode_symbol(Ch),
         \+(syntactic_char(Ch)).

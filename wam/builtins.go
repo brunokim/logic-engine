@@ -79,19 +79,19 @@ func initCalls() []*Clause {
 
 type unicodeChecker struct {
 	functor Functor
-	f       func(rune) bool
+	table   *unicode.RangeTable
 	msg     string
 }
 
 var (
 	unicodeCheckers = []unicodeChecker{
-		unicodeChecker{Functor{"unicode_digit", 1}, unicode.IsDigit, "not a digit"},
-		unicodeChecker{Functor{"unicode_letter", 1}, unicode.IsLetter, "not a letter"},
-		unicodeChecker{Functor{"unicode_lower", 1}, unicode.IsLower, "not a lowercase letter"},
-		unicodeChecker{Functor{"unicode_upper", 1}, unicode.IsUpper, "not an uppercase letter"},
-		unicodeChecker{Functor{"unicode_symbol", 1}, unicode.IsSymbol, "not a symbol"},
-		unicodeChecker{Functor{"unicode_punct", 1}, unicode.IsPunct, "not a punctuation"},
-		unicodeChecker{Functor{"unicode_space", 1}, unicode.IsSpace, "not whitespace"},
+		unicodeChecker{Functor{"unicode_digit", 1}, unicode.Digit, "not a digit"},
+		unicodeChecker{Functor{"unicode_letter", 1}, unicode.Letter, "not a letter"},
+		unicodeChecker{Functor{"unicode_lower", 1}, unicode.Lower, "not a lowercase letter"},
+		unicodeChecker{Functor{"unicode_upper", 1}, unicode.Upper, "not an uppercase letter"},
+		unicodeChecker{Functor{"unicode_symbol", 1}, unicode.Symbol, "not a symbol"},
+		unicodeChecker{Functor{"unicode_punct", 1}, unicode.Punct, "not a punctuation"},
+		unicodeChecker{Functor{"unicode_space", 1}, unicode.White_Space, "not whitespace"},
 	}
 )
 
@@ -104,7 +104,7 @@ func builtinUnicodeChecker(checker unicodeChecker) *Clause {
 			if !ok {
 				return fmt.Errorf("%v: not a single rune: %v", checker.functor, c)
 			}
-			if !checker.f(r) {
+			if !unicode.Is(checker.table, r) {
 				return fmt.Errorf("%v: %s: %c", checker.functor, checker.msg, r)
 			}
 		case *Ref:
@@ -118,7 +118,7 @@ func builtinUnicodeChecker(checker unicodeChecker) *Clause {
 		Functor:      checker.functor,
 		NumRegisters: 1,
 		Code: []Instruction{
-			Builtin{Name: funcName(checker.f), Func: f},
+			Builtin{Name: checker.functor.Name, Func: f},
 			Proceed{},
 		},
 	}

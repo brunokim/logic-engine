@@ -60,10 +60,10 @@ func TestSolve_All(t *testing.T) {
         add(s(A), B, s(S)) :-
             add(A, B, S).
     `)
-	s.Debug("debugtest/test-solve-all.jsonl")
 	if err != nil {
 		t.Fatalf("NewSolver: got err: %v", err)
 	}
+	s.Debug("debugtest/test-solve-all.jsonl")
 	solutions, _ := s.Query("add(X, Y, s(s(s(0))))")
 	var got []solver.Solution
 	for result := range solutions {
