@@ -244,22 +244,29 @@ func (m *Machine) readArg(instr Instruction, arg Cell) error {
 		return m.unify(cell, arg)
 	case UnifyConstant:
 		// Unify already-seen constant, unifying the address with the arg.
-		cell := deref(arg)
-		switch c := cell.(type) {
-		case Constant:
-			if c != instr.Constant {
-				return &unifyError{c, instr.Constant}
-			}
-		case *Ref:
-			c.Cell = instr.Constant
-			m.trail(c)
-		default:
-			return &unifyError{cell, instr.Constant}
+		if err := m.readConstant(instr.Constant, arg); err != nil {
+			return err
 		}
 	case UnifyVoid:
 		// Do nothing
 	default:
 		panic(fmt.Sprintf("readArg: unhandled instruction type %T (%v)", instr, instr))
+	}
+	return nil
+}
+
+func (m *Machine) readConstant(constant Constant, arg Cell) error {
+	cell := deref(arg)
+	switch c := cell.(type) {
+	case Constant:
+		if c != constant {
+			return &unifyError{c, constant}
+		}
+	case *Ref:
+		c.Cell = constant
+		m.trail(c)
+	default:
+		return &unifyError{cell, constant}
 	}
 	return nil
 }
@@ -407,17 +414,8 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		}
 	case GetConstant:
 		// Expect a constant from register.
-		cell := deref(m.get(instr.ArgAddr))
-		switch c := cell.(type) {
-		case Constant:
-			if c != instr.Constant {
-				return m.backtrack(&unifyError{c, instr.Constant})
-			}
-		case *Ref:
-			c.Cell = instr.Constant
-			m.trail(c)
-		default:
-			return m.backtrack(&unifyError{cell, instr.Constant})
+		if err := m.readConstant(instr.Constant, m.get(instr.ArgAddr)); err != nil {
+			return m.backtrack(err)
 		}
 	case GetPair:
 		// Expect a pair from register.
