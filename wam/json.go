@@ -274,7 +274,7 @@ func (enc *machineEncoder) instructionField(v interface{}) interface{} {
 		}
 		return im
 	case func(*Machine) error:
-		return "func"
+		return funcName(v)
 	}
 }
 

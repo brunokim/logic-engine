@@ -428,7 +428,7 @@ func (i Fail) String() string {
 }
 
 func (i Builtin) String() string {
-	return fmt.Sprintf("builtin <func %p>", i.Func)
+	return fmt.Sprintf("builtin <func %s>", funcName(i.Func))
 }
 
 // ---- Clauses and code
