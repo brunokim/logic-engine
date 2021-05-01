@@ -267,6 +267,20 @@ func TestCompile(t *testing.T) {
 				// :- f(., .).
 				execute{functor{"f", 2}}),
 		},
+		{
+			dsl.Clause(comp("add", var_("Set"), idict(var_("X"), var_("X"), var_("Set")), var_("X"))),
+			clause(functor{"add", 3},
+				get_variable{reg(3), reg(0)}, // Set = X3
+				get_pair{dict_pair, reg(1)},  // {X:X|Set}
+				unify_variable{reg(5)},
+				unify_value{reg(3)},
+				get_variable{reg(4), reg(2)}, // X = X5
+				// X:X
+				get_pair{assoc_pair, reg(5)},
+				unify_value{reg(4)},
+				unify_value{reg(4)},
+				proceed{}),
+		},
 	}
 	for _, test := range tests {
 		got := wam.Compile(test.clause)

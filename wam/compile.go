@@ -204,6 +204,13 @@ func (ctx *compileCtx) getTerm(term logic.Term, addr RegAddr) []Instruction {
 	}
 }
 
+func (ctx *compileCtx) delayComplexArg(arg logic.Term) Instruction {
+	addr := RegAddr(ctx.topReg)
+	ctx.topReg++
+	ctx.delayed = append(ctx.delayed, compound{t: arg, addr: addr})
+	return UnifyVariable{addr}
+}
+
 func (ctx *compileCtx) unifyArg(arg logic.Term) Instruction {
 	switch a := arg.(type) {
 	case logic.Atom:
@@ -213,15 +220,13 @@ func (ctx *compileCtx) unifyArg(arg logic.Term) Instruction {
 	case logic.Var:
 		return ctx.unifyVar(a)
 	case *logic.Comp:
-		addr := RegAddr(ctx.topReg)
-		ctx.topReg++
-		ctx.delayed = append(ctx.delayed, compound{t: a, addr: addr})
-		return UnifyVariable{addr}
+		return ctx.delayComplexArg(a)
 	case *logic.List:
-		addr := RegAddr(ctx.topReg)
-		ctx.topReg++
-		ctx.delayed = append(ctx.delayed, compound{t: a, addr: addr})
-		return UnifyVariable{addr}
+		return ctx.delayComplexArg(a)
+	case *logic.Assoc:
+		return ctx.delayComplexArg(a)
+	case *logic.Dict:
+		return ctx.delayComplexArg(a)
 	default:
 		panic(fmt.Sprintf("wam.unifyArg: unhandled type %T (%v)", arg, arg))
 	}
