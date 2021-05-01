@@ -68,6 +68,19 @@ var (
 			comp("idents", var_("L"), var_("L1"), var_("L2"))),
 		clause(comp("idents", list(), var_("L"), var_("L"))),
 		// Symbol chars
+		clause(comp("syntactic_char", atom("("))),
+		clause(comp("syntactic_char", atom(")"))),
+		clause(comp("syntactic_char", atom("{"))),
+		clause(comp("syntactic_char", atom("}"))),
+		clause(comp("syntactic_char", atom("["))),
+		clause(comp("syntactic_char", atom("]"))),
+		clause(comp("syntactic_char", atom("."))),
+		clause(comp("syntactic_char", atom(","))),
+		clause(comp("syntactic_char", atom(":"))),
+		clause(comp("syntactic_char", atom("|"))),
+		clause(comp("syntactic_char", atom(`"`))),
+		clause(comp("syntactic_char", atom("_"))),
+		clause(comp("syntactic_char", atom("'"))),
 		clause(comp("atom_symbol", var_("Ch")),
 			comp("symbol", var_("Ch")),
 			comp("\\+", comp("syntactic_char", var_("Ch")))),
@@ -215,11 +228,7 @@ var (
 )
 
 func facts() []*logic.Clause {
-	syntactic := []rune{'(', ')', '{', '}', '[', ']', '.', ',', ':', '|', '"', '_', '\''}
 	var clauses []*logic.Clause
-	for _, ch := range syntactic {
-		clauses = append(clauses, clause(comp("syntactic_char", atom(string(ch)))))
-	}
 	for ch := rune(0); ch < rune(128); ch++ {
 		if unicode.IsDigit(ch) {
 			clauses = append(clauses, clause(comp("digit", atom(string(ch)))))
