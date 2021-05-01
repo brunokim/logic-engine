@@ -29,7 +29,7 @@ var text = `
 
     % Whitespace
     ws([Ch|L1], L2) :-
-        space(Ch), !,
+        unicode_space(Ch), !,
         ws(L1, L2).
     ws(L1, L3) :-
         comment(L1, L2),
@@ -47,7 +47,7 @@ var text = `
     line(L, L).
 
     % Identifier chars
-    ident(Ch) :- letter(Ch), !.
+    ident(Ch) :- unicode_letter(Ch), !.
     ident(Ch) :- unicode_digit(Ch), !.
     ident('_').
     idents([Ch|L], [Ch|L1], L2) :-
@@ -71,7 +71,10 @@ var text = `
     syntactic_char('\'').
 
     atom_symbol(Ch) :-
-        symbol(Ch),
+        unicode_symbol(Ch),
+        \+(syntactic_char(Ch)).
+    atom_symbol(Ch) :-
+        unicode_punct(Ch),
         \+(syntactic_char(Ch)).
     atom_symbols([Ch|L], [Ch|L1], L2) :-
         atom_symbol(Ch),
@@ -86,7 +89,7 @@ var text = `
 
     % Plain atoms
     atom(atom([Ch|L]), [Ch|L1], L2) :-
-        lower(Ch), !,
+        unicode_lower(Ch), !,
         idents(L, L1, L2).
     atom(atom([Ch|L]), [Ch|L1], L2) :-
         atom_symbol(Ch), !,
@@ -115,7 +118,7 @@ var text = `
 
     % Vars
     var(var([Ch|L]), [Ch|L1], L2) :-
-        upper(Ch),
+        unicode_upper(Ch),
         idents(L, L1, L2).
     var(var(['_'|L]), ['_'|L1], L2) :-
         idents(L, L1, L2).

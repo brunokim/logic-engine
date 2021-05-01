@@ -32,6 +32,12 @@ var (
 	fail           = &Clause{Functor{"fail", 0}, 0, []Instruction{Fail{}}}
 	unicodeClauses = []*Clause{
 		&Clause{Functor{"unicode_digit", 1}, 1, []Instruction{Builtin{unicodeDigit}, Proceed{}}},
+		&Clause{Functor{"unicode_letter", 1}, 1, []Instruction{Builtin{unicodeLetter}, Proceed{}}},
+		&Clause{Functor{"unicode_lower", 1}, 1, []Instruction{Builtin{unicodeLower}, Proceed{}}},
+		&Clause{Functor{"unicode_upper", 1}, 1, []Instruction{Builtin{unicodeUpper}, Proceed{}}},
+		&Clause{Functor{"unicode_symbol", 1}, 1, []Instruction{Builtin{unicodeSymbol}, Proceed{}}},
+		&Clause{Functor{"unicode_punct", 1}, 1, []Instruction{Builtin{unicodePunct}, Proceed{}}},
+		&Clause{Functor{"unicode_space", 1}, 1, []Instruction{Builtin{unicodeSpace}, Proceed{}}},
 	}
 	preamble = []*logic.Clause{
 		// =(X, X).
@@ -79,20 +85,48 @@ func initCalls() []*Clause {
 }
 
 func unicodeDigit(m *Machine) error {
+	return unicodeCheck(m, unicode.IsDigit, "unicode_digit/1", "not a digit")
+}
+
+func unicodeLetter(m *Machine) error {
+	return unicodeCheck(m, unicode.IsLetter, "unicode_letter/1", "not a letter")
+}
+
+func unicodeLower(m *Machine) error {
+	return unicodeCheck(m, unicode.IsLower, "unicode_lower/1", "not a lowercase letter")
+}
+
+func unicodeUpper(m *Machine) error {
+	return unicodeCheck(m, unicode.IsUpper, "unicode_upper/1", "not an uppercase letter")
+}
+
+func unicodeSymbol(m *Machine) error {
+	return unicodeCheck(m, unicode.IsSymbol, "unicode_symbol/1", "not a symbol")
+}
+
+func unicodePunct(m *Machine) error {
+	return unicodeCheck(m, unicode.IsPunct, "unicode_punct/1", "not a punctuation")
+}
+
+func unicodeSpace(m *Machine) error {
+	return unicodeCheck(m, unicode.IsSpace, "unicode_space/1", "not a space")
+}
+
+func unicodeCheck(m *Machine, pred func(rune) bool, predName, errorMsg string) error {
 	cell := deref(m.Reg[0])
 	switch c := cell.(type) {
 	case WAtom:
 		r, ok := runes.Single(string(c))
 		if !ok {
-			return fmt.Errorf("unicode_digit/1: not a single rune: %v", c)
+			return fmt.Errorf("%s: not a single rune: %v", predName, c)
 		}
-		if !unicode.IsDigit(r) {
-			return fmt.Errorf("unicode_digit/1: not a digit: %c", r)
+		if !pred(r) {
+			return fmt.Errorf("%s: %s: %c", predName, errorMsg, r)
 		}
 	case *Ref:
-		return fmt.Errorf("unicode_digit/1: not sufficiently instantiated: %v", c)
+		return fmt.Errorf("%s: not sufficiently instantiated: %v", predName, c)
 	default:
-		return fmt.Errorf("unicode_digit/1: not an atom: %v", cell)
+		return fmt.Errorf("%s: not an atom: %v", predName, cell)
 	}
 	return nil
 }
