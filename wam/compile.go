@@ -127,6 +127,8 @@ func newCompileCtx(numArgs int) *compileCtx {
 	}
 }
 
+// ---- get/unify/put variables
+
 func (ctx *compileCtx) getVar(x logic.Var, regAddr RegAddr) Instruction {
 	if x == logic.AnonymousVar {
 		return nil
@@ -162,9 +164,7 @@ func (ctx *compileCtx) putVar(x logic.Var, regAddr RegAddr) Instruction {
 	return PutVariable{ctx.varAddr[x], regAddr}
 }
 
-func (ctx *compileCtx) setVar(x logic.Var) Instruction {
-	return ctx.unifyVar(x)
-}
+// ---- get terms
 
 func (ctx *compileCtx) getTerm(term logic.Term, addr RegAddr) []Instruction {
 	switch t := term.(type) {
@@ -182,27 +182,21 @@ func (ctx *compileCtx) getTerm(term logic.Term, addr RegAddr) []Instruction {
 		}
 		return instrs
 	case *logic.List:
-		return []Instruction{
-			GetPair{ListPair, addr},
-			ctx.unifyArg(t.Terms[0]),
-			ctx.unifyArg(t.Slice(1)),
-		}
+		return ctx.getPair(ListPair, addr, t.Terms[0], t.Slice(1))
 	case *logic.Assoc:
-		return []Instruction{
-			GetPair{AssocPair, addr},
-			ctx.unifyArg(t.Key),
-			ctx.unifyArg(t.Val),
-		}
+		return ctx.getPair(AssocPair, addr, t.Key, t.Val)
 	case *logic.Dict:
-		return []Instruction{
-			GetPair{DictPair, addr},
-			ctx.unifyArg(t.Assocs[0]),
-			ctx.unifyArg(t.Tail()),
-		}
+		return ctx.getPair(DictPair, addr, t.Assocs[0], t.Tail())
 	default:
 		panic(fmt.Sprintf("wam.getTerm: unhandled type %T (%v)", term, term))
 	}
 }
+
+func (ctx *compileCtx) getPair(tag PairTag, addr RegAddr, head, tail logic.Term) []Instruction {
+	return []Instruction{GetPair{tag, addr}, ctx.unifyArg(head), ctx.unifyArg(tail)}
+}
+
+// ---- unify terms
 
 func (ctx *compileCtx) delayComplexArg(arg logic.Term) Instruction {
 	addr := RegAddr(ctx.topReg)
@@ -232,6 +226,8 @@ func (ctx *compileCtx) unifyArg(arg logic.Term) Instruction {
 	}
 }
 
+// ---- put terms
+
 func (ctx *compileCtx) putTerm(term logic.Term, addr RegAddr) []Instruction {
 	switch t := term.(type) {
 	case logic.Atom:
@@ -246,22 +242,20 @@ func (ctx *compileCtx) putTerm(term logic.Term, addr RegAddr) []Instruction {
 		ctx.setArgs(t.Args, instrs)
 		return instrs
 	case *logic.List:
-		instrs := []Instruction{PutPair{ListPair, addr}, nil, nil}
-		head, tail := t.Terms[0], t.Slice(1)
-		ctx.setArgs([]logic.Term{head, tail}, instrs)
-		return instrs
+		return ctx.putPair(ListPair, addr, t.Terms[0], t.Slice(1))
 	case *logic.Assoc:
-		instrs := []Instruction{PutPair{AssocPair, addr}, nil, nil}
-		ctx.setArgs([]logic.Term{t.Key, t.Val}, instrs)
-		return instrs
+		return ctx.putPair(AssocPair, addr, t.Key, t.Val)
 	case *logic.Dict:
-		instrs := []Instruction{PutPair{DictPair, addr}, nil, nil}
-		head, tail := t.Assocs[0], t.Tail()
-		ctx.setArgs([]logic.Term{head, tail}, instrs)
-		return instrs
+		return ctx.putPair(DictPair, addr, t.Assocs[0], t.Tail())
 	default:
 		panic(fmt.Sprintf("wam.putTerm: unhandled type %T (%v)", term, term))
 	}
+}
+
+func (ctx *compileCtx) putPair(tag PairTag, addr RegAddr, head, tail logic.Term) []Instruction {
+	instrs := []Instruction{PutPair{tag, addr}, nil, nil}
+	ctx.setArgs([]logic.Term{head, tail}, instrs)
+	return instrs
 }
 
 // Set arguments by first handling complex terms (comp, list) and later
@@ -296,7 +290,7 @@ func (ctx *compileCtx) setArg(arg logic.Term) Instruction {
 	case logic.Int:
 		return UnifyConstant{toConstant(a)}
 	case logic.Var:
-		return ctx.setVar(a)
+		return ctx.unifyVar(a)
 	case *logic.Comp:
 		return ctx.setComplexArg(arg)
 	case *logic.List:
@@ -316,6 +310,8 @@ func (ctx *compileCtx) setComplexArg(arg logic.Term) Instruction {
 	ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, addr)...)
 	return UnifyValue{addr}
 }
+
+// ---- compiling terms
 
 // Compile compiles a single logic clause.
 func Compile(clause *logic.Clause) *Clause {
@@ -484,6 +480,8 @@ func optimizeLastCall(code []Instruction) []Instruction {
 	}
 	return code
 }
+
+// ---- indexing
 
 // Create level-1 index of clauses, based on their first arg.
 func compileClausesWithSameFunctor(clauses []*logic.Clause) *Clause {
