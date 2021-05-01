@@ -768,22 +768,16 @@ func (m *Machine) unwindTrail() {
 	m.LastRefID = cpt.LastRefID
 }
 
-// Remove all refs that are no longer conditional after a cut.
+// Keep all refs that are still conditional after a cut.
 func (m *Machine) tidyTrail() {
 	if m.ChoicePoint == nil {
 		return
 	}
-	cpt := m.ChoicePoint
-	var i int
-	for i < len(cpt.Trail) {
-		ref := cpt.Trail[i]
-		// Still a conditional ref, keep it in the trail.
+	var trail []*Ref
+	for _, ref := range m.ChoicePoint.Trail {
 		if m.isConditional(ref) {
-			i++
-			continue
+			trail = append(trail, ref)
 		}
-		// Pop the last ref and overwrite the i-th position with it.
-		n := len(cpt.Trail)
-		cpt.Trail[i], cpt.Trail = cpt.Trail[n-1], cpt.Trail[:n-1]
 	}
+	m.ChoicePoint.Trail = trail
 }
