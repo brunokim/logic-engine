@@ -53,10 +53,10 @@ var text = `
     idents([], L, L).
 
     % Symbolic chars (e.g., "!=")
-    symbols([Ch|L], [Ch|L1], L2) :-
-        symbol(Ch),
-        symbols(L, L1, L2).
-    symbols([], L, L).
+    atom_symbols([Ch|L], [Ch|L1], L2) :-
+        atom_symbol(Ch),
+        atom_symbols(L, L1, L2).
+    atom_symbols([], L, L).
 
     % Digits
     digits([Ch|L], [Ch|L1], L2) :-
@@ -69,8 +69,8 @@ var text = `
         lower(Ch), !,
         idents(L, L1, L2).
     atom(atom([Ch|L]), [Ch|L1], L2) :-
-        symbol(Ch), !,
-        symbols(L, L1, L2).
+        atom_symbol(Ch), !,
+        atom_symbols(L, L1, L2).
     atom(atom(Chars), ['\''|L1], L2) :-
         quoted('\'', Chars, L1, ['\''|L2]).
 

@@ -65,10 +65,10 @@ var (
 			comp("idents", var_("L"), var_("L1"), var_("L2"))),
 		clause(comp("idents", list(), var_("L"), var_("L"))),
 		// Symbol chars
-		clause(comp("symbols", ilist(var_("Ch"), var_("L")), ilist(var_("Ch"), var_("L1")), var_("L2")),
-			comp("symbol", var_("Ch")),
-			comp("symbols", var_("L"), var_("L1"), var_("L2"))),
-		clause(comp("symbols", list(), var_("L"), var_("L"))),
+		clause(comp("atom_symbols", ilist(var_("Ch"), var_("L")), ilist(var_("Ch"), var_("L1")), var_("L2")),
+			comp("atom_symbol", var_("Ch")),
+			comp("atom_symbols", var_("L"), var_("L1"), var_("L2"))),
+		clause(comp("atom_symbols", list(), var_("L"), var_("L"))),
 		// Digits
 		clause(comp("digits", ilist(var_("Ch"), var_("L")), ilist(var_("Ch"), var_("L1")), var_("L2")),
 			comp("digit", var_("Ch")),
@@ -79,8 +79,8 @@ var (
 			comp("lower", var_("Ch")), atom("!"),
 			comp("idents", var_("L"), var_("L1"), var_("L2"))),
 		clause(comp("atom", comp("atom", ilist(var_("Ch"), var_("L"))), ilist(var_("Ch"), var_("L1")), var_("L2")),
-			comp("symbol", var_("Ch")), atom("!"),
-			comp("symbols", var_("L"), var_("L1"), var_("L2"))),
+			comp("atom_symbol", var_("Ch")), atom("!"),
+			comp("atom_symbols", var_("L"), var_("L1"), var_("L2"))),
 		clause(comp("atom", comp("atom", var_("Chars")), ilist(atom(`'`), var_("L1")), var_("L2")),
 			comp("quoted", atom(`'`), var_("Chars"), var_("L1"), ilist(atom(`'`), var_("L2")))),
 		// Quoted atoms and strings
@@ -216,9 +216,6 @@ func facts() []*logic.Clause {
 	}
 	var clauses []*logic.Clause
 	for ch := rune(0); ch < rune(128); ch++ {
-		if _, ok := s[ch]; ok {
-			continue
-		}
 		if unicode.IsDigit(ch) {
 			clauses = append(clauses, clause(comp("digit", atom(string(ch)))))
 		}
@@ -232,7 +229,9 @@ func facts() []*logic.Clause {
 			clauses = append(clauses, clause(comp("upper", atom(string(ch)))))
 		}
 		if unicode.IsPunct(ch) || unicode.IsSymbol(ch) {
-			clauses = append(clauses, clause(comp("symbol", atom(string(ch)))))
+			if _, ok := s[ch]; !ok {
+				clauses = append(clauses, clause(comp("atom_symbol", atom(string(ch)))))
+			}
 		}
 		if unicode.IsSpace(ch) {
 			clauses = append(clauses, clause(comp("space", atom(string(ch)))))
