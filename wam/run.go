@@ -508,6 +508,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		m.ChoicePoint = m.ChoicePoint.Prev
 		return instr.Continuation, nil
 	case SwitchOnTerm:
+		// Jump to instructions matching the first arg type.
 		cell := deref(m.Reg[0])
 		switch c := cell.(type) {
 		case *Ref:
@@ -530,6 +531,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 			panic(fmt.Sprintf("switch_on_term: unhandled type %T (%v)", cell, cell))
 		}
 	case SwitchOnConstant:
+		// Jump to instructions matching the first arg constant.
 		cell := deref(m.Reg[0]).(Constant)
 		cont, ok := instr.Continuation[cell]
 		if !ok {
@@ -537,6 +539,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		}
 		return cont, nil
 	case SwitchOnStruct:
+		// Jump to instructions matching the first arg functor.
 		cell := deref(m.Reg[0]).(*Struct)
 		cont, ok := instr.Continuation[cell.Functor()]
 		if !ok {
@@ -544,18 +547,23 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		}
 		return cont, nil
 	case NeckCut:
+		// Remove any choicepoint created since the function call, removing choicepoints
+		// due to indexing.
 		if m.ChoicePoint == m.CutChoice {
 			break
 		}
 		m.ChoicePoint = m.CutChoice
 		m.tidyTrail()
 	case Cut:
+		// Remove any choicepoint created since the function initial execution, keeping
+		// choicepoints due to indexing.
 		if m.Env.CutChoice == m.ChoicePoint {
 			break
 		}
 		m.ChoicePoint = m.Env.CutChoice
 		m.tidyTrail()
 	case Fail:
+		// Fail unconditionally.
 		return m.backtrack(fmt.Errorf("fail instruction"))
 	default:
 		panic(fmt.Sprintf("execute: unhandled instruction type %T (%v)", instr, instr))
