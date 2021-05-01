@@ -3,6 +3,8 @@ package logic
 import (
 	"strings"
 	"unicode"
+
+	"github.com/brunokim/logic-engine/runes"
 )
 
 func isDigit(ch rune) bool {
@@ -31,7 +33,7 @@ func isVarFirst(ch rune) bool {
 // A var must begin with an uppercase letter or an underscore, and the other
 // letters must be identifier letters (e.g., letter, digit or underscore).
 func IsVar(text string) bool {
-	ch, err := firstRune(text)
+	ch, err := runes.First(text)
 	if err != nil {
 		return false
 	}
@@ -61,7 +63,7 @@ func IsQuotedAtom(text string) bool {
 	if text == "" {
 		return true
 	}
-	ch, err := firstRune(text)
+	ch, err := runes.First(text)
 	if err != nil || isVarFirst(ch) || isDigit(ch) {
 		return true
 	}

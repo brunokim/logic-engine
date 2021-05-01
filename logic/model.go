@@ -17,6 +17,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/brunokim/logic-engine/runes"
 )
 
 // ---- Basic types
@@ -215,7 +217,7 @@ func (l *List) asString() (string, bool) {
 	for i, term := range l.Terms {
 		if a, ok := term.(Atom); !ok {
 			return "", false
-		} else if ch, ok := singleRune(a.Name); !ok {
+		} else if ch, ok := runes.Single(a.Name); !ok {
 			return "", false
 		} else {
 			chars[i] = ch

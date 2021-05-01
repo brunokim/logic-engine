@@ -27,10 +27,10 @@ func TestSolve(t *testing.T) {
         nat(0).
         nat(s(X)) :- nat(X).
     `)
-	s.Debug("debugtest/test-solve.jsonl")
 	if err != nil {
 		t.Fatalf("NewSolver: got err: %v", err)
 	}
+	s.Debug("debugtest/test-solve.jsonl")
 	solutions, cancel := s.Query("nat(X)")
 	var got [5]solver.Solution
 	for i := 0; i < 5; i++ {

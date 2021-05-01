@@ -61,7 +61,7 @@ var (
 		clause(comp("line", var_("L"), var_("L"))),
 		// Identifier chars
 		clause(comp("ident", var_("Ch")), comp("letter", var_("Ch")), atom("!")),
-		clause(comp("ident", var_("Ch")), comp("digit", var_("Ch")), atom("!")),
+		clause(comp("ident", var_("Ch")), comp("unicode_digit", var_("Ch")), atom("!")),
 		clause(comp("ident", atom("_"))),
 		clause(comp("idents", ilist(var_("Ch"), var_("L")), ilist(var_("Ch"), var_("L1")), var_("L2")),
 			comp("ident", var_("Ch")),
@@ -90,7 +90,7 @@ var (
 		clause(comp("atom_symbols", list(), var_("L"), var_("L"))),
 		// Digits
 		clause(comp("digits", ilist(var_("Ch"), var_("L")), ilist(var_("Ch"), var_("L1")), var_("L2")),
-			comp("digit", var_("Ch")),
+			comp("unicode_digit", var_("Ch")),
 			comp("digits", var_("L"), var_("L1"), var_("L2"))),
 		clause(comp("digits", list(), var_("L"), var_("L"))),
 		// Atom
@@ -117,7 +117,7 @@ var (
 		clause(comp("quoted", var_("_"), list(), var_("L"), var_("L"))),
 		// Int
 		clause(comp("int", comp("int", ilist(var_("Ch"), var_("L"))), ilist(var_("Ch"), var_("L1")), var_("L2")),
-			comp("digit", var_("Ch")),
+			comp("unicode_digit", var_("Ch")),
 			comp("digits", var_("L"), var_("L1"), var_("L2"))),
 		// Var
 		clause(comp("var", comp("var", ilist(var_("Ch"), var_("L"))), ilist(var_("Ch"), var_("L1")), var_("L2")),
@@ -230,9 +230,6 @@ var (
 func facts() []*logic.Clause {
 	var clauses []*logic.Clause
 	for ch := rune(0); ch < rune(128); ch++ {
-		if unicode.IsDigit(ch) {
-			clauses = append(clauses, clause(comp("digit", atom(string(ch)))))
-		}
 		if unicode.IsLetter(ch) {
 			clauses = append(clauses, clause(comp("letter", atom(string(ch)))))
 		}
@@ -273,6 +270,7 @@ func ParseTerm(text string) (logic.Term, error) {
 		letters = append(letters, dsl.Atom(string(ch)))
 	}
 	tree := dsl.Var("Tree")
+	// m.DebugFilename = fmt.Sprintf("debugtest/%s.jsonl", text)
 	bindings, err := m.RunQuery(dsl.Comp("parse", dsl.List(letters...), tree))
 	if err != nil {
 		return nil, err

@@ -1,8 +1,12 @@
 package wam
 
 import (
+	"fmt"
+	"unicode"
+
 	"github.com/brunokim/logic-engine/dsl"
 	"github.com/brunokim/logic-engine/logic"
+	"github.com/brunokim/logic-engine/runes"
 )
 
 var builtins []*Clause
@@ -15,6 +19,7 @@ func init() {
 	}
 	builtins = append(builtins, initCalls()...)
 	builtins = append(builtins, fail)
+	builtins = append(builtins, unicodeClauses...)
 }
 
 var (
@@ -24,7 +29,10 @@ var (
 )
 
 var (
-	fail     = &Clause{Functor{"fail", 0}, 0, []Instruction{Fail{}}}
+	fail           = &Clause{Functor{"fail", 0}, 0, []Instruction{Fail{}}}
+	unicodeClauses = []*Clause{
+		&Clause{Functor{"unicode_digit", 1}, 1, []Instruction{Builtin{unicodeDigit}, Proceed{}}},
+	}
 	preamble = []*logic.Clause{
 		// =(X, X).
 		dsl.Clause(comp("=", var_("X"), var_("X"))),
@@ -68,4 +76,23 @@ func initCalls() []*Clause {
 		}
 	}
 	return calls
+}
+
+func unicodeDigit(m *Machine) error {
+	cell := deref(m.Reg[0])
+	switch c := cell.(type) {
+	case WAtom:
+		r, ok := runes.Single(string(c))
+		if !ok {
+			return fmt.Errorf("unicode_digit/1: not a single rune: %v", c)
+		}
+		if !unicode.IsDigit(r) {
+			return fmt.Errorf("unicode_digit/1: not a digit: %c", r)
+		}
+	case *Ref:
+		return fmt.Errorf("unicode_digit/1: not sufficiently instantiated: %v", c)
+	default:
+		return fmt.Errorf("unicode_digit/1: not an atom: %v", cell)
+	}
+	return nil
 }

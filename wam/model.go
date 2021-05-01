@@ -230,6 +230,11 @@ type Cut struct{}
 // Fail instruction: fail
 type Fail struct{}
 
+// Builtin instruction: builtin <func>
+type Builtin struct {
+	Func func(m *Machine) error
+}
+
 func (i PutStruct) isInstruction()        {}
 func (i PutVariable) isInstruction()      {}
 func (i PutValue) isInstruction()         {}
@@ -264,6 +269,7 @@ func (i SwitchOnStruct) isInstruction()   {}
 func (i NeckCut) isInstruction()          {}
 func (i Cut) isInstruction()              {}
 func (i Fail) isInstruction()             {}
+func (i Builtin) isInstruction()          {}
 
 func (i PutStruct) String() string {
 	return fmt.Sprintf("put_struct %v, A%d", i.Functor, i.ArgAddr)
@@ -419,6 +425,10 @@ func (i Cut) String() string {
 
 func (i Fail) String() string {
 	return "fail"
+}
+
+func (i Builtin) String() string {
+	return fmt.Sprintf("builtin <func %p>", i.Func)
 }
 
 // ---- Clauses and code

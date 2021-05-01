@@ -273,6 +273,8 @@ func (enc *machineEncoder) instructionField(v interface{}) interface{} {
 			im[key] = enc.instrAddr(instrAddr)
 		}
 		return im
+	case func(*Machine) error:
+		return "func"
 	}
 }
 

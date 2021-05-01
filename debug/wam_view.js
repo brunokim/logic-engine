@@ -364,12 +364,16 @@ export class Wam {
             return this.switchTable({
                 'if_var': instr.IfVar,
                 'if_const': instr.IfConstant,
-                'if_pair': instr.IfPair,
                 'if_struct': instr.IfStruct,
+                'if_list': instr.IfList,
+                'if_assoc': instr.IfAssoc,
+                'if_dict': instr.IfDict,
             })
         case "SwitchOnConstant":
         case "SwitchOnStruct":
             return this.switchTable(instr.Continuation)
+        case "Builtin":
+            return instr.Func
         }
         return null
     }

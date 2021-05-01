@@ -565,6 +565,11 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 	case Fail:
 		// Fail unconditionally.
 		return m.backtrack(fmt.Errorf("fail instruction"))
+	case Builtin:
+		// Calls builtin function.
+		if err := instr.Func(m); err != nil {
+			return m.backtrack(err)
+		}
 	default:
 		panic(fmt.Sprintf("execute: unhandled instruction type %T (%v)", instr, instr))
 	}

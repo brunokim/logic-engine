@@ -48,7 +48,7 @@ var text = `
 
     % Identifier chars
     ident(Ch) :- letter(Ch), !.
-    ident(Ch) :- digit(Ch), !.
+    ident(Ch) :- unicode_digit(Ch), !.
     ident('_').
     idents([Ch|L], [Ch|L1], L2) :-
         ident(Ch),
@@ -80,7 +80,7 @@ var text = `
 
     % Digits
     digits([Ch|L], [Ch|L1], L2) :-
-        digit(Ch),
+        unicode_digit(Ch),
         digits(L, L1, L2).
     digits([], L, L).
 
@@ -110,7 +110,7 @@ var text = `
 
     % Int
     int(int([Ch|L]), [Ch|L1], L2) :-
-        digit(Ch),
+        unicode_digit(Ch),
         digits(L, L1, L2).
 
     % Vars
