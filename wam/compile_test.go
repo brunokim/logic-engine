@@ -183,8 +183,6 @@ func TestCompile(t *testing.T) {
 				deallocate{},
 				proceed{}),
 		},
-		// Bug found while testing dict unification.
-		// unify_variable is emitted after unify_value for P2.
 		// query :- =(
 		//   p({a:1, b:2|P1}, P1, P2),
 		//   p({a:1, c:3|P2}, _, _)).
@@ -216,6 +214,11 @@ func TestCompile(t *testing.T) {
 				put_pair{dict_pair, reg(4)},
 				unify_value{reg(5)},
 				unify_value{reg(6)},
+				// p({...}, P1, P2)
+				put_struct{functor{"p", 3}, reg(0)},
+				unify_value{reg(4)},
+				unify_value{reg(2)},
+				unify_variable{reg(3)}, // P2=X3
 				// a:1
 				put_pair{assoc_pair, reg(9)},
 				unify_constant{watom("a")},
@@ -227,16 +230,11 @@ func TestCompile(t *testing.T) {
 				// {c:3|P2}
 				put_pair{dict_pair, reg(10)},
 				unify_value{reg(11)},
-				unify_variable{reg(3)}, // P2=X3
+				unify_value{reg(3)},
 				// {a:1, c:3|P2}
 				put_pair{dict_pair, reg(8)},
 				unify_value{reg(9)},
 				unify_value{reg(10)},
-				// p({...}, P1, P2)
-				put_struct{functor{"p", 3}, reg(0)},
-				unify_value{reg(4)},
-				unify_value{reg(2)},
-				unify_value{reg(3)},
 				// p({...}, _, _)
 				put_struct{functor{"p", 3}, reg(1)},
 				unify_value{reg(8)},
@@ -245,7 +243,6 @@ func TestCompile(t *testing.T) {
 				// =(..., ...).
 				execute{functor{"=", 2}}),
 		},
-		// Attempt to simplify above bug, not successful. Perhaps it's dict-related?
 		// query :- f(g(h(W), W, Z), g(h(Z))).
 		{
 			dsl.Clause(atom("query"),
@@ -256,14 +253,14 @@ func TestCompile(t *testing.T) {
 				// h(W)
 				put_struct{functor{"h", 1}, reg(4)},
 				unify_variable{reg(2)}, // W=X2
-				// h(Z)
-				put_struct{functor{"h", 1}, reg(5)},
-				unify_value{reg(3)},
 				// g(., W, Z)
 				put_struct{functor{"g", 3}, reg(0)},
 				unify_value{reg(4)},
 				unify_value{reg(2)},
 				unify_variable{reg(3)}, // Z=X3
+				// h(Z)
+				put_struct{functor{"h", 1}, reg(5)},
+				unify_value{reg(3)},
 				// g(.)
 				put_struct{functor{"g", 1}, reg(1)},
 				unify_value{reg(5)},

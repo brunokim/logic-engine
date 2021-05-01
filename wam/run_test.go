@@ -1135,8 +1135,8 @@ func TestUnifyDicts(t *testing.T) {
 				dict(atom("d"), int_(4)),
 				dict(atom("c"), int_(30), atom("d"), int_(4))),
 			map[logic.Var]logic.Term{
-				var_("P1"): dict(atom("d"), int_(4)),
-				var_("P2"): dict(atom("c"), int_(30), atom("d"), int_(4)),
+				var_("P1"): dict(atom("c"), int_(3), atom("d"), int_(4)),
+				var_("P2"): dict(atom("b"), int_(2), atom("d"), int_(4)),
 			},
 		},
 	}

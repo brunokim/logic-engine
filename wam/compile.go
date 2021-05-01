@@ -163,14 +163,7 @@ func (ctx *compileCtx) putVar(x logic.Var, regAddr RegAddr) Instruction {
 }
 
 func (ctx *compileCtx) setVar(x logic.Var) Instruction {
-	if x == logic.AnonymousVar {
-		return UnifyVoid{}
-	}
-	if _, ok := ctx.seen[x]; ok {
-		return UnifyValue{ctx.varAddr[x]}
-	}
-	ctx.seen[x] = struct{}{}
-	return UnifyVariable{ctx.varAddr[x]}
+	return ctx.unifyVar(x)
 }
 
 func (ctx *compileCtx) getTerm(term logic.Term, addr RegAddr) []Instruction {
@@ -372,13 +365,11 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 	}
 	// Regular goal: put term args into registers X0-Xn and issue a call to f/n.
 	ctx.instrs = nil
-	var instrs []Instruction
 	for i, arg := range term.Args {
-		instrs = append(instrs, ctx.putTerm(arg, RegAddr(i))...)
+		ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, RegAddr(i))...)
 	}
-	instrs = append(ctx.instrs, instrs...)
-	instrs = append(instrs, Call{toFunctor(term.Indicator())})
-	return instrs
+	ctx.instrs = append(ctx.instrs, Call{toFunctor(term.Indicator())})
+	return ctx.instrs
 }
 
 func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
