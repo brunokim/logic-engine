@@ -96,7 +96,19 @@ var (
 )
 
 func builtinUnicodeChecker(checker unicodeChecker) *Clause {
-	f := func(m *Machine) error {
+	clause := &Clause{Functor: checker.functor, NumRegisters: 1}
+	start := makeUnicodePredicate(checker, clause)
+	clause.Code = []Instruction{
+		Builtin{Name: checker.functor.Name, Func: start},
+		Proceed{},
+	}
+	return clause
+}
+
+// Succeeds if first arg is a rune from table; if first arg is a ref, replaces
+// itself with iterator.
+func makeUnicodePredicate(checker unicodeChecker, clause *Clause) func(*Machine) error {
+	return func(m *Machine) error {
 		cell := deref(m.Reg[0])
 		switch c := cell.(type) {
 		case WAtom:
@@ -107,19 +119,39 @@ func builtinUnicodeChecker(checker unicodeChecker) *Clause {
 			if !unicode.Is(checker.table, r) {
 				return fmt.Errorf("%v: %s: %c", checker.functor, checker.msg, r)
 			}
+			return nil
 		case *Ref:
-			return fmt.Errorf("%v: not sufficiently instantiated: %v", checker.functor, c)
+			iterator := makeUnicodeIterator(checker, clause)
+			clause.Code = []Instruction{
+				Builtin{Name: checker.functor.Name + "_ref", Func: iterator},
+				Proceed{},
+			}
+			return iterator(m)
 		default:
 			return fmt.Errorf("%v: not an atom: %v", checker.functor, cell)
 		}
-		return nil
 	}
-	return &Clause{
-		Functor:      checker.functor,
-		NumRegisters: 1,
-		Code: []Instruction{
-			Builtin{Name: checker.functor.Name, Func: f},
-			Proceed{},
-		},
+}
+
+// The unicode iterator emits all runes from table via backtracking.
+func makeUnicodeIterator(checker unicodeChecker, clause *Clause) func(*Machine) error {
+	allRunes := runes.All(checker.table)
+	var pos int
+	return func(m *Machine) error {
+		if pos == 0 {
+			// try_me_else
+			m.ChoicePoint = m.newChoicePoint(InstrAddr{clause, 0})
+		} else if pos < len(allRunes)-1 {
+			// retry_me_else
+			m.restoreFromChoicePoint()
+		} else {
+			// trust_me
+			m.restoreFromChoicePoint()
+			m.ChoicePoint = m.ChoicePoint.Prev
+		}
+		x := deref(m.Reg[0])
+		m.bind(x, WAtom(string(allRunes[pos])))
+		pos++
+		return nil
 	}
 }
