@@ -321,6 +321,7 @@ func (m *Machine) newChoicePoint(alternative InstrAddr) *ChoicePoint {
 // ---- attributes
 
 func (m *Machine) setAttribute(ref *Ref, name string, attr Cell) {
+	m.trailAttribute(ref, name)
 	attrs, ok := m.attributes[ref.id]
 	if !ok {
 		attrs = make(map[string]Cell)
@@ -599,7 +600,6 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		cell := deref(m.get(instr.Attribute))
 		switch c := cell.(type) {
 		case *Struct:
-			m.trailAttribute(ref, c.Name)
 			m.setAttribute(ref, c.Name, c)
 		default:
 			return m.backtrack(fmt.Errorf("put_attr: invalid attribute"))
@@ -637,26 +637,86 @@ func (m *Machine) backtrack(err error) (InstrAddr, error) {
 }
 
 // bind must be called with at least one unbound ref.
-func (m *Machine) bind(c1, c2 Cell) {
+func (m *Machine) bind(c1, c2 Cell) error {
 	ref1, isRef1 := c1.(*Ref)
 	ref2, isRef2 := c2.(*Ref)
-	// Safety measure: always bind newer variables to older variables.
+	if isRef1 && isRef2 {
+		return m.bindRefs(ref1, ref2)
+	}
+	if isRef1 && ref1.Cell == nil {
+		if err := m.checkAttrs(ref1, c2); err != nil {
+			return err
+		}
+		ref1.Cell = c2
+		m.trail(ref1)
+		return nil
+	}
+	if isRef2 && ref2.Cell == nil {
+		if err := m.checkAttrs(ref2, c1); err != nil {
+			return err
+		}
+		ref2.Cell = c1
+		m.trail(ref2)
+		return nil
+	}
+	panic(fmt.Sprintf("bind(%v, %v): no unbound refs", c1, c2))
+}
+
+func (m *Machine) bindRefs(ref1, ref2 *Ref) error {
+	if !(ref1.Cell == nil && ref2.Cell == nil) {
+		panic(fmt.Sprintf("bind(%v, %v): bound ref in bind", ref1, ref2))
+	}
+	// Safety measure: always bind newer variables (larger id) to older
+	// variables (smaller id).
 	// This is "WAM Binding Rule 1", but shouldn't be necessary in our
 	// impl, because we don't care if a stack variable references a "heap"
 	// one, as there's no heap to manage.
 	// Still, establishing an order may prevent reference loops in Refs,
 	// and is a very cheap check.
-	if isRef1 && ref1.Cell == nil && (!isRef2 || ref2.id < ref1.id) {
-		ref1.Cell = c2
-		m.trail(ref1)
-		return
+	if ref1.id < ref2.id {
+		ref1, ref2 = ref2, ref1
 	}
-	if isRef2 && ref2.Cell == nil {
-		ref2.Cell = c1
-		m.trail(ref2)
-		return
+	attrs1, hasAttrs1 := m.attributes[ref1.id]
+	attrs2, hasAttrs2 := m.attributes[ref2.id]
+	if hasAttrs1 || hasAttrs2 {
+		if !hasAttrs1 {
+			attrs1 = map[string]Cell{}
+		}
+		if !hasAttrs2 {
+			attrs2 = map[string]Cell{}
+		}
+		for name, attr := range attrs1 {
+			if _, ok := attrs2[name]; ok {
+				// Join attribute present in both vars.
+				m.Reg[0] = WAtom(name)
+				m.Reg[1] = ref1
+				m.Reg[2] = ref2
+				// TODO: somehow, call join_attribute(name, X1, X2).
+			} else {
+				// Copy ref1's exclusive attribute to ref2.
+				m.setAttribute(ref2, name, attr)
+			}
+		}
 	}
-	panic(fmt.Sprintf("bind(%v, %v): no unbound refs", c1, c2))
+	ref1.Cell = ref2
+	m.trail(ref1)
+	return nil
+}
+
+func (m *Machine) checkAttrs(ref *Ref, value Cell) error {
+	attrs, ok := m.attributes[ref.id]
+	if !ok {
+		return nil
+	}
+	for name, attr := range attrs {
+		newAttr := m.newRef()
+		m.Reg[0] = attr
+		m.Reg[1] = value
+		m.Reg[2] = newAttr
+		// TODO: somehow, call check_attribute(Attr, Value, NewAttr).
+		m.setAttribute(ref, name, deref(newAttr))
+	}
+	return nil
 }
 
 // ---- unification
