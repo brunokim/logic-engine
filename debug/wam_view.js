@@ -373,7 +373,7 @@ export class Wam {
         case "SwitchOnStruct":
             return this.switchTable(instr.Continuation)
         case "Builtin":
-            return instr.Func
+            return instr.Name
         }
         return null
     }

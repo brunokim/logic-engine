@@ -230,8 +230,9 @@ type Cut struct{}
 // Fail instruction: fail
 type Fail struct{}
 
-// Builtin instruction: builtin <func>
+// Builtin instruction: builtin name <func>
 type Builtin struct {
+	Name string
 	Func func(m *Machine) error
 }
 
@@ -428,7 +429,7 @@ func (i Fail) String() string {
 }
 
 func (i Builtin) String() string {
-	return fmt.Sprintf("builtin <func %s>", funcName(i.Func))
+	return fmt.Sprintf("builtin %s, <func %p>", i.Name, i.Func)
 }
 
 // ---- Clauses and code

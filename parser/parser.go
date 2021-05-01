@@ -250,7 +250,7 @@ func ParseTerm(text string) (logic.Term, error) {
 		letters = append(letters, dsl.Atom(string(ch)))
 	}
 	tree := dsl.Var("Tree")
-	// m.DebugFilename = fmt.Sprintf("debugtest/%s.jsonl", text)
+	//m.DebugFilename = fmt.Sprintf("debugtest/%s.jsonl", text)
 	bindings, err := m.RunQuery(dsl.Comp("parse", dsl.List(letters...), tree))
 	if err != nil {
 		return nil, err

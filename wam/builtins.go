@@ -19,7 +19,9 @@ func init() {
 	}
 	builtins = append(builtins, initCalls()...)
 	builtins = append(builtins, fail)
-	builtins = append(builtins, unicodeClauses...)
+	for _, checker := range unicodeCheckers {
+		builtins = append(builtins, builtinUnicodeChecker(checker))
+	}
 }
 
 var (
@@ -29,16 +31,7 @@ var (
 )
 
 var (
-	fail           = &Clause{Functor{"fail", 0}, 0, []Instruction{Fail{}}}
-	unicodeClauses = []*Clause{
-		&Clause{Functor{"unicode_digit", 1}, 1, []Instruction{Builtin{unicodeDigit}, Proceed{}}},
-		&Clause{Functor{"unicode_letter", 1}, 1, []Instruction{Builtin{unicodeLetter}, Proceed{}}},
-		&Clause{Functor{"unicode_lower", 1}, 1, []Instruction{Builtin{unicodeLower}, Proceed{}}},
-		&Clause{Functor{"unicode_upper", 1}, 1, []Instruction{Builtin{unicodeUpper}, Proceed{}}},
-		&Clause{Functor{"unicode_symbol", 1}, 1, []Instruction{Builtin{unicodeSymbol}, Proceed{}}},
-		&Clause{Functor{"unicode_punct", 1}, 1, []Instruction{Builtin{unicodePunct}, Proceed{}}},
-		&Clause{Functor{"unicode_space", 1}, 1, []Instruction{Builtin{unicodeSpace}, Proceed{}}},
-	}
+	fail     = &Clause{Functor{"fail", 0}, 0, []Instruction{Fail{}}}
 	preamble = []*logic.Clause{
 		// =(X, X).
 		dsl.Clause(comp("=", var_("X"), var_("X"))),
@@ -84,49 +77,49 @@ func initCalls() []*Clause {
 	return calls
 }
 
-func unicodeDigit(m *Machine) error {
-	return unicodeCheck(m, unicode.IsDigit, "unicode_digit/1", "not a digit")
+type unicodeChecker struct {
+	functor Functor
+	f       func(rune) bool
+	msg     string
 }
 
-func unicodeLetter(m *Machine) error {
-	return unicodeCheck(m, unicode.IsLetter, "unicode_letter/1", "not a letter")
-}
-
-func unicodeLower(m *Machine) error {
-	return unicodeCheck(m, unicode.IsLower, "unicode_lower/1", "not a lowercase letter")
-}
-
-func unicodeUpper(m *Machine) error {
-	return unicodeCheck(m, unicode.IsUpper, "unicode_upper/1", "not an uppercase letter")
-}
-
-func unicodeSymbol(m *Machine) error {
-	return unicodeCheck(m, unicode.IsSymbol, "unicode_symbol/1", "not a symbol")
-}
-
-func unicodePunct(m *Machine) error {
-	return unicodeCheck(m, unicode.IsPunct, "unicode_punct/1", "not a punctuation")
-}
-
-func unicodeSpace(m *Machine) error {
-	return unicodeCheck(m, unicode.IsSpace, "unicode_space/1", "not a space")
-}
-
-func unicodeCheck(m *Machine, pred func(rune) bool, predName, errorMsg string) error {
-	cell := deref(m.Reg[0])
-	switch c := cell.(type) {
-	case WAtom:
-		r, ok := runes.Single(string(c))
-		if !ok {
-			return fmt.Errorf("%s: not a single rune: %v", predName, c)
-		}
-		if !pred(r) {
-			return fmt.Errorf("%s: %s: %c", predName, errorMsg, r)
-		}
-	case *Ref:
-		return fmt.Errorf("%s: not sufficiently instantiated: %v", predName, c)
-	default:
-		return fmt.Errorf("%s: not an atom: %v", predName, cell)
+var (
+	unicodeCheckers = []unicodeChecker{
+		unicodeChecker{Functor{"unicode_digit", 1}, unicode.IsDigit, "not a digit"},
+		unicodeChecker{Functor{"unicode_letter", 1}, unicode.IsLetter, "not a letter"},
+		unicodeChecker{Functor{"unicode_lower", 1}, unicode.IsLower, "not a lowercase letter"},
+		unicodeChecker{Functor{"unicode_upper", 1}, unicode.IsUpper, "not an uppercase letter"},
+		unicodeChecker{Functor{"unicode_symbol", 1}, unicode.IsSymbol, "not a symbol"},
+		unicodeChecker{Functor{"unicode_punct", 1}, unicode.IsPunct, "not a punctuation"},
+		unicodeChecker{Functor{"unicode_space", 1}, unicode.IsSpace, "not whitespace"},
 	}
-	return nil
+)
+
+func builtinUnicodeChecker(checker unicodeChecker) *Clause {
+	f := func(m *Machine) error {
+		cell := deref(m.Reg[0])
+		switch c := cell.(type) {
+		case WAtom:
+			r, ok := runes.Single(string(c))
+			if !ok {
+				return fmt.Errorf("%v: not a single rune: %v", checker.functor, c)
+			}
+			if !checker.f(r) {
+				return fmt.Errorf("%v: %s: %c", checker.functor, checker.msg, r)
+			}
+		case *Ref:
+			return fmt.Errorf("%v: not sufficiently instantiated: %v", checker.functor, c)
+		default:
+			return fmt.Errorf("%v: not an atom: %v", checker.functor, cell)
+		}
+		return nil
+	}
+	return &Clause{
+		Functor:      checker.functor,
+		NumRegisters: 1,
+		Code: []Instruction{
+			Builtin{Name: funcName(checker.f), Func: f},
+			Proceed{},
+		},
+	}
 }
