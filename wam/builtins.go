@@ -19,8 +19,8 @@ func init() {
 	}
 	builtins = append(builtins, initCalls()...)
 	builtins = append(builtins, fail)
-	for _, checker := range unicodeCheckers {
-		builtins = append(builtins, builtinUnicodeChecker(checker))
+	for _, pred := range unicodePredicates {
+		builtins = append(builtins, builtinUnicodePredicate(pred))
 	}
 }
 
@@ -77,29 +77,29 @@ func initCalls() []*Clause {
 	return calls
 }
 
-type unicodeChecker struct {
+type unicodePredicate struct {
 	functor Functor
 	table   *unicode.RangeTable
 	msg     string
 }
 
 var (
-	unicodeCheckers = []unicodeChecker{
-		unicodeChecker{Functor{"unicode_digit", 1}, unicode.Digit, "not a digit"},
-		unicodeChecker{Functor{"unicode_letter", 1}, unicode.Letter, "not a letter"},
-		unicodeChecker{Functor{"unicode_lower", 1}, unicode.Lower, "not a lowercase letter"},
-		unicodeChecker{Functor{"unicode_upper", 1}, unicode.Upper, "not an uppercase letter"},
-		unicodeChecker{Functor{"unicode_symbol", 1}, unicode.Symbol, "not a symbol"},
-		unicodeChecker{Functor{"unicode_punct", 1}, unicode.Punct, "not a punctuation"},
-		unicodeChecker{Functor{"unicode_space", 1}, unicode.White_Space, "not whitespace"},
+	unicodePredicates = []unicodePredicate{
+		unicodePredicate{Functor{"unicode_digit", 1}, unicode.Digit, "not a digit"},
+		unicodePredicate{Functor{"unicode_letter", 1}, unicode.Letter, "not a letter"},
+		unicodePredicate{Functor{"unicode_lower", 1}, unicode.Lower, "not a lowercase letter"},
+		unicodePredicate{Functor{"unicode_upper", 1}, unicode.Upper, "not an uppercase letter"},
+		unicodePredicate{Functor{"unicode_symbol", 1}, unicode.Symbol, "not a symbol"},
+		unicodePredicate{Functor{"unicode_punct", 1}, unicode.Punct, "not a punctuation"},
+		unicodePredicate{Functor{"unicode_space", 1}, unicode.White_Space, "not whitespace"},
 	}
 )
 
-func builtinUnicodeChecker(checker unicodeChecker) *Clause {
-	clause := &Clause{Functor: checker.functor, NumRegisters: 1}
-	start := makeUnicodePredicate(checker, clause)
+func builtinUnicodePredicate(pred unicodePredicate) *Clause {
+	clause := &Clause{Functor: pred.functor, NumRegisters: 1}
+	start := makeUnicodePredicate(pred, clause)
 	clause.Code = []Instruction{
-		Builtin{Name: checker.functor.Name, Func: start},
+		Builtin{Name: pred.functor.Name, Func: start},
 		Proceed{},
 	}
 	return clause
@@ -107,35 +107,35 @@ func builtinUnicodeChecker(checker unicodeChecker) *Clause {
 
 // Succeeds if first arg is a rune from table; if first arg is a ref, replaces
 // itself with iterator.
-func makeUnicodePredicate(checker unicodeChecker, clause *Clause) func(*Machine) error {
+func makeUnicodePredicate(pred unicodePredicate, clause *Clause) func(*Machine) error {
 	return func(m *Machine) error {
 		cell := deref(m.Reg[0])
 		switch c := cell.(type) {
 		case WAtom:
 			r, ok := runes.Single(string(c))
 			if !ok {
-				return fmt.Errorf("%v: not a single rune: %v", checker.functor, c)
+				return fmt.Errorf("%v: not a single rune: %v", pred.functor, c)
 			}
-			if !unicode.Is(checker.table, r) {
-				return fmt.Errorf("%v: %s: %c", checker.functor, checker.msg, r)
+			if !unicode.Is(pred.table, r) {
+				return fmt.Errorf("%v: %s: %c", pred.functor, pred.msg, r)
 			}
 			return nil
 		case *Ref:
-			iterator := makeUnicodeIterator(checker, clause)
+			iterator := makeUnicodeIterator(pred, clause)
 			clause.Code = []Instruction{
-				Builtin{Name: checker.functor.Name + "_ref", Func: iterator},
+				Builtin{Name: pred.functor.Name + "_ref", Func: iterator},
 				Proceed{},
 			}
 			return iterator(m)
 		default:
-			return fmt.Errorf("%v: not an atom: %v", checker.functor, cell)
+			return fmt.Errorf("%v: not an atom: %v", pred.functor, cell)
 		}
 	}
 }
 
 // The unicode iterator emits all runes from table via backtracking.
-func makeUnicodeIterator(checker unicodeChecker, clause *Clause) func(*Machine) error {
-	allRunes := runes.All(checker.table)
+func makeUnicodeIterator(pred unicodePredicate, clause *Clause) func(*Machine) error {
+	allRunes := runes.All(pred.table)
 	var pos int
 	return func(m *Machine) error {
 		if pos == 0 {

@@ -9,7 +9,6 @@ import (
 
 func TestUnicode(t *testing.T) {
 	m := wam.NewMachine()
-	m.DebugFilename = "debugtest/test-unicode.jsonl"
 	solution, err := m.RunQuery(comp("unicode_digit", var_("X")))
 	var digits string
 	for err == nil {
