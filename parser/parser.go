@@ -60,6 +60,9 @@ var (
 			comp("line", var_("L1"), var_("L2"))),
 		clause(comp("line", var_("L"), var_("L"))),
 		// Identifier chars
+		clause(comp("ident", var_("Ch")), comp("letter", var_("Ch")), atom("!")),
+		clause(comp("ident", var_("Ch")), comp("digit", var_("Ch")), atom("!")),
+		clause(comp("ident", atom("_"))),
 		clause(comp("idents", ilist(var_("Ch"), var_("L")), ilist(var_("Ch"), var_("L1")), var_("L2")),
 			comp("ident", var_("Ch")),
 			comp("idents", var_("L"), var_("L1"), var_("L2"))),
@@ -237,13 +240,6 @@ func facts() []*logic.Clause {
 			clauses = append(clauses, clause(comp("space", atom(string(ch)))))
 		}
 	}
-	// ident(Ch) :- letter(Ch).
-	// ident(Ch) :- digit(Ch).
-	// ident('_').
-	clauses = append(clauses,
-		clause(comp("ident", var_("Ch")), comp("letter", var_("Ch"))),
-		clause(comp("ident", var_("Ch")), comp("digit", var_("Ch"))),
-		clause(comp("ident", atom("_"))))
 	return clauses
 }
 

@@ -47,6 +47,9 @@ var text = `
     line(L, L).
 
     % Identifier chars
+    ident(Ch) :- letter(Ch), !.
+    ident(Ch) :- digit(Ch), !.
+    ident('_').
     idents([Ch|L], [Ch|L1], L2) :-
         ident(Ch),
         idents(L, L1, L2).
