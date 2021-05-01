@@ -375,6 +375,21 @@ func NewClause(head Term, body ...Term) *Clause {
 	return &Clause{Head: head, Body: body, hasVar_: hasVar}
 }
 
+// ClauseNormalizeError contains data about an invalid clause.
+type ClauseNormalizeError struct {
+	// "head" or "body"
+	TermLocation string
+	Clause       *Clause
+	Term         Term
+}
+
+func (err *ClauseNormalizeError) Error() string {
+	if err.TermLocation == "head" {
+		return fmt.Sprintf("invalid head term for clause %v: %v (must be atom or comp)", err.Clause, err.Term)
+	}
+	return fmt.Sprintf("invalid body term for clause %v: %v (must be atom, var or comp)", err.Clause, err.Term)
+}
+
 // Normalize transforms the clause to contain only comp terms.
 //
 // Atoms in the clause's head and body are converted to functors with 0 arity.
@@ -387,7 +402,7 @@ func (c *Clause) Normalize() (*Clause, error) {
 	case *Comp:
 		head = h
 	default:
-		return nil, fmt.Errorf("invalid head term for clause: %v (must be atom or comp)", c.Head)
+		return nil, &ClauseNormalizeError{"head", c, c.Head}
 	}
 	body := make([]Term, len(c.Body))
 	for i, term := range c.Body {
@@ -399,7 +414,7 @@ func (c *Clause) Normalize() (*Clause, error) {
 		case *Comp:
 			body[i] = t
 		default:
-			return nil, fmt.Errorf("invalid body term for clause: %v (must be atom, var or comp)", term)
+			return nil, &ClauseNormalizeError{"body", c, term}
 		}
 	}
 	return NewClause(head, body...), nil

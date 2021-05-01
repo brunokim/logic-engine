@@ -539,7 +539,7 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 	// Group clauses by type and index key.
 	constIndex := make(map[Constant][]InstrAddr)
 	structIndex := make(map[Functor][]InstrAddr)
-	var listIndex []InstrAddr
+	var pairIndex []InstrAddr
 	for i, clause := range clauses {
 		arg := clause.Head.(*logic.Comp).Args[0]
 		switch a := arg.(type) {
@@ -551,7 +551,11 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 			f := toFunctor(a.Indicator())
 			structIndex[f] = append(structIndex[f], InstrAddr{codes[i], 1})
 		case *logic.List:
-			listIndex = append(listIndex, InstrAddr{codes[i], 1})
+			pairIndex = append(pairIndex, InstrAddr{codes[i], 1})
+		case *logic.Assoc:
+			pairIndex = append(pairIndex, InstrAddr{codes[i], 1})
+		case *logic.Dict:
+			pairIndex = append(pairIndex, InstrAddr{codes[i], 1})
 		default:
 			panic(fmt.Sprintf("compileSubSequences: unexpected term type %T (%v)", arg, arg))
 		}
@@ -573,16 +577,28 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 		indexClause.Code = append(indexClause.Code, instrs...)
 		return InstrAddr{indexClause, pos}
 	}
+	putAddrs := func(addrs []InstrAddr) InstrAddr {
+		if len(addrs) == 1 {
+			return addrs[0]
+		}
+		instrs := make([]Instruction, len(addrs))
+		for i, addr := range addrs {
+			if i == 0 {
+				instrs[i] = Try{addr}
+			} else if i < len(addrs)-1 {
+				instrs[i] = Retry{addr}
+			} else {
+				instrs[i] = Trust{addr}
+			}
+		}
+		return putCode(instrs...)
+	}
 	// Index constants.
 	if len(constIndex) > 0 {
 		switchOnConst := SwitchOnConstant{Continuation: make(map[Constant]InstrAddr)}
 		switchOnTerm.IfConstant = putCode(switchOnConst)
 		for name, addrs := range constIndex {
-			if len(addrs) == 1 {
-				switchOnConst.Continuation[name] = addrs[0]
-				continue
-			}
-			switchOnConst.Continuation[name] = putCode(addrsToInstrs(addrs)...)
+			switchOnConst.Continuation[name] = putAddrs(addrs)
 		}
 	}
 	// Index structures.
@@ -590,40 +606,15 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 		switchOnStruct := SwitchOnStruct{Continuation: make(map[Functor]InstrAddr)}
 		switchOnTerm.IfStruct = putCode(switchOnStruct)
 		for functor, addrs := range structIndex {
-			if len(addrs) == 1 {
-				switchOnStruct.Continuation[functor] = addrs[0]
-				continue
-			}
-			switchOnStruct.Continuation[functor] = putCode(addrsToInstrs(addrs)...)
+			switchOnStruct.Continuation[functor] = putAddrs(addrs)
 		}
 	}
-	// Index lists.
-	if len(listIndex) > 0 {
-		if len(listIndex) == 1 {
-			switchOnTerm.IfPair = listIndex[0]
-		} else {
-			switchOnTerm.IfPair = putCode(addrsToInstrs(listIndex)...)
-		}
+	// Index pairs.
+	if len(pairIndex) > 0 {
+		switchOnTerm.IfPair = putAddrs(pairIndex)
 	}
 	indexClause.Code[0] = switchOnTerm
 	return indexClause
-}
-
-func addrsToInstrs(addrs []InstrAddr) []Instruction {
-	if len(addrs) == 1 {
-		return nil
-	}
-	instrs := make([]Instruction, len(addrs))
-	for i, addr := range addrs {
-		if i == 0 {
-			instrs[i] = Try{addr}
-		} else if i < len(addrs)-1 {
-			instrs[i] = Retry{addr}
-		} else {
-			instrs[i] = Trust{addr}
-		}
-	}
-	return instrs
 }
 
 // Split sequence into subsequences, where clauses whose first arg is
@@ -698,7 +689,7 @@ func CompileClauses(clauses []*logic.Clause) ([]*Clause, error) {
 	for _, clause := range clauses {
 		c, err := clause.Normalize()
 		if err != nil {
-			return nil, fmt.Errorf("compiling clause %v: %v", clause, err)
+			return nil, err
 		}
 		ind := c.Head.(*logic.Comp).Indicator()
 		if _, ok := m[ind]; !ok {
