@@ -230,3 +230,62 @@ we need to keep a trail of attribute changes.
             }
         }
     }
+
+## Suspending unification/binding
+
+Since we may need to execute arbitrary Prolog code prior to a binding, some operations
+that seemed to be atomic are not anymore.
+
+- Binding structs. While we could do it all args within a single instruction, we can't
+  anymore because any arg may bind an attributed var and require suspension. This was
+  solved by going back to the original WAM behavior, to keep in the machine state the
+  current struct being worked on, and in which arg we are operating.
+
+- Unification itself. Unifying any two terms may require arbitrary unifications if they
+  are complex terms. We need to be able to suspend an unification, run another code (that
+  most likely will also require another unification), and then return to it.
+
+Ah, and we want that without using Golang's call stack, managing the machine stack
+ourselves.
+
+### Attempt 1: make unification a function.
+
+The first approach implemented a `$unify` function that operates over a stack of term
+pairs, represented as a difference list:
+
+    $unify([X:Y|S1], S3) :-
+        $unify_step(X, Y, S1, S2),
+        unify(S2, S3).
+    $unify([], []).
+
+`$unify_step` is an internal function that matches X and Y. If they are complex terms,
+`$unify_step` pushes all matching pairs to S2. For example, if `X=f(A1,B1)` and
+`Y=f(A2,B2)`, the state after is `S2=[A1:A2, B1:B2|S1]`.
+
+This solution makes use of the Prolog call stack itself to keep context. However, it
+also requires that the complex term unification state -- Mode, Complex, ArgIndex --
+be saved at each call, or at least each one of $unify, as the function itself uses them.
+
+This may be circumvented by letting the "extraction" part be handled by `$unify_step`:
+
+    $unify(S1, S3) :-
+        $unify_step(S1, S2), % Takes first assoc from S1
+        unify(S2, S3).
+    $unify([], []).
+
+However, this function isn't indexed due to the variable in the first arg, and a
+choicepoint is created for each call. We can add a cut, but this doesn't prevent a
+backtrack, which also has the unintended consequence of resetting the unification mode.
+
+### Attempt 2: manage suspending a stack of unifications.
+
+Using the call stack for unification seems error-prone, and not to say inefficient,
+in what is the most central operation of Prolog. It *would* allow for tracing all steps
+in a complex unification, but this isn't a necessary debugging feature.
+
+Instead, let's consider the state that needs to be kept once we start executing arbitrary
+code within a unification.
+
+- The unification stack of term pairs to be matched;
+- The complex term unification state;
+- The continuation, like a regular function call;
