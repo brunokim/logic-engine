@@ -654,7 +654,7 @@ func (m *Machine) backtrack(err error) (InstrAddr, error) {
 }
 
 // bind must be called with at least one unbound ref.
-func (m *Machine) bind(c1, c2 Cell) error {
+func (m *Machine) bind(c1, c2 Cell) (InstrAddr, error) {
 	ref1, isRef1 := c1.(*Ref)
 	ref2, isRef2 := c2.(*Ref)
 	if isRef1 && isRef2 {
@@ -662,24 +662,24 @@ func (m *Machine) bind(c1, c2 Cell) error {
 	}
 	if isRef1 && ref1.Cell == nil {
 		if err := m.checkAttrs(ref1, c2); err != nil {
-			return err
+			return m.backtrack(err)
 		}
 		ref1.Cell = c2
 		m.trail(ref1)
-		return nil
+		return m.CodePtr.inc(), nil
 	}
 	if isRef2 && ref2.Cell == nil {
 		if err := m.checkAttrs(ref2, c1); err != nil {
-			return err
+			return m.backtrack(err)
 		}
 		ref2.Cell = c1
 		m.trail(ref2)
-		return nil
+		return m.CodePtr.inc(), nil
 	}
 	panic(fmt.Sprintf("bind(%v, %v): no unbound refs", c1, c2))
 }
 
-func (m *Machine) bindRefs(ref1, ref2 *Ref) error {
+func (m *Machine) bindRefs(ref1, ref2 *Ref) (InstrAddr, error) {
 	if !(ref1.Cell == nil && ref2.Cell == nil) {
 		panic(fmt.Sprintf("bind(%v, %v): bound ref in bind", ref1, ref2))
 	}
@@ -717,7 +717,7 @@ func (m *Machine) bindRefs(ref1, ref2 *Ref) error {
 	}
 	ref1.Cell = ref2
 	m.trail(ref1)
-	return nil
+	return m.CodePtr.inc(), nil
 }
 
 func (m *Machine) checkAttrs(ref *Ref, value Cell) error {
