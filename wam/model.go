@@ -650,6 +650,19 @@ const (
 	Read                                     // read
 )
 
+// ComplexArg wraps the state for unifying args of a complex term.
+type ComplexArg struct {
+	// Complex term to compose.
+	Cell Cell
+
+	// Whether args are being written to or read from Complex.
+	Mode UnificationMode
+
+	// Argument index within Complex. Between [0, len(Args)) for
+	// *Struct, and [0, 1] for *Pair.
+	Index int
+}
+
 // Machine represents an abstract machine state.
 type Machine struct {
 	// Instruction list. A query is represented by an empty functor.
@@ -664,10 +677,9 @@ type Machine struct {
 	// Temporary cell region. Should be max of all Clause.NumRegister's.
 	Reg []Cell
 
-	//
-	Mode     UnificationMode
-	Complex  Cell
-	ArgIndex int
+	// State for a complex term unification, that is accomplished over several
+	// instructions.
+	ComplexArg ComplexArg
 
 	// Latest environment.
 	Env *Env
@@ -747,6 +759,10 @@ continuation:
 		cpt, cpt.Env, cpt.LastRefID, formatCells(asCells(cpt.Trail)), cpt.NextAlternative, formatCells(cpt.Args), cpt.Continuation)
 }
 
+func (a ComplexArg) String() string {
+	return fmt.Sprintf("complex_arg:{mode:%v, index:%d, cell:%v}", a.Mode, a.Index, a.Cell)
+}
+
 func (m *Machine) String() string {
 	codePtr := indent(m.CodePtr.fullString())
 	continuationPtr := indent(m.Continuation.fullString())
@@ -773,7 +789,11 @@ func (m *Machine) String() string {
 clause:%s
 continuation:%s
 registers:%s
+complex_arg:
+	term: %v
+	mode: %v
+	index: %v
 environments:%s
 choice_points:%s`,
-		m, codePtr, continuationPtr, regs, environments, choicePoints)
+		m, codePtr, continuationPtr, regs, m.ComplexArg.Cell, m.ComplexArg.Mode, m.ComplexArg.Index, environments, choicePoints)
 }

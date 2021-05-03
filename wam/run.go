@@ -203,14 +203,14 @@ func (m *Machine) get(addr Addr) Cell {
 // ---- reading/writing complex terms
 
 func (m *Machine) setMode(mode UnificationMode, cell Cell) {
-	m.Mode = mode
-	m.Complex = cell
+	m.ComplexArg.Mode = mode
+	m.ComplexArg.Cell = cell
 }
 
 func (m *Machine) resetMode() {
-	m.Mode = NoUnificationMode
-	m.Complex = nil
-	m.ArgIndex = 0
+	m.ComplexArg.Mode = NoUnificationMode
+	m.ComplexArg.Cell = nil
+	m.ComplexArg.Index = 0
 }
 
 func (m *Machine) writeArg(instr Instruction) Cell {
@@ -255,26 +255,26 @@ func (m *Machine) readArg(instr Instruction, arg Cell) (InstrAddr, error) {
 
 func (m *Machine) unifyArg(instr Instruction) (InstrAddr, error) {
 	defer func() {
-		m.ArgIndex++
-		switch c := m.Complex.(type) {
+		m.ComplexArg.Index++
+		switch c := m.ComplexArg.Cell.(type) {
 		case *Struct:
-			if m.ArgIndex >= len(c.Args) {
+			if m.ComplexArg.Index >= len(c.Args) {
 				m.resetMode()
 			}
 		case *Pair:
-			if m.ArgIndex >= 2 {
+			if m.ComplexArg.Index >= 2 {
 				m.resetMode()
 			}
 		}
 	}()
-	switch m.Mode {
+	switch m.ComplexArg.Mode {
 	case Write:
 		arg := m.writeArg(instr)
-		switch c := m.Complex.(type) {
+		switch c := m.ComplexArg.Cell.(type) {
 		case *Struct:
-			c.Args[m.ArgIndex] = arg
+			c.Args[m.ComplexArg.Index] = arg
 		case *Pair:
-			switch m.ArgIndex {
+			switch m.ComplexArg.Index {
 			case 0:
 				c.Head = arg
 			case 1:
@@ -284,11 +284,11 @@ func (m *Machine) unifyArg(instr Instruction) (InstrAddr, error) {
 		return m.CodePtr.inc(), nil
 	case Read:
 		var arg Cell
-		switch c := m.Complex.(type) {
+		switch c := m.ComplexArg.Cell.(type) {
 		case *Struct:
-			arg = c.Args[m.ArgIndex]
+			arg = c.Args[m.ComplexArg.Index]
 		case *Pair:
-			switch m.ArgIndex {
+			switch m.ComplexArg.Index {
 			case 0:
 				arg = c.Head
 			case 1:
@@ -297,7 +297,7 @@ func (m *Machine) unifyArg(instr Instruction) (InstrAddr, error) {
 		}
 		return m.readArg(instr, arg)
 	}
-	panic(fmt.Sprintf("unifyArg: invalid machine state: mode=%v, term=%v, index=%v", m.Mode, m.Complex, m.ArgIndex))
+	panic(fmt.Sprintf("unifyArg: invalid machine state: %v", m.ComplexArg))
 }
 
 func (m *Machine) readConstant(constant Constant, arg Cell) (InstrAddr, error) {

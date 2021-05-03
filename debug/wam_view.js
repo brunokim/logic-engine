@@ -108,13 +108,13 @@ export class Wam {
                     .append($("<td>").text(this.instructionAddress(state.Continuation))))
                 .append($("<tr>")
                     .append($("<td>").text("Mode"))
-                    .append($("<td>").text(state.Mode)))
+                    .append($("<td>").text(state.ComplexArg.Mode)))
                 .append($("<tr>")
                     .append($("<td>").text("Arg Index"))
-                    .append($("<td>").text(state.ArgIndex)))
+                    .append($("<td>").text(state.ComplexArg.Index)))
                 .append($("<tr>")
                     .append($("<td>").text("Complex Term"))
-                    .append($("<td>").text(state.Complex))))
+                    .append($("<td>").text(state.ComplexArg.Cell))))
     }
 
     tempVars(state = this.state()) {
