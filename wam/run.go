@@ -233,7 +233,7 @@ func (m *Machine) writeArg(instr Instruction) Cell {
 	panic(fmt.Sprintf("writeArg: unhandled instr type: %T (%v)", instr, instr))
 }
 
-func (m *Machine) readArg(instr Instruction, arg Cell) error {
+func (m *Machine) readArg(instr Instruction, arg Cell) (InstrAddr, error) {
 	switch instr := instr.(type) {
 	case UnifyVariable:
 		// Unify newly-seen cell, placing current arg in register.
@@ -244,18 +244,16 @@ func (m *Machine) readArg(instr Instruction, arg Cell) error {
 		return m.unify(cell, arg)
 	case UnifyConstant:
 		// Unify already-seen constant, unifying the address with the arg.
-		if err := m.readConstant(instr.Constant, arg); err != nil {
-			return err
-		}
+		return m.readConstant(instr.Constant, arg)
 	case UnifyVoid:
 		// Do nothing
 	default:
 		panic(fmt.Sprintf("readArg: unhandled instruction type %T (%v)", instr, instr))
 	}
-	return nil
+	return m.CodePtr.inc(), nil
 }
 
-func (m *Machine) unifyArg(instr Instruction) error {
+func (m *Machine) unifyArg(instr Instruction) (InstrAddr, error) {
 	defer func() {
 		m.ArgIndex++
 		switch c := m.Complex.(type) {
@@ -283,7 +281,7 @@ func (m *Machine) unifyArg(instr Instruction) error {
 				c.Tail = arg
 			}
 		}
-		return nil
+		return m.CodePtr.inc(), nil
 	case Read:
 		var arg Cell
 		switch c := m.Complex.(type) {
@@ -302,20 +300,20 @@ func (m *Machine) unifyArg(instr Instruction) error {
 	panic(fmt.Sprintf("unifyArg: invalid machine state: mode=%v, term=%v, index=%v", m.Mode, m.Complex, m.ArgIndex))
 }
 
-func (m *Machine) readConstant(constant Constant, arg Cell) error {
+func (m *Machine) readConstant(constant Constant, arg Cell) (InstrAddr, error) {
 	cell := deref(arg)
 	switch c := cell.(type) {
 	case Constant:
 		if c != constant {
-			return &unifyError{c, constant}
+			return m.backtrack(&unifyError{c, constant})
 		}
 	case *Ref:
 		c.Cell = constant
 		m.trail(c)
 	default:
-		return &unifyError{cell, constant}
+		return m.backtrack(&unifyError{cell, constant})
 	}
-	return nil
+	return m.CodePtr.inc(), nil
 }
 
 // ---- build objects
@@ -451,14 +449,10 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		m.set(instr.Addr, m.Reg[instr.ArgAddr])
 	case GetValue:
 		// Unify already-seen clause param with register value.
-		if err := m.unify(m.get(instr.Addr), m.get(instr.ArgAddr)); err != nil {
-			return m.backtrack(err)
-		}
+		return m.unify(m.get(instr.Addr), m.get(instr.ArgAddr))
 	case GetConstant:
 		// Expect a constant from register.
-		if err := m.readConstant(instr.Constant, m.get(instr.ArgAddr)); err != nil {
-			return m.backtrack(err)
-		}
+		return m.readConstant(instr.Constant, m.get(instr.ArgAddr))
 	case GetPair:
 		// Expect a pair from register.
 		cell := deref(m.get(instr.ArgAddr))
@@ -476,21 +470,13 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 			return m.backtrack(&unifyError{cell, &Pair{Tag: instr.Tag}})
 		}
 	case UnifyVariable:
-		if err := m.unifyArg(instr); err != nil {
-			return m.backtrack(err)
-		}
+		return m.unifyArg(instr)
 	case UnifyValue:
-		if err := m.unifyArg(instr); err != nil {
-			return m.backtrack(err)
-		}
+		return m.unifyArg(instr)
 	case UnifyConstant:
-		if err := m.unifyArg(instr); err != nil {
-			return m.backtrack(err)
-		}
+		return m.unifyArg(instr)
 	case UnifyVoid:
-		if err := m.unifyArg(instr); err != nil {
-			return m.backtrack(err)
-		}
+		return m.unifyArg(instr)
 	case Call:
 		// Save instruction pointer, and set it to clause location.
 		m.Continuation = m.CodePtr.inc()
@@ -651,9 +637,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		default:
 			return m.backtrack(fmt.Errorf("put_attr: invalid attribute"))
 		}
-		if err := m.unify(attr, cell); err != nil {
-			return m.backtrack(err)
-		}
+		return m.unify(attr, cell)
 	default:
 		panic(fmt.Sprintf("execute: unhandled instruction type %T (%v)", instr, instr))
 	}
@@ -764,7 +748,7 @@ func (err *unifyError) Error() string {
 
 // unify executes a depth-first traversal of cells, binding unbound refs to the other
 // cell, or comparing them for equality.
-func (m *Machine) unify(a1, a2 Cell) error {
+func (m *Machine) unify(a1, a2 Cell) (InstrAddr, error) {
 	stack := []Cell{a1, a2}
 	for len(stack) > 0 {
 		// Pop address pair from stack.
@@ -800,18 +784,18 @@ func (m *Machine) unify(a1, a2 Cell) error {
 			// If they are both constants, check that they are equal.
 			t2, ok := c2.(Constant)
 			if !(ok && t1 == t2) {
-				return &unifyError{c1, c2}
+				return m.backtrack(&unifyError{c1, c2})
 			}
 		case *Struct:
 			// Check if they are both struct cells.
 			t2, ok := c2.(*Struct)
 			if !ok {
-				return &unifyError{c1, c2}
+				return m.backtrack(&unifyError{c1, c2})
 			}
 			// Get the functors being pointed by the structs.
 			f1, f2 := t1.Functor(), t2.Functor()
 			if f1 != f2 {
-				return &unifyError{f1, f2}
+				return m.backtrack(&unifyError{f1, f2})
 			}
 			// Push addresses of args pair-wise onto stack.
 			for i := f1.Arity - 1; i >= 0; i-- {
@@ -821,12 +805,12 @@ func (m *Machine) unify(a1, a2 Cell) error {
 			// Check if they are the same type of pair cells.
 			t2, ok := c2.(*Pair)
 			if !(ok && t1.Tag == t2.Tag) {
-				return &unifyError{c1, c2}
+				return m.backtrack(&unifyError{c1, c2})
 			}
 			if t1.Tag == DictPair {
 				pairs, err := m.dictMatchingPairs(t1, t2)
 				if err != nil {
-					return err
+					return m.backtrack(err)
 				}
 				stack = append(stack, pairs...)
 			} else {
@@ -837,7 +821,7 @@ func (m *Machine) unify(a1, a2 Cell) error {
 			panic(fmt.Sprintf("wam.Machine.unify: unhandled type %T (%v)", c1, c1))
 		}
 	}
-	return nil
+	return m.CodePtr.inc(), nil
 }
 
 // Walks the list of (sorted) assocs from each dict, trying to match their keys.
