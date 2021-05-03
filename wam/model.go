@@ -481,17 +481,7 @@ func (ia InstrAddr) instr() Instruction {
 }
 
 func (ia InstrAddr) inc() InstrAddr {
-	return ia.jump(1)
-}
-
-func (ia InstrAddr) jump(n int) InstrAddr {
-	return InstrAddr{ia.Clause, ia.Pos + n}
-}
-
-func (ia InstrAddr) next(n int) []Instruction {
-	start := ia.Pos + 1
-	end := start + n
-	return ia.Clause.Code[start:end]
+	return InstrAddr{ia.Clause, ia.Pos + 1}
 }
 
 func (ia InstrAddr) fullString() string {
