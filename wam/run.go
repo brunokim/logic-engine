@@ -205,6 +205,7 @@ func (m *Machine) get(addr Addr) Cell {
 func (m *Machine) setMode(mode UnificationMode, cell Cell) {
 	m.ComplexArg.Mode = mode
 	m.ComplexArg.Cell = cell
+	m.ComplexArg.Index = 0
 }
 
 func (m *Machine) resetMode() {
@@ -534,16 +535,19 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		m.restoreFromChoicePoint()
 		m.ChoicePoint = m.ChoicePoint.Prev
 	case Try:
-		// Create a choice point, saving current machine state and pointing to next instruction. Jump execution to the instruction continuation.
+		// Create a choice point, saving current machine state and pointing to next instruction.
+		// Jump execution to the instruction continuation.
 		m.ChoicePoint = m.newChoicePoint(m.CodePtr.inc())
 		return instr.Continuation, nil
 	case Retry:
-		// Reset the machine state to latest choice point, and point to the next instruction. Jump execution to the instruction continuation.
+		// Reset the machine state to latest choice point, and point to the next instruction.
+		// Jump execution to the instruction continuation.
 		m.restoreFromChoicePoint()
 		m.ChoicePoint.NextAlternative = m.CodePtr.inc()
 		return instr.Continuation, nil
 	case Trust:
-		// Reset the machine state to latest choice point, and "deallocate" current choice point. Jump execution to the instruction continuation.
+		// Reset the machine state to latest choice point, and "deallocate" current choice point.
+		// Jump execution to the instruction continuation.
 		m.restoreFromChoicePoint()
 		m.ChoicePoint = m.ChoicePoint.Prev
 		return instr.Continuation, nil
