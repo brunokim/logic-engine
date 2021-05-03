@@ -40,8 +40,10 @@ export class Wam {
         $("#wam")
             .html("")
             .append(this.controls())
-            .append($("<div>").append(this.globalsTable()))
-            .append($("<div>").append(this.tempVarsTable(this.tempVars())))
+            .append($("<div>")
+                .addClass("machine-state")
+                .append(this.tempVarsTable(this.tempVars()))
+                .append(this.globalsTable()))
             .append(this.envStack())
             .append(this.choiceStack())
     }
@@ -103,7 +105,16 @@ export class Wam {
             .append($("<tbody>")
                 .append($("<tr>")
                     .append($("<td>").text("Continuation"))
-                    .append($("<td>").text(this.instructionAddress(state.Continuation)))))
+                    .append($("<td>").text(this.instructionAddress(state.Continuation))))
+                .append($("<tr>")
+                    .append($("<td>").text("Mode"))
+                    .append($("<td>").text(state.Mode)))
+                .append($("<tr>")
+                    .append($("<td>").text("Arg Index"))
+                    .append($("<td>").text(state.ArgIndex)))
+                .append($("<tr>")
+                    .append($("<td>").text("Complex Term"))
+                    .append($("<td>").text(state.Complex))))
     }
 
     tempVars(state = this.state()) {

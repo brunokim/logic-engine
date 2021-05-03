@@ -650,6 +650,16 @@ type ChoicePoint struct {
 	Continuation InstrAddr
 }
 
+// UnificationMode sets the machine mode for unifying complex terms' args.
+type UnificationMode int
+
+//go:generate stringer -type=UnificationMode --linecomment
+const (
+	NoUnificationMode UnificationMode = iota // none
+	Write                                    // write
+	Read                                     // read
+)
+
 // Machine represents an abstract machine state.
 type Machine struct {
 	// Instruction list. A query is represented by an empty functor.
@@ -663,6 +673,11 @@ type Machine struct {
 
 	// Temporary cell region. Should be max of all Clause.NumRegister's.
 	Reg []Cell
+
+	//
+	Mode     UnificationMode
+	Complex  Cell
+	ArgIndex int
 
 	// Latest environment.
 	Env *Env

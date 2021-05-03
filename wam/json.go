@@ -41,6 +41,10 @@ func (c *Pair) MarshalText() ([]byte, error) {
 	return []byte(c.String()), nil
 }
 
+func (t UnificationMode) MarshalText() ([]byte, error) {
+	return []byte(t.String()), nil
+}
+
 func (t PairTag) MarshalText() ([]byte, error) {
 	return []byte(t.String()), nil
 }
@@ -56,6 +60,9 @@ func (m *Machine) MarshalJSON() ([]byte, error) {
 		"CodePtr":      enc.instrAddr(m.CodePtr),
 		"Continuation": enc.instrAddr(m.Continuation),
 		"Reg":          m.Reg,
+		"Mode":         m.Mode,
+		"Complex":      m.Complex,
+		"ArgIndex":     m.ArgIndex,
 		"EnvPos":       enc.getEnvPos(m.Env),
 		"Envs":         enc.envs_(),
 		"ChoicePos":    enc.getChoicePos(m.ChoicePoint),

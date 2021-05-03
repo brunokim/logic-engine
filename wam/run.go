@@ -202,6 +202,17 @@ func (m *Machine) get(addr Addr) Cell {
 
 // ---- reading/writing complex terms
 
+func (m *Machine) setMode(mode UnificationMode, cell Cell) {
+	m.Mode = mode
+	m.Complex = cell
+}
+
+func (m *Machine) resetMode() {
+	m.Mode = NoUnificationMode
+	m.Complex = nil
+	m.ArgIndex = 0
+}
+
 func (m *Machine) writeArg(instr Instruction) Cell {
 	switch instr := instr.(type) {
 	case UnifyVariable:
@@ -220,17 +231,6 @@ func (m *Machine) writeArg(instr Instruction) Cell {
 		return m.newRef()
 	}
 	panic(fmt.Sprintf("writeArg: unhandled instr type: %T (%v)", instr, instr))
-}
-
-func (m *Machine) writeStructArgs(c *Struct, instrs []Instruction) {
-	for i, instr := range instrs {
-		c.Args[i] = m.writeArg(instr)
-	}
-}
-
-func (m *Machine) writePairArgs(c *Pair, instrs []Instruction) {
-	c.Head = m.writeArg(instrs[0])
-	c.Tail = m.writeArg(instrs[1])
 }
 
 func (m *Machine) readArg(instr Instruction, arg Cell) error {
@@ -255,6 +255,53 @@ func (m *Machine) readArg(instr Instruction, arg Cell) error {
 	return nil
 }
 
+func (m *Machine) unifyArg(instr Instruction) error {
+	defer func() {
+		m.ArgIndex++
+		switch c := m.Complex.(type) {
+		case *Struct:
+			if m.ArgIndex >= len(c.Args) {
+				m.resetMode()
+			}
+		case *Pair:
+			if m.ArgIndex >= 2 {
+				m.resetMode()
+			}
+		}
+	}()
+	switch m.Mode {
+	case Write:
+		arg := m.writeArg(instr)
+		switch c := m.Complex.(type) {
+		case *Struct:
+			c.Args[m.ArgIndex] = arg
+		case *Pair:
+			switch m.ArgIndex {
+			case 0:
+				c.Head = arg
+			case 1:
+				c.Tail = arg
+			}
+		}
+		return nil
+	case Read:
+		var arg Cell
+		switch c := m.Complex.(type) {
+		case *Struct:
+			arg = c.Args[m.ArgIndex]
+		case *Pair:
+			switch m.ArgIndex {
+			case 0:
+				arg = c.Head
+			case 1:
+				arg = c.Tail
+			}
+		}
+		return m.readArg(instr, arg)
+	}
+	panic(fmt.Sprintf("unifyArg: invalid machine state: mode=%v, term=%v, index=%v", m.Mode, m.Complex, m.ArgIndex))
+}
+
 func (m *Machine) readConstant(constant Constant, arg Cell) error {
 	cell := deref(arg)
 	switch c := cell.(type) {
@@ -267,25 +314,6 @@ func (m *Machine) readConstant(constant Constant, arg Cell) error {
 		m.trail(c)
 	default:
 		return &unifyError{cell, constant}
-	}
-	return nil
-}
-
-func (m *Machine) readStructArgs(c *Struct, instrs []Instruction) error {
-	for i, instr := range instrs {
-		if err := m.readArg(instr, c.Args[i]); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (m *Machine) readPairArgs(c *Pair, instrs []Instruction) error {
-	if err := m.readArg(instrs[0], c.Head); err != nil {
-		return err
-	}
-	if err := m.readArg(instrs[1], c.Tail); err != nil {
-		return err
 	}
 	return nil
 }
@@ -342,6 +370,7 @@ func (m *Machine) getAttribute(ref *Ref, name string) Cell {
 
 func (m *Machine) restoreFromChoicePoint() {
 	copy(m.Reg, m.ChoicePoint.Args)
+	m.resetMode()
 	m.Env = m.ChoicePoint.Env
 	m.Continuation = m.ChoicePoint.Continuation
 	m.unwindTrail()
@@ -380,10 +409,8 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 	case PutStruct:
 		// Place flattened struct (in post order) during query building.
 		f := makeStructFrom(instr.Functor)
-		n := instr.Functor.Arity
 		m.Reg[instr.ArgAddr] = f
-		m.writeStructArgs(f, m.CodePtr.next(n))
-		return m.CodePtr.jump(n + 1), nil
+		m.setMode(Write, f)
 	case PutVariable:
 		// Place newly-seen query argument as an unbound ref during query building.
 		x := m.newRef()
@@ -399,29 +426,23 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		// Put pair as argument in register.
 		l := &Pair{Tag: instr.Tag}
 		m.Reg[instr.ArgAddr] = l
-		m.writePairArgs(l, m.CodePtr.next(2))
-		return m.CodePtr.jump(3), nil
+		m.setMode(Write, l)
 	case GetStruct:
 		// Get flattened struct (in pre order) from register.
 		// If already a literal struct, will read another struct from the heap during unification.
 		// If a ref, will build the struct on the heap instead. In this case, it's necessary to
 		// bind the register address with the newly created heap address.
 		cell := deref(m.get(instr.ArgAddr))
-		n := instr.Functor.Arity
 		switch c := cell.(type) {
 		case *Struct:
 			if f := c.Functor(); f != instr.Functor {
 				return m.backtrack(&unifyError{f, instr.Functor})
 			}
-			if err := m.readStructArgs(c, m.CodePtr.next(n)); err != nil {
-				return m.backtrack(err)
-			}
-			return m.CodePtr.jump(n + 1), nil
+			m.setMode(Read, c)
 		case *Ref:
 			f := makeStructFrom(instr.Functor)
 			m.bind(c, f)
-			m.writeStructArgs(f, m.CodePtr.next(n))
-			return m.CodePtr.jump(n + 1), nil
+			m.setMode(Write, f)
 		default:
 			return m.backtrack(&unifyError{cell, instr.Functor})
 		}
@@ -446,17 +467,29 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 			if c.Tag != instr.Tag {
 				return m.backtrack(&unifyError{cell, &Pair{Tag: instr.Tag}})
 			}
-			if err := m.readPairArgs(c, m.CodePtr.next(2)); err != nil {
-				return m.backtrack(err)
-			}
-			return m.CodePtr.jump(3), nil
+			m.setMode(Read, c)
 		case *Ref:
 			l := &Pair{Tag: instr.Tag}
 			m.bind(c, l)
-			m.writePairArgs(l, m.CodePtr.next(2))
-			return m.CodePtr.jump(3), nil
+			m.setMode(Write, l)
 		default:
 			return m.backtrack(&unifyError{cell, &Pair{Tag: instr.Tag}})
+		}
+	case UnifyVariable:
+		if err := m.unifyArg(instr); err != nil {
+			return m.backtrack(err)
+		}
+	case UnifyValue:
+		if err := m.unifyArg(instr); err != nil {
+			return m.backtrack(err)
+		}
+	case UnifyConstant:
+		if err := m.unifyArg(instr); err != nil {
+			return m.backtrack(err)
+		}
+	case UnifyVoid:
+		if err := m.unifyArg(instr); err != nil {
+			return m.backtrack(err)
 		}
 	case Call:
 		// Save instruction pointer, and set it to clause location.
