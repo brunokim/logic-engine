@@ -148,7 +148,6 @@ export class Wam {
                     .append($("<td>").text("NewAttribute"))
                     .append($("<td>").text(frame.NewAttribute))))
     }
- 
 
     bindings(bindingList) {
         let tbody = $("<tbody>")

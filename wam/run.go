@@ -111,7 +111,7 @@ func (m *Machine) Run() error {
 		case Run:
 			exit, err = m.runCode(i)
 		case Unify:
-			exit, err = m.checkAttribute(i)
+			m.checkAttribute()
 		}
 		m.debugWrite(f, i)
 		if err != nil {
@@ -929,7 +929,7 @@ func attrsToSlice(as map[string]Cell) []Cell {
 	return attrs
 }
 
-func (m *Machine) checkAttribute(i int) (bool, error) {
+func (m *Machine) checkAttribute() {
 	frame := m.UnificationFrame
 	if frame.NewAttribute != nil {
 		// Returned from check_attributes/3, append new attribute to list.
@@ -956,7 +956,7 @@ func (m *Machine) checkAttribute(i int) (bool, error) {
 			}
 			m.Mode = Run
 			m.UnificationFrame = frame.Prev
-			return true, nil
+			return
 		}
 		// Look for attributed ref in remaining bindings.
 		for ; frame.Index < len(frame.Bindings); frame.Index++ {
@@ -978,11 +978,11 @@ func (m *Machine) checkAttribute(i int) (bool, error) {
 	m.CutChoice = m.ChoicePoint
 	instrAddr, err := m.call(Functor{"$check_attribute", 3})
 	if err != nil {
-		return false, err
+		// Should never happen.
+		panic(err)
 	}
 	m.CodePtr = instrAddr
 	m.Mode = Run
-	return false, nil
 }
 
 // ---- choicepoints
