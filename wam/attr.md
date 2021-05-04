@@ -340,4 +340,10 @@ unifications). We need to store the full state at these points to resume later.
 
 - Point #1, `attr.check`: curr x, curr value, remaining bindings, remaining attrs 
 - Point #2, `join_attr`: curr x, curr value, remaining bindings, remaining keys
-
+      ___
+     /   \ .---------------------------------------------.
+     \   v v                                             |
+    [Run #0]--->[PreUnify]--->[CheckAttr]--->[JoinAttr]--'
+        ^            |          |   ^           |  ^
+        '------------'          v   |           v  |
+                               [Run #1]       [Run #2]
