@@ -105,35 +105,42 @@ func (m *Machine) Run() error {
 	defer m.debugClose(f)
 	m.debugWrite(f, 0)
 	for ; i < m.IterLimit; i++ {
-		if m.Mode == Unify {
-			// TODO: check bindings for attributes.
-			m.Mode = Run
-		}
-		instr := m.CodePtr.instr()
-		if instr == nil {
-			return fmt.Errorf("invalid instruction @ clock %d (did you miss a proceed or deallocate at the end of a clause?)", i)
-		}
-		if _, ok := instr.(Halt); ok {
-			// Return normally when reaching Halt instruction.
-			break
-		}
-		select {
-		case <-m.interrupt:
-			return fmt.Errorf("interrupted @ clock %d", i)
-		default:
-		}
-		m.hasBacktracked = false
-		nextInstr, err := m.execute(instr)
+		exit, err := m.runCode(f, i)
 		if err != nil {
 			return err
 		}
-		m.CodePtr = nextInstr
-		m.debugWrite(f, i)
+		if exit {
+			break
+		}
 	}
 	if i >= m.IterLimit {
 		return fmt.Errorf("maximum iteration limit reached: %d", i)
 	}
 	return nil
+}
+
+func (m *Machine) runCode(f io.WriteCloser, i int) (bool, error) {
+	instr := m.CodePtr.instr()
+	if instr == nil {
+		return false, fmt.Errorf("invalid instruction @ clock %d (did you miss a proceed or deallocate at the end of a clause?)", i)
+	}
+	if _, ok := instr.(Halt); ok {
+		// Return normally when reaching Halt instruction.
+		return true, nil
+	}
+	select {
+	case <-m.interrupt:
+		return false, fmt.Errorf("interrupted @ clock %d", i)
+	default:
+	}
+	m.hasBacktracked = false
+	nextInstr, err := m.execute(instr)
+	if err != nil {
+		return false, err
+	}
+	m.CodePtr = nextInstr
+	m.debugWrite(f, i)
+	return false, nil
 }
 
 // ---- debugging
@@ -697,6 +704,20 @@ func bindOrder(c1, c2 Cell) (*Ref, Cell) {
 
 // ---- unification
 
+func bindingsToSlice(bs map[*Ref]Cell) []Binding {
+	bindings := make([]Binding, len(bs))
+	i := 0
+	for x, value := range bs {
+		bindings[i] = Binding{x, value}
+		i++
+	}
+	// Sort bindings by var age (older to newer).
+	sort.Slice(bindings, func(i, j int) bool {
+		return compareCells(bindings[i].Ref, bindings[j].Ref) == less
+	})
+	return bindings
+}
+
 func (m *Machine) preUnify(a1, a2 Cell) (InstrAddr, error) {
 	bindings, err := m.unifyBindings(a1, a2)
 	if err != nil {
@@ -710,17 +731,9 @@ func (m *Machine) preUnify(a1, a2 Cell) (InstrAddr, error) {
 	for x := range bindings {
 		x.Cell = nil
 	}
-	// Sort bindings by var age (older to newer).
-	bs := make([]Binding, len(bindings))
-	i := 0
-	for x, value := range bindings {
-		bs[i] = Binding{x, value}
-		i++
-	}
-	sort.Slice(bs, func(i, j int) bool { return compareCells(bs[i].x, bs[j].x) == less })
 	// Setup machine to check attributes.
 	m.Mode = Unify
-	m.PreUnifyBindings = bs
+	m.Bindings = bindingsToSlice(bindings)
 	return m.forward()
 }
 

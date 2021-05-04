@@ -672,10 +672,10 @@ type ComplexArg struct {
 	Index int
 }
 
-//
+// Binding is an entry of a value associated to a ref.
 type Binding struct {
-	x     *Ref
-	value Cell
+	Ref   *Ref
+	Value Cell
 }
 
 // Machine represents an abstract machine state.
@@ -718,7 +718,7 @@ type Machine struct {
 	LastRefID int
 
 	//
-	PreUnifyBindings []Binding
+	Bindings []Binding
 
 	// Attributes indexed by ref ID and attribute name.
 	attributes map[int]map[string]Cell
