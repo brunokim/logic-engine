@@ -242,7 +242,9 @@ func (m *Machine) readArg(instr Instruction, arg Cell) (InstrAddr, error) {
 	case UnifyValue:
 		// Unify already-seen cell, unifying the address with the arg.
 		cell := m.get(instr.Addr)
-		return m.unify(cell, arg)
+		if _, err := m.unify(cell, arg); err != nil {
+			return m.backtrack(err)
+		}
 	case UnifyConstant:
 		// Unify already-seen constant, unifying the address with the arg.
 		return m.readConstant(instr.Constant, arg)
@@ -450,7 +452,9 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		m.set(instr.Addr, m.Reg[instr.ArgAddr])
 	case GetValue:
 		// Unify already-seen clause param with register value.
-		return m.unify(m.get(instr.Addr), m.get(instr.ArgAddr))
+		if _, err := m.unify(m.get(instr.Addr), m.get(instr.ArgAddr)); err != nil {
+			return m.backtrack(err)
+		}
 	case GetConstant:
 		// Expect a constant from register.
 		return m.readConstant(instr.Constant, m.get(instr.ArgAddr))
@@ -641,7 +645,9 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		default:
 			return m.backtrack(fmt.Errorf("put_attr: invalid attribute"))
 		}
-		return m.unify(attr, cell)
+		if _, err := m.unify(attr, cell); err != nil {
+			return m.backtrack(err)
+		}
 	default:
 		panic(fmt.Sprintf("execute: unhandled instruction type %T (%v)", instr, instr))
 	}
@@ -662,35 +668,18 @@ func (m *Machine) backtrack(err error) (InstrAddr, error) {
 }
 
 // bind must be called with at least one unbound ref.
-func (m *Machine) bind(c1, c2 Cell) (InstrAddr, error) {
-	ref1, isRef1 := c1.(*Ref)
-	ref2, isRef2 := c2.(*Ref)
-	if isRef1 && isRef2 {
-		return m.bindRefs(ref1, ref2)
-	}
-	if isRef1 && ref1.Cell == nil {
-		if err := m.checkAttrs(ref1, c2); err != nil {
-			return m.backtrack(err)
-		}
-		ref1.Cell = c2
-		m.trail(ref1)
-		return m.forward()
-	}
-	if isRef2 && ref2.Cell == nil {
-		if err := m.checkAttrs(ref2, c1); err != nil {
-			return m.backtrack(err)
-		}
-		ref2.Cell = c1
-		m.trail(ref2)
-		return m.forward()
-	}
-	panic(fmt.Sprintf("bind(%v, %v): no unbound refs", c1, c2))
+func (m *Machine) bind(c1, c2 Cell) {
+	m.bindRef(bindOrder(c1, c2))
 }
 
-func (m *Machine) bindRefs(ref1, ref2 *Ref) (InstrAddr, error) {
-	if !(ref1.Cell == nil && ref2.Cell == nil) {
-		panic(fmt.Sprintf("bind(%v, %v): bound ref in bind", ref1, ref2))
-	}
+func (m *Machine) bindRef(x *Ref, cell Cell) {
+	x.Cell = cell
+	m.trail(x)
+}
+
+func bindOrder(c1, c2 Cell) (*Ref, Cell) {
+	ref1, isRef1 := c1.(*Ref)
+	ref2, isRef2 := c2.(*Ref)
 	// Safety measure: always bind newer variables (larger id) to older
 	// variables (smaller id).
 	// This is "WAM Binding Rule 1", but shouldn't be necessary in our
@@ -698,50 +687,13 @@ func (m *Machine) bindRefs(ref1, ref2 *Ref) (InstrAddr, error) {
 	// one, as there's no heap to manage.
 	// Still, establishing an order may prevent reference loops in Refs,
 	// and is a very cheap check.
-	if ref1.id < ref2.id {
-		ref1, ref2 = ref2, ref1
+	if isRef1 && ref1.Cell == nil && (!isRef2 || ref2.id < ref1.id) {
+		return ref1, c2
 	}
-	attrs1, hasAttrs1 := m.attributes[ref1.id]
-	attrs2, hasAttrs2 := m.attributes[ref2.id]
-	if hasAttrs1 || hasAttrs2 {
-		if !hasAttrs1 {
-			attrs1 = map[string]Cell{}
-		}
-		if !hasAttrs2 {
-			attrs2 = map[string]Cell{}
-		}
-		for name, attr := range attrs1 {
-			if _, ok := attrs2[name]; ok {
-				// Join attribute present in both vars.
-				m.Reg[0] = WAtom(name)
-				m.Reg[1] = ref1
-				m.Reg[2] = ref2
-				// TODO: somehow, call join_attribute(name, X1, X2).
-			} else {
-				// Copy ref1's exclusive attribute to ref2.
-				m.setAttribute(ref2, name, attr)
-			}
-		}
+	if isRef2 && ref2.Cell == nil {
+		return ref2, c1
 	}
-	ref1.Cell = ref2
-	m.trail(ref1)
-	return m.forward()
-}
-
-func (m *Machine) checkAttrs(ref *Ref, value Cell) error {
-	attrs, ok := m.attributes[ref.id]
-	if !ok {
-		return nil
-	}
-	for name, attr := range attrs {
-		newAttr := m.newRef()
-		m.Reg[0] = attr
-		m.Reg[1] = value
-		m.Reg[2] = newAttr
-		// TODO: somehow, call check_attribute(Attr, Value, NewAttr).
-		m.setAttribute(ref, name, deref(newAttr))
-	}
-	return nil
+	panic(fmt.Sprintf("bind(%v, %v): no unbound refs", c1, c2))
 }
 
 // ---- unification
@@ -754,23 +706,31 @@ func (err *unifyError) Error() string {
 	return fmt.Sprintf("%v != %v", err.c1, err.c2)
 }
 
-// unify executes a depth-first traversal of cells, binding unbound refs to the other
-// cell, or comparing them for equality.
-func (m *Machine) unify(a1, a2 Cell) (InstrAddr, error) {
-	stack := []Cell{a1, a2}
-	for len(stack) > 0 {
-		// Pop address pair from stack.
-		n := len(stack)
-		a1, a2 := stack[n-2], stack[n-1]
-		stack = stack[:n-2]
-		if err := m.unifyStep(a1, a2, &stack); err != nil {
-			return m.backtrack(err)
-		}
-	}
-	return m.forward()
+type unifyCtx struct {
+	stack    []Cell
+	bindings map[*Ref]Cell
 }
 
-func (m *Machine) unifyStep(a1, a2 Cell, stack *[]Cell) error {
+// unify executes a depth-first traversal of cells, binding unbound refs to the other
+// cell, or comparing them for equality.
+func (m *Machine) unify(a1, a2 Cell) (map[*Ref]Cell, error) {
+	ctx := &unifyCtx{
+		stack:    []Cell{a1, a2},
+		bindings: make(map[*Ref]Cell),
+	}
+	for len(ctx.stack) > 0 {
+		// Pop address pair from stack.
+		n := len(ctx.stack)
+		a1, a2 := ctx.stack[n-2], ctx.stack[n-1]
+		ctx.stack = ctx.stack[:n-2]
+		if err := m.unifyStep(ctx, a1, a2); err != nil {
+			return nil, err
+		}
+	}
+	return ctx.bindings, nil
+}
+
+func (m *Machine) unifyStep(ctx *unifyCtx, a1, a2 Cell) error {
 	// Deref cells and compare them.
 	c1, c2 := deref(a1), deref(a2)
 	if c1 == c2 {
@@ -781,7 +741,9 @@ func (m *Machine) unifyStep(a1, a2 Cell, stack *[]Cell) error {
 	_, isRef2 := c2.(*Ref)
 	if isRef1 || isRef2 {
 		// Some of them is a ref. Bind them.
-		m.bind(c1, c2)
+		x, cell := bindOrder(c1, c2)
+		m.bindRef(x, cell)
+		ctx.bindings[x] = cell
 		return nil
 	}
 	// Special case: '{}' unifies with any dict.
@@ -816,7 +778,7 @@ func (m *Machine) unifyStep(a1, a2 Cell, stack *[]Cell) error {
 		}
 		// Push addresses of args pair-wise onto stack.
 		for i := f1.Arity - 1; i >= 0; i-- {
-			*stack = append(*stack, t1.Args[i], t2.Args[i])
+			ctx.stack = append(ctx.stack, t1.Args[i], t2.Args[i])
 		}
 		return nil
 	case *Pair:
@@ -830,10 +792,10 @@ func (m *Machine) unifyStep(a1, a2 Cell, stack *[]Cell) error {
 			if err != nil {
 				return err
 			}
-			*stack = append(*stack, pairs...)
+			ctx.stack = append(ctx.stack, pairs...)
 		} else {
 			// Assocs, Lists: compare heads and tails.
-			*stack = append(*stack, t1.Tail, t2.Tail, t1.Head, t2.Head)
+			ctx.stack = append(ctx.stack, t1.Tail, t2.Tail, t1.Head, t2.Head)
 		}
 		return nil
 	default:
