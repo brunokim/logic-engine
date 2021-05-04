@@ -105,7 +105,14 @@ func (m *Machine) Run() error {
 	defer m.debugClose(f)
 	m.debugWrite(f, 0)
 	for ; i < m.IterLimit; i++ {
-		exit, err := m.runCode(f, i)
+		var exit bool
+		var err error
+		switch m.Mode {
+		case Run:
+			exit, err = m.runCode(f, i)
+		case Unify:
+			exit, err = m.checkAttribute(f, i)
+		}
 		if err != nil {
 			return err
 		}
@@ -733,7 +740,10 @@ func (m *Machine) preUnify(a1, a2 Cell) (InstrAddr, error) {
 	}
 	// Setup machine to check attributes.
 	m.Mode = Unify
-	m.Bindings = bindingsToSlice(bindings)
+	m.Unif = &UnificationFrame{
+		Prev:     m.Unif,
+		Bindings: bindingsToSlice(bindings),
+	}
 	return m.forward()
 }
 
@@ -898,6 +908,75 @@ func (m *Machine) dictMatchingPairs(d1, d2 *Pair) ([]Cell, error) {
 		cells = append(cells, match.left, match.right)
 	}
 	return cells, nil
+}
+
+func attrsToSlice(as map[string]Cell) []Cell {
+	attrs := make([]Cell, len(as))
+	i := 0
+	for _, attr := range as {
+		attrs[i] = attr
+		i++
+	}
+	sort.Slice(attrs, func(i, j int) bool {
+		return attrs[i].(*Struct).Name < attrs[j].(*Struct).Name
+	})
+	return attrs
+}
+
+func (m *Machine) checkAttribute(f io.WriteCloser, i int) (bool, error) {
+	frame := m.Unif
+	defer m.debugWrite(f, i)
+	// Just returned from check_attribute: append new attr to list.
+	if frame.NewAttribute != nil {
+		attr := deref(frame.NewAttribute)
+		frame.NewAttributes = append(frame.NewAttributes, attr)
+		frame.NewAttribute = nil
+	}
+	// Attribute still to be checked.
+	if len(frame.Attributes) > 0 {
+		attr := frame.Attributes[0]
+		frame.Attributes = frame.Attributes[1:]
+		frame.NewAttribute = m.newRef()
+		m.Reg[0] = attr
+		m.Reg[1] = frame.Bindings[frame.Index].Value
+		m.Reg[2] = frame.NewAttribute
+		m.Continuation = m.CodePtr
+		m.CutChoice = m.ChoicePoint
+		instrAddr, err := m.call(Functor{"check_attribute", 3})
+		if err != nil {
+			return false, err
+		}
+		m.CodePtr = instrAddr
+		m.Mode = Run
+		return false, nil
+	}
+	// Attribute list was exhausted, populate new attributes of the ref.
+	ref := frame.Bindings[frame.Index].Ref
+	for _, attr := range frame.NewAttributes {
+		name := attr.(*Struct).Name
+		m.attributes[ref.id][name] = attr
+	}
+	frame.NewAttributes = nil
+	// Look for attributed ref.
+	for ; frame.Index < len(frame.Bindings); frame.Index++ {
+		binding := frame.Bindings[frame.Index]
+		if attrs, ok := m.attributes[binding.Ref.id]; ok {
+			frame.Attributes = attrsToSlice(attrs)
+			break
+		}
+	}
+	// There is an attributed ref: keep in Unify mode to check first attribute.
+	if frame.Index < len(frame.Bindings) {
+		return false, nil
+	}
+	// Bindings has been exhausted: restore bindings and return to run code.
+	for _, binding := range frame.Bindings {
+		ref, cell := binding.Ref, binding.Value
+		ref.Cell = cell
+	}
+	m.Mode = Run
+	m.Unif = frame.Prev
+	return true, nil
 }
 
 // ---- choicepoints

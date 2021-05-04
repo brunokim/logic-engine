@@ -41,6 +41,10 @@ func (c *Pair) MarshalText() ([]byte, error) {
 	return []byte(c.String()), nil
 }
 
+func (t ExecutionMode) MarshalText() ([]byte, error) {
+	return []byte(t.String()), nil
+}
+
 func (t UnificationMode) MarshalText() ([]byte, error) {
 	return []byte(t.String()), nil
 }
@@ -56,11 +60,13 @@ func (m *Machine) MarshalJSON() ([]byte, error) {
 		clauses = enc.clauses_()
 	}
 	obj := map[string]interface{}{
+		"Mode":         m.Mode,
 		"Clauses":      clauses,
 		"CodePtr":      enc.instrAddr(m.CodePtr),
 		"Continuation": enc.instrAddr(m.Continuation),
 		"Reg":          m.Reg,
 		"ComplexArg":   m.ComplexArg,
+		"UnifFrames":   enc.unifFrames_(),
 		"EnvPos":       enc.getEnvPos(m.Env),
 		"Envs":         enc.envs_(),
 		"ChoicePos":    enc.getChoicePos(m.ChoicePoint),
@@ -73,12 +79,13 @@ func (m *Machine) MarshalJSON() ([]byte, error) {
 }
 
 type machineEncoder struct {
-	clausePos map[*Clause]int
-	envPos    map[*Env]int
-	choicePos map[*ChoicePoint]int
-	clauses   []*Clause
-	envs      []*Env
-	choices   []*ChoicePoint
+	clausePos  map[*Clause]int
+	envPos     map[*Env]int
+	choicePos  map[*ChoicePoint]int
+	clauses    []*Clause
+	envs       []*Env
+	choices    []*ChoicePoint
+	unifFrames []*UnificationFrame
 }
 
 func newMachineEncoder(m *Machine) *machineEncoder {
@@ -116,6 +123,14 @@ func newMachineEncoder(m *Machine) *machineEncoder {
 	for env, i := range enc.envPos {
 		enc.envs[i] = env
 	}
+	// Unification frames
+	var frames []*UnificationFrame
+	frame := m.Unif
+	for frame != nil {
+		frames = append(frames, frame)
+		frame = frame.Prev
+	}
+	enc.unifFrames = frames
 	m.encoder = enc
 	return enc
 }
@@ -315,6 +330,18 @@ func (enc *machineEncoder) choices_() []interface{} {
 			"EnvPos":          enc.getEnvPos(choice.Env),
 			"CutChoicePos":    enc.getChoicePos(choice.CutChoice),
 			"Continuation":    enc.instrAddr(choice.Continuation),
+		}
+	}
+	return s
+}
+
+func (enc *machineEncoder) unifFrames_() []interface{} {
+	s := make([]interface{}, len(enc.unifFrames))
+	for i, frame := range enc.unifFrames {
+		s[i] = map[string]interface{}{
+			"Bindings":      frame.Bindings,
+			"Attributes":    frame.Attributes,
+			"NewAttributes": frame.NewAttributes,
 		}
 	}
 	return s

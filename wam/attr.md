@@ -38,13 +38,13 @@ its behavior.
                 % Otherwise, check that Value is part of X's domain.
                 member(Dom1, Value)),
             true).
-   
+
     % Overlapping domains: X and Y are still unbound, but with associated attributes.
     ?- put_atts(X, domain([1, 2, 3])),
         put_atts(Y, domain([2, 3, 4])),
         X = Y.
     X = Y, put_atts(Y, domain([2, 3])).
-    
+
     % |intersection| = 1: X and Y are bound to the unique value in intersection.
     ?- put_atts(X, domain([1, 2, 3])),
         put_atts(Y, domain([3, 4, 5])),
@@ -115,7 +115,7 @@ the first arg indexing and implementing `join_attribute/3` and `check_attribute/
         if(Dom = [Value],
             Y = Value,                 % <<<NOTE
             put_atts(Y, domain(Dom))).
-        
+
     check_attribute(domain(Dom), Value, domain(Dom)) :-
         member(Dom, Value).
 
@@ -338,12 +338,90 @@ The points marked as "yield to runtime" are the points where user-defined code
 may be called, that require a complete runtime and stack (and potentially other
 unifications). We need to store the full state at these points to resume later.
 
-- Point #1, `attr.check`: curr x, curr value, remaining bindings, remaining attrs 
+- Point #1, `attr.check`: curr x, curr value, remaining bindings, remaining attrs
 - Point #2, `join_attr`: curr x, curr value, remaining bindings, remaining keys
+
       ___
      /   \ .---------------------------------------------.
      \   v v                                             |
     [Run #0]--->[PreUnify]--->[CheckAttr]--->[JoinAttr]--'
-        ^            |          |   ^           |  ^
-        '------------'          v   |           v  |
+        ^            |           |  ^           |  ^
+        '------------'           v  |           v  |
                                [Run #1]       [Run #2]
+                                  |              |
+                                  :              :
+
+    unification          bindings                          unification env
+       X = Y    --> [_X1:a, _X2:10, ...] --> {[_X2:10, ...], _X1, a, [attr1,attr2,attr3], []}
+
+    if first:
+        x, value = pop bindings
+        attrs = x.attrs
+        pop attr
+        check attr
+    if returned from check_attribute:
+        pop env
+        if new attr:
+            push new attr
+        if attrs:
+            pop attr
+            check attr ------------> call check_attribute(Attr, Value, NewAttr)
+        else:
+            set new attrs for x
+            if bindings:
+                x, value = pop bindings
+                attrs = x.attrs
+                pop attr
+                check attr
+            else:
+                finish unification
+
+    {[_X1:a, _X2:10, _X3:f(X)], nil,  nil,           [],           [], nil}
+    {       [_X2:10, _X3:f(X)], _X1,    a, [A1, A2, A3],           [], nil} % get_attr(_X1, [A1, A2, A3])
+    {       [_X2:10, _X3:f(X)], _X1,    a,     [A2, A3],           [],  B1}, check_attribute(A1, a, B1)
+    {       [_X2:10, _X3:f(X)], _X1,    a,     [A2, A3],           [],  B1}
+    {       [_X2:10, _X3:f(X)], _X1,    a,     [A2, A3],         [B1], nil}
+    {       [_X2:10, _X3:f(X)], _X1,    a,         [A3],         [B1],  B2}, check_attribute(A2, a, B2)
+    {       [_X2:10, _X3:f(X)], _X1,    a,         [A3],         [B1],  B2}
+    {       [_X2:10, _X3:f(X)], _X1,    a,         [A3],     [B1, B2], nil}
+    {       [_X2:10, _X3:f(X)], _X1,    a,           [],     [B1, B2],  B3}, check_attribute(A3, a, B3)
+    {       [_X2:10, _X3:f(X)], _X1,    a,           [],     [B1, B2],  B3}
+    {       [_X2:10, _X3:f(X)], _X1,    a,           [], [B1, B2, B3], nil}
+    {       [_X2:10, _X3:f(X)], nil,  nil,           [],           [], nil} % put_attr(_X1, [B1, B2, B3])
+    {               [_X3:f(X)], _X2,   10,     [C1, C2],           [], nil}
+    {               [_X3:f(X)], _X2,   10,         [C2],           [],  D1}, check_attribute(C1, 10, D1)
+    {               [_X3:f(X)], _X2,   10,         [C2],           [],  D1}
+    {               [_X3:f(X)], _X2,   10,         [C2],         [D1], nil}
+    {               [_X3:f(X)], _X2,   10,           [],         [D1],  D2}, check_attribute(C2, 10, D2)
+    {               [_X3:f(X)], _X2,   10,           [],         [D1],  D2}
+    {               [_X3:f(X)], _X2,   10,           [],     [D1, D2], nil}
+    {               [_X3:f(X)], nil,  nil,           [],           [], nil} % put_attr(_X2, [D1, D2])
+    {                       [], _X3, f(X),         [E1],           [], nil}
+    {                       [], _X3, f(X),           [],           [],  F1}, check_attribute(E1, f(X), F1)
+    {                       [], _X3, f(X),           [],           [],  F1}
+    {                       [], _X3, f(X),           [],         [F1], nil}
+    {                       [], nil,  nil,           [],           [], nil} % put_attr(_X3, [F1])
+
+    bind
+    _X1 = a
+    _X2 = 10
+    _X3 = f(X)
+
+How to check if we just returned from `check_attribute`? How to prevent code being
+run as part of a `check_attribute` from considering the existing unification frame "valid"?
+
+- We can use a special instruction for `check_attribute` last call (i.e., not "proceed")
+- We can make the unification frame an environment frame, and immediately allocate another over it.
+
+    my_code/3: 41) get_value X1, X4  % unification of two values
+    
+    m.Continuation = {my_code/3, 41}
+    m.call(check_attribute_shim/0)
+
+    check_attribute_shim
+
+        allocate 0
+        % store stuff in environment %
+        call check_attribute/3
+        deallocate
+

@@ -640,6 +640,15 @@ type ChoicePoint struct {
 	Continuation InstrAddr
 }
 
+type UnificationFrame struct {
+	Prev          *UnificationFrame
+	Bindings      []Binding
+	Index         int
+	Attributes    []Cell
+	NewAttributes []Cell
+	NewAttribute  Cell
+}
+
 // ExecutionMode sets the machine mode between running code or unifying.
 type ExecutionMode int
 
@@ -698,6 +707,8 @@ type Machine struct {
 	// State for a complex term unification, that is accomplished over several
 	// instructions.
 	ComplexArg ComplexArg
+
+	Unif *UnificationFrame
 
 	// Latest environment.
 	Env *Env

@@ -1160,11 +1160,25 @@ func TestUnifyDicts(t *testing.T) {
 func TestAttribute(t *testing.T) {
 	m := wam.NewMachine()
 
+	// check_attribute(domain(Min, Max), Value, domain(Min, Max)).
+	clauses, err := wam.CompileClauses([]*logic.Clause{
+		dsl.Clause(comp("check_attribute",
+			comp("range", var_("Min"), var_("Max")),
+			var_("Value"),
+			comp("range", var_("Min"), var_("Max")))),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, clause := range clauses {
+		m.AddClause(clause)
+	}
+
 	// query :-
 	//   put_attr(X, range(1, 5)),
 	//   put_attr(Y, range(3, 9)),
 	//   X = Y,
-	//   get_attr(X, range(Min, Max)).
+	//   get_attr(Y, range(Min, Max)).
 	m.AddClause(&wam.Clause{Functor: functor{"", 0},
 		NumRegisters: 6,
 		Code: []wam.Instruction{
@@ -1186,11 +1200,11 @@ func TestAttribute(t *testing.T) {
 			// X = Y
 			get_value{reg(4), reg(5)},
 			//
-			put_value{reg(4), reg(0)},
+			put_value{reg(5), reg(0)},
 			put_struct{functor{"range", 2}, reg(1)},
 			unify_variable{reg(2)}, // Min = X2
 			unify_variable{reg(3)}, // Max = X3
-			// get_attr(X, range(Min, Max))
+			// get_attr(Y, range(Min, Max))
 			get_attr{reg(0), reg(1)},
 			halt{},
 		},
