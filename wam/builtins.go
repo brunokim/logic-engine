@@ -23,6 +23,7 @@ func init() {
 	for _, pred := range unicodePredicates {
 		builtins = append(builtins, builtinUnicodePredicate(pred))
 	}
+	builtins = append(builtins, comparisons...)
 }
 
 var (
@@ -41,6 +42,13 @@ var (
 			Deallocate{},
 			endCheckAttribute{},
 		},
+	}
+	comparisons = []*Clause{
+		&Clause{Functor{"<", 2}, 2, []Instruction{Builtin{"<", lt}, Proceed{}}},
+		&Clause{Functor{"=<", 2}, 2, []Instruction{Builtin{"=<", le}, Proceed{}}},
+		&Clause{Functor{"==", 2}, 2, []Instruction{Builtin{"==", eq}, Proceed{}}},
+		&Clause{Functor{">", 2}, 2, []Instruction{Builtin{">", gt}, Proceed{}}},
+		&Clause{Functor{">=", 2}, 2, []Instruction{Builtin{">=", ge}, Proceed{}}},
 	}
 	fail     = &Clause{Functor{"fail", 0}, 0, []Instruction{Fail{}}}
 	preamble = []*logic.Clause{
@@ -87,6 +95,8 @@ func initCalls() []*Clause {
 	}
 	return calls
 }
+
+// ---- unicode predicates
 
 type unicodePredicate struct {
 	functor Functor
@@ -165,4 +175,46 @@ func makeUnicodeIterator(pred unicodePredicate, clause *Clause) func(*Machine) e
 		pos++
 		return nil
 	}
+}
+
+// ---- comparisons
+
+func lt(m *Machine) error {
+	x1, x2 := deref(m.Reg[0]), deref(m.Reg[1])
+	if o := compareCells(x1, x2); o != less {
+		return fmt.Errorf("</2: %v < %v is false", x1, x2)
+	}
+	return nil
+}
+
+func le(m *Machine) error {
+	x1, x2 := deref(m.Reg[0]), deref(m.Reg[1])
+	if o := compareCells(x1, x2); !(o == less || o == equal) {
+		return fmt.Errorf("=</2: %v =< %v is false", x1, x2)
+	}
+	return nil
+}
+
+func gt(m *Machine) error {
+	x1, x2 := deref(m.Reg[0]), deref(m.Reg[1])
+	if o := compareCells(x1, x2); o != more {
+		return fmt.Errorf(">/2: %v > %v is false", x1, x2)
+	}
+	return nil
+}
+
+func ge(m *Machine) error {
+	x1, x2 := deref(m.Reg[0]), deref(m.Reg[1])
+	if o := compareCells(x1, x2); !(o == more || o == equal) {
+		return fmt.Errorf(">=/2: %v >= %v is false", x1, x2)
+	}
+	return nil
+}
+
+func eq(m *Machine) error {
+	x1, x2 := deref(m.Reg[0]), deref(m.Reg[1])
+	if o := compareCells(x1, x2); o != equal {
+		return fmt.Errorf("==/2: %v == %v is false", x1, x2)
+	}
+	return nil
 }

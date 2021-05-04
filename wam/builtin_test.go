@@ -26,3 +26,20 @@ func TestUnicode(t *testing.T) {
 	t.Logf("%v", err)
 	t.Logf("%q", digits)
 }
+
+func TestComparison(t *testing.T) {
+	m := wam.NewMachine()
+	m.DebugFilename = "debugtest/builtin-comparison.jsonl"
+	solution, err := m.RunQuery(
+		comp("<", int_(1), int_(2)),
+		comp("=<", int_(1), int_(2)),
+		comp("=<", int_(2), int_(2)),
+		comp(">", int_(2), int_(1)),
+		comp(">=", int_(2), int_(1)),
+		comp(">=", int_(2), int_(2)),
+		comp("==", int_(2), int_(2)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(solution)
+}
