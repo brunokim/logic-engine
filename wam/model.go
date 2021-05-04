@@ -640,6 +640,15 @@ type ChoicePoint struct {
 	Continuation InstrAddr
 }
 
+// ExecutionMode sets the machine mode between running code or unifying.
+type ExecutionMode int
+
+//go:generate stringer -type=ExecutionMode --linecomment
+const (
+	Run   ExecutionMode = iota // run
+	Unify                      // unify
+)
+
 // UnificationMode sets the machine mode for unifying complex terms' args.
 type UnificationMode int
 
@@ -663,8 +672,17 @@ type ComplexArg struct {
 	Index int
 }
 
+//
+type Binding struct {
+	x     *Ref
+	value Cell
+}
+
 // Machine represents an abstract machine state.
 type Machine struct {
+	//
+	Mode ExecutionMode
+
 	// Instruction list. A query is represented by an empty functor.
 	Code map[Functor]*Clause
 
@@ -698,6 +716,9 @@ type Machine struct {
 
 	// Incrementing ID to identify generated variables.
 	LastRefID int
+
+	//
+	PreUnifyBindings []Binding
 
 	// Attributes indexed by ref ID and attribute name.
 	attributes map[int]map[string]Cell

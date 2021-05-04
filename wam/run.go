@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 
 	"github.com/brunokim/logic-engine/logic"
@@ -104,6 +105,10 @@ func (m *Machine) Run() error {
 	defer m.debugClose(f)
 	m.debugWrite(f, 0)
 	for ; i < m.IterLimit; i++ {
+		if m.Mode == Unify {
+			// TODO: check bindings for attributes.
+			m.Mode = Run
+		}
 		instr := m.CodePtr.instr()
 		if instr == nil {
 			return fmt.Errorf("invalid instruction @ clock %d (did you miss a proceed or deallocate at the end of a clause?)", i)
@@ -242,9 +247,7 @@ func (m *Machine) readArg(instr Instruction, arg Cell) (InstrAddr, error) {
 	case UnifyValue:
 		// Unify already-seen cell, unifying the address with the arg.
 		cell := m.get(instr.Addr)
-		if _, err := m.unify(cell, arg); err != nil {
-			return m.backtrack(err)
-		}
+		return m.preUnify(cell, arg)
 	case UnifyConstant:
 		// Unify already-seen constant, unifying the address with the arg.
 		return m.readConstant(instr.Constant, arg)
@@ -452,9 +455,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		m.set(instr.Addr, m.Reg[instr.ArgAddr])
 	case GetValue:
 		// Unify already-seen clause param with register value.
-		if _, err := m.unify(m.get(instr.Addr), m.get(instr.ArgAddr)); err != nil {
-			return m.backtrack(err)
-		}
+		return m.preUnify(m.get(instr.Addr), m.get(instr.ArgAddr))
 	case GetConstant:
 		// Expect a constant from register.
 		return m.readConstant(instr.Constant, m.get(instr.ArgAddr))
@@ -645,9 +646,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		default:
 			return m.backtrack(fmt.Errorf("put_attr: invalid attribute"))
 		}
-		if _, err := m.unify(attr, cell); err != nil {
-			return m.backtrack(err)
-		}
+		return m.preUnify(attr, cell)
 	default:
 		panic(fmt.Sprintf("execute: unhandled instruction type %T (%v)", instr, instr))
 	}
@@ -698,6 +697,33 @@ func bindOrder(c1, c2 Cell) (*Ref, Cell) {
 
 // ---- unification
 
+func (m *Machine) preUnify(a1, a2 Cell) (InstrAddr, error) {
+	bindings, err := m.unifyBindings(a1, a2)
+	if err != nil {
+		return m.backtrack(err)
+	}
+	// Early exit if there's no attributes to check.
+	if bindings == nil {
+		return m.forward()
+	}
+	// Undo bindings.
+	for x := range bindings {
+		x.Cell = nil
+	}
+	// Sort bindings by var age (older to newer).
+	bs := make([]Binding, len(bindings))
+	i := 0
+	for x, value := range bindings {
+		bs[i] = Binding{x, value}
+		i++
+	}
+	sort.Slice(bs, func(i, j int) bool { return compareCells(bs[i].x, bs[j].x) == less })
+	// Setup machine to check attributes.
+	m.Mode = Unify
+	m.PreUnifyBindings = bs
+	return m.forward()
+}
+
 type unifyError struct {
 	c1, c2 interface{}
 }
@@ -709,15 +735,18 @@ func (err *unifyError) Error() string {
 type unifyCtx struct {
 	stack    []Cell
 	bindings map[*Ref]Cell
+	anyAttr  bool
 }
 
 // unify executes a depth-first traversal of cells, binding unbound refs to the other
 // cell, or comparing them for equality.
-func (m *Machine) unify(a1, a2 Cell) (map[*Ref]Cell, error) {
+func (m *Machine) unifyBindings(a1, a2 Cell) (map[*Ref]Cell, error) {
 	ctx := &unifyCtx{
 		stack:    []Cell{a1, a2},
 		bindings: make(map[*Ref]Cell),
+		anyAttr:  false,
 	}
+	// Collect bindings.
 	for len(ctx.stack) > 0 {
 		// Pop address pair from stack.
 		n := len(ctx.stack)
@@ -726,6 +755,10 @@ func (m *Machine) unify(a1, a2 Cell) (map[*Ref]Cell, error) {
 		if err := m.unifyStep(ctx, a1, a2); err != nil {
 			return nil, err
 		}
+	}
+	// Early exit if there's no attributes to check.
+	if !ctx.anyAttr {
+		return nil, nil
 	}
 	return ctx.bindings, nil
 }
@@ -744,6 +777,9 @@ func (m *Machine) unifyStep(ctx *unifyCtx, a1, a2 Cell) error {
 		x, cell := bindOrder(c1, c2)
 		m.bindRef(x, cell)
 		ctx.bindings[x] = cell
+		if _, ok := m.attributes[x.id]; ok {
+			ctx.anyAttr = true
+		}
 		return nil
 	}
 	// Special case: '{}' unifies with any dict.
