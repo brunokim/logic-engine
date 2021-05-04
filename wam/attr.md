@@ -289,3 +289,55 @@ code within a unification.
 - The unification stack of term pairs to be matched;
 - The complex term unification state;
 - The continuation, like a regular function call;
+
+A complication is that an unification may bind several variables, and each variable may
+have several attributes associated, where each one might fail. We need to process all of
+them *before* binding variables.
+
+    def unify(self, a, b):
+        # Recursively walk structures, annotating bindings
+        stack = [a, b]
+        bindings = {}
+        while stack:
+            a, b, *stack = stack
+            stack0, bindings0 = self.unify_step(a, b)
+            stack.extend(stack0)
+            bindings.update(bindings0)
+
+        # Remove bindings
+        for x in bindings:
+            del(self.bindings, x)
+
+        # Check bindings. TODO: think about traversal order.
+        for x, value in bindings.items():
+            attrs = self.attributes[x]
+            if not attrs:
+                continue
+            if not is_var(value):
+                new_attrs = []
+                for attr in attrs:
+                    #### Yield to runtime #1 ####
+                    new_attrs.append(attr.check(value))
+                self.attributes[x] = attrs
+                continue
+
+            # Handle case of ref-ref binding
+            y = value
+            attrs2 = self.attributes[y]
+            common_keys = intersection(attrs, attrs2)
+            for key in common_keys:
+                #### Yield to runtime #2 ####
+                self.join_attr(key, x, y)
+            self.attributes[y].update(attrs - attrs2)
+
+        # Set bindings
+        for x, value in bindings:
+            self.bindings[x] = value
+
+The points marked as "yield to runtime" are the points where user-defined code
+may be called, that require a complete runtime and stack (and potentially other
+unifications). We need to store the full state at these points to resume later.
+
+- Point #1, `attr.check`: curr x, curr value, remaining bindings, remaining attrs 
+- Point #2, `join_attr`: curr x, curr value, remaining bindings, remaining keys
+
