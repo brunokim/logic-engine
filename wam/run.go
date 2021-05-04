@@ -251,7 +251,7 @@ func (m *Machine) readArg(instr Instruction, arg Cell) (InstrAddr, error) {
 	default:
 		panic(fmt.Sprintf("readArg: unhandled instruction type %T (%v)", instr, instr))
 	}
-	return m.CodePtr.inc(), nil
+	return m.forward()
 }
 
 func (m *Machine) unifyArg(instr Instruction) (InstrAddr, error) {
@@ -282,7 +282,7 @@ func (m *Machine) unifyArg(instr Instruction) (InstrAddr, error) {
 				c.Tail = arg
 			}
 		}
-		return m.CodePtr.inc(), nil
+		return m.forward()
 	case Read:
 		var arg Cell
 		switch c := m.ComplexArg.Cell.(type) {
@@ -314,7 +314,7 @@ func (m *Machine) readConstant(constant Constant, arg Cell) (InstrAddr, error) {
 	default:
 		return m.backtrack(&unifyError{cell, constant})
 	}
-	return m.CodePtr.inc(), nil
+	return m.forward()
 }
 
 // ---- build objects
@@ -645,6 +645,10 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 	default:
 		panic(fmt.Sprintf("execute: unhandled instruction type %T (%v)", instr, instr))
 	}
+	return m.forward()
+}
+
+func (m *Machine) forward() (InstrAddr, error) {
 	return m.CodePtr.inc(), nil
 }
 
@@ -670,7 +674,7 @@ func (m *Machine) bind(c1, c2 Cell) (InstrAddr, error) {
 		}
 		ref1.Cell = c2
 		m.trail(ref1)
-		return m.CodePtr.inc(), nil
+		return m.forward()
 	}
 	if isRef2 && ref2.Cell == nil {
 		if err := m.checkAttrs(ref2, c1); err != nil {
@@ -678,7 +682,7 @@ func (m *Machine) bind(c1, c2 Cell) (InstrAddr, error) {
 		}
 		ref2.Cell = c1
 		m.trail(ref2)
-		return m.CodePtr.inc(), nil
+		return m.forward()
 	}
 	panic(fmt.Sprintf("bind(%v, %v): no unbound refs", c1, c2))
 }
@@ -721,7 +725,7 @@ func (m *Machine) bindRefs(ref1, ref2 *Ref) (InstrAddr, error) {
 	}
 	ref1.Cell = ref2
 	m.trail(ref1)
-	return m.CodePtr.inc(), nil
+	return m.forward()
 }
 
 func (m *Machine) checkAttrs(ref *Ref, value Cell) error {
@@ -759,73 +763,82 @@ func (m *Machine) unify(a1, a2 Cell) (InstrAddr, error) {
 		n := len(stack)
 		a1, a2 := stack[n-2], stack[n-1]
 		stack = stack[:n-2]
-		// Deref cells and compare them.
-		c1, c2 := deref(a1), deref(a2)
-		if c1 == c2 {
-			// They are the same, nothing to do.
-			continue
-		}
-		_, isRef1 := c1.(*Ref)
-		_, isRef2 := c2.(*Ref)
-		if isRef1 || isRef2 {
-			// Some of them is a ref. Bind them.
-			m.bind(c1, c2)
-			continue
-		}
-		// Special case: '{}' unifies with any dict.
-		if c1 == WAtom("{}") || c2 == WAtom("{}") {
-			p1, isPair1 := c1.(*Pair)
-			p2, isPair2 := c2.(*Pair)
-			if c1 == WAtom("{}") && isPair2 && p2.Tag == DictPair {
-				continue
-			}
-			if c2 == WAtom("{}") && isPair1 && p1.Tag == DictPair {
-				continue
-			}
-		}
-		switch t1 := c1.(type) {
-		case Constant:
-			// If they are both constants, check that they are equal.
-			t2, ok := c2.(Constant)
-			if !(ok && t1 == t2) {
-				return m.backtrack(&unifyError{c1, c2})
-			}
-		case *Struct:
-			// Check if they are both struct cells.
-			t2, ok := c2.(*Struct)
-			if !ok {
-				return m.backtrack(&unifyError{c1, c2})
-			}
-			// Get the functors being pointed by the structs.
-			f1, f2 := t1.Functor(), t2.Functor()
-			if f1 != f2 {
-				return m.backtrack(&unifyError{f1, f2})
-			}
-			// Push addresses of args pair-wise onto stack.
-			for i := f1.Arity - 1; i >= 0; i-- {
-				stack = append(stack, t1.Args[i], t2.Args[i])
-			}
-		case *Pair:
-			// Check if they are the same type of pair cells.
-			t2, ok := c2.(*Pair)
-			if !(ok && t1.Tag == t2.Tag) {
-				return m.backtrack(&unifyError{c1, c2})
-			}
-			if t1.Tag == DictPair {
-				pairs, err := m.dictMatchingPairs(t1, t2)
-				if err != nil {
-					return m.backtrack(err)
-				}
-				stack = append(stack, pairs...)
-			} else {
-				// Assocs, Lists: compare heads and tails.
-				stack = append(stack, t1.Tail, t2.Tail, t1.Head, t2.Head)
-			}
-		default:
-			panic(fmt.Sprintf("wam.Machine.unify: unhandled type %T (%v)", c1, c1))
+		if err := m.unifyStep(a1, a2, &stack); err != nil {
+			return m.backtrack(err)
 		}
 	}
-	return m.CodePtr.inc(), nil
+	return m.forward()
+}
+
+func (m *Machine) unifyStep(a1, a2 Cell, stack *[]Cell) error {
+	// Deref cells and compare them.
+	c1, c2 := deref(a1), deref(a2)
+	if c1 == c2 {
+		// They are the same, nothing to do.
+		return nil
+	}
+	_, isRef1 := c1.(*Ref)
+	_, isRef2 := c2.(*Ref)
+	if isRef1 || isRef2 {
+		// Some of them is a ref. Bind them.
+		m.bind(c1, c2)
+		return nil
+	}
+	// Special case: '{}' unifies with any dict.
+	if c1 == WAtom("{}") || c2 == WAtom("{}") {
+		p1, isPair1 := c1.(*Pair)
+		p2, isPair2 := c2.(*Pair)
+		if c1 == WAtom("{}") && isPair2 && p2.Tag == DictPair {
+			return nil
+		}
+		if c2 == WAtom("{}") && isPair1 && p1.Tag == DictPair {
+			return nil
+		}
+	}
+	switch t1 := c1.(type) {
+	case Constant:
+		// If they are both constants, check that they are equal.
+		t2, ok := c2.(Constant)
+		if !(ok && t1 == t2) {
+			return &unifyError{c1, c2}
+		}
+		return nil
+	case *Struct:
+		// Check if they are both struct cells.
+		t2, ok := c2.(*Struct)
+		if !ok {
+			return &unifyError{c1, c2}
+		}
+		// Get the functors being pointed by the structs.
+		f1, f2 := t1.Functor(), t2.Functor()
+		if f1 != f2 {
+			return &unifyError{f1, f2}
+		}
+		// Push addresses of args pair-wise onto stack.
+		for i := f1.Arity - 1; i >= 0; i-- {
+			*stack = append(*stack, t1.Args[i], t2.Args[i])
+		}
+		return nil
+	case *Pair:
+		// Check if they are the same type of pair cells.
+		t2, ok := c2.(*Pair)
+		if !(ok && t1.Tag == t2.Tag) {
+			return &unifyError{c1, c2}
+		}
+		if t1.Tag == DictPair {
+			pairs, err := m.dictMatchingPairs(t1, t2)
+			if err != nil {
+				return err
+			}
+			*stack = append(*stack, pairs...)
+		} else {
+			// Assocs, Lists: compare heads and tails.
+			*stack = append(*stack, t1.Tail, t2.Tail, t1.Head, t2.Head)
+		}
+		return nil
+	default:
+		panic(fmt.Sprintf("wam.Machine.unify: unhandled type %T (%v)", c1, c1))
+	}
 }
 
 // Walks the list of (sorted) assocs from each dict, trying to match their keys.
