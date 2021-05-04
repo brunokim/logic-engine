@@ -708,7 +708,8 @@ type Machine struct {
 	// instructions.
 	ComplexArg ComplexArg
 
-	Unif *UnificationFrame
+	// Latest unification frame.
+	UnificationFrame *UnificationFrame
 
 	// Latest environment.
 	Env *Env

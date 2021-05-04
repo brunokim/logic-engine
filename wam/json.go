@@ -125,7 +125,7 @@ func newMachineEncoder(m *Machine) *machineEncoder {
 	}
 	// Unification frames
 	var frames []*UnificationFrame
-	frame := m.Unif
+	frame := m.UnificationFrame
 	for frame != nil {
 		frames = append(frames, frame)
 		frame = frame.Prev

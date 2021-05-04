@@ -109,10 +109,11 @@ func (m *Machine) Run() error {
 		var err error
 		switch m.Mode {
 		case Run:
-			exit, err = m.runCode(f, i)
+			exit, err = m.runCode(i)
 		case Unify:
-			exit, err = m.checkAttribute(f, i)
+			exit, err = m.checkAttribute(i)
 		}
+		m.debugWrite(f, i)
 		if err != nil {
 			return err
 		}
@@ -126,7 +127,7 @@ func (m *Machine) Run() error {
 	return nil
 }
 
-func (m *Machine) runCode(f io.WriteCloser, i int) (bool, error) {
+func (m *Machine) runCode(i int) (bool, error) {
 	instr := m.CodePtr.instr()
 	if instr == nil {
 		return false, fmt.Errorf("invalid instruction @ clock %d (did you miss a proceed or deallocate at the end of a clause?)", i)
@@ -146,7 +147,6 @@ func (m *Machine) runCode(f io.WriteCloser, i int) (bool, error) {
 		return false, err
 	}
 	m.CodePtr = nextInstr
-	m.debugWrite(f, i)
 	return false, nil
 }
 
@@ -740,8 +740,8 @@ func (m *Machine) preUnify(a1, a2 Cell) (InstrAddr, error) {
 	}
 	// Setup machine to check attributes.
 	m.Mode = Unify
-	m.Unif = &UnificationFrame{
-		Prev:     m.Unif,
+	m.UnificationFrame = &UnificationFrame{
+		Prev:     m.UnificationFrame,
 		Bindings: bindingsToSlice(bindings),
 	}
 	return m.forward()
@@ -923,9 +923,8 @@ func attrsToSlice(as map[string]Cell) []Cell {
 	return attrs
 }
 
-func (m *Machine) checkAttribute(f io.WriteCloser, i int) (bool, error) {
-	frame := m.Unif
-	defer m.debugWrite(f, i)
+func (m *Machine) checkAttribute(i int) (bool, error) {
+	frame := m.UnificationFrame
 	// Just returned from check_attribute: append new attr to list.
 	if frame.NewAttribute != nil {
 		attr := deref(frame.NewAttribute)
@@ -975,7 +974,7 @@ func (m *Machine) checkAttribute(f io.WriteCloser, i int) (bool, error) {
 		ref.Cell = cell
 	}
 	m.Mode = Run
-	m.Unif = frame.Prev
+	m.UnificationFrame = frame.Prev
 	return true, nil
 }
 
