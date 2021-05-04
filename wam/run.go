@@ -633,6 +633,12 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		if err := instr.Func(m); err != nil {
 			return m.backtrack(err)
 		}
+	case endCheckAttribute:
+		//
+		m.Mode = Unify
+		nextInstr := m.Continuation
+		m.Continuation.Clause = nil
+		return nextInstr, nil
 	case PutAttr:
 		// Associates attribute to a ref.
 		ref, ok := deref(m.get(instr.Addr)).(*Ref)
@@ -925,57 +931,58 @@ func attrsToSlice(as map[string]Cell) []Cell {
 
 func (m *Machine) checkAttribute(i int) (bool, error) {
 	frame := m.UnificationFrame
-	// Just returned from check_attribute: append new attr to list.
 	if frame.NewAttribute != nil {
+		// Returned from check_attributes/3, append new attribute to list.
 		attr := deref(frame.NewAttribute)
 		frame.NewAttributes = append(frame.NewAttributes, attr)
 		frame.NewAttribute = nil
 	}
-	// Attribute still to be checked.
-	if len(frame.Attributes) > 0 {
-		attr := frame.Attributes[0]
-		frame.Attributes = frame.Attributes[1:]
-		frame.NewAttribute = m.newRef()
-		m.Reg[0] = attr
-		m.Reg[1] = frame.Bindings[frame.Index].Value
-		m.Reg[2] = frame.NewAttribute
-		m.Continuation = m.CodePtr
-		m.CutChoice = m.ChoicePoint
-		instrAddr, err := m.call(Functor{"check_attribute", 3})
-		if err != nil {
-			return false, err
+	if len(frame.Attributes) == 0 {
+		if len(frame.NewAttributes) > 0 {
+			// Attribute list was exhausted, populate new attributes of the ref.
+			ref := frame.Bindings[frame.Index].Ref
+			for _, attr := range frame.NewAttributes {
+				name := attr.(*Struct).Name
+				m.attributes[ref.id][name] = attr
+			}
+			frame.Index++
+			frame.NewAttributes = nil
 		}
-		m.CodePtr = instrAddr
-		m.Mode = Run
-		return false, nil
-	}
-	// Attribute list was exhausted, populate new attributes of the ref.
-	ref := frame.Bindings[frame.Index].Ref
-	for _, attr := range frame.NewAttributes {
-		name := attr.(*Struct).Name
-		m.attributes[ref.id][name] = attr
-	}
-	frame.NewAttributes = nil
-	// Look for attributed ref.
-	for ; frame.Index < len(frame.Bindings); frame.Index++ {
-		binding := frame.Bindings[frame.Index]
-		if attrs, ok := m.attributes[binding.Ref.id]; ok {
-			frame.Attributes = attrsToSlice(attrs)
-			break
+		if frame.Index >= len(frame.Bindings) {
+			// Bindings has been exhausted: restore bindings and return to run code.
+			for _, binding := range frame.Bindings {
+				ref, cell := binding.Ref, binding.Value
+				ref.Cell = cell
+			}
+			m.Mode = Run
+			m.UnificationFrame = frame.Prev
+			return true, nil
+		}
+		// Look for attributed ref in remaining bindings.
+		for ; frame.Index < len(frame.Bindings); frame.Index++ {
+			binding := frame.Bindings[frame.Index]
+			if attrs, ok := m.attributes[binding.Ref.id]; ok {
+				frame.Attributes = attrsToSlice(attrs)
+				break
+			}
 		}
 	}
-	// There is an attributed ref: keep in Unify mode to check first attribute.
-	if frame.Index < len(frame.Bindings) {
-		return false, nil
+	// Pop first attribute and invoke check_attribute/3.
+	attr := frame.Attributes[0]
+	frame.Attributes = frame.Attributes[1:]
+	frame.NewAttribute = m.newRef()
+	m.Reg[0] = attr
+	m.Reg[1] = frame.Bindings[frame.Index].Value
+	m.Reg[2] = frame.NewAttribute
+	m.Continuation = m.CodePtr
+	m.CutChoice = m.ChoicePoint
+	instrAddr, err := m.call(Functor{"$check_attribute", 3})
+	if err != nil {
+		return false, err
 	}
-	// Bindings has been exhausted: restore bindings and return to run code.
-	for _, binding := range frame.Bindings {
-		ref, cell := binding.Ref, binding.Value
-		ref.Cell = cell
-	}
+	m.CodePtr = instrAddr
 	m.Mode = Run
-	m.UnificationFrame = frame.Prev
-	return true, nil
+	return false, nil
 }
 
 // ---- choicepoints

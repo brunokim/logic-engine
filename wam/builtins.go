@@ -19,6 +19,7 @@ func init() {
 	}
 	builtins = append(builtins, initCalls()...)
 	builtins = append(builtins, fail)
+	builtins = append(builtins, checkAttribute)
 	for _, pred := range unicodePredicates {
 		builtins = append(builtins, builtinUnicodePredicate(pred))
 	}
@@ -31,6 +32,16 @@ var (
 )
 
 var (
+	checkAttribute = &Clause{
+		Functor:      Functor{"$check_attribute", 3},
+		NumRegisters: 3,
+		Code: []Instruction{
+			Allocate{0},
+			Call{Functor{"check_attribute", 3}},
+			Deallocate{},
+			endCheckAttribute{},
+		},
+	}
 	fail     = &Clause{Functor{"fail", 0}, 0, []Instruction{Fail{}}}
 	preamble = []*logic.Clause{
 		// =(X, X).

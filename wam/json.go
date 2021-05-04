@@ -338,11 +338,17 @@ func (enc *machineEncoder) choices_() []interface{} {
 func (enc *machineEncoder) unifFrames_() []interface{} {
 	s := make([]interface{}, len(enc.unifFrames))
 	for i, frame := range enc.unifFrames {
-		s[i] = map[string]interface{}{
-			"Bindings":      frame.Bindings,
+		m := map[string]interface{}{
 			"Attributes":    frame.Attributes,
 			"NewAttributes": frame.NewAttributes,
+			"NewAttribute":  frame.NewAttribute,
 		}
+		if frame.Index < len(frame.Bindings) {
+			m["AttributedRef"] = frame.Bindings[frame.Index].Ref
+			m["BindingValue"] = frame.Bindings[frame.Index].Value
+			m["Bindings"] = frame.Bindings[frame.Index+1:]
+		}
+		s[i] = m
 	}
 	return s
 }

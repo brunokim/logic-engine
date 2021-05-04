@@ -43,7 +43,8 @@ export class Wam {
             .append($("<div>")
                 .addClass("machine-state")
                 .append(this.tempVarsTable(this.tempVars()))
-                .append(this.globalsTable()))
+                .append(this.globalsTable())
+                .append(this.unifyTable()))
             .append(this.envStack())
             .append(this.choiceStack())
     }
@@ -104,17 +105,59 @@ export class Wam {
             .addClass("globals")
             .append($("<tbody>")
                 .append($("<tr>")
+                    .append($("<td>").text("Execution mode"))
+                    .append($("<td>").text(state.Mode)))
+                .append($("<tr>")
                     .append($("<td>").text("Continuation"))
                     .append($("<td>").text(this.instructionAddress(state.Continuation))))
                 .append($("<tr>")
-                    .append($("<td>").text("Mode"))
+                    .append($("<td>").text("Complex arg mode"))
                     .append($("<td>").text(state.ComplexArg.Mode)))
                 .append($("<tr>")
-                    .append($("<td>").text("Arg Index"))
+                    .append($("<td>").text("Arg index"))
                     .append($("<td>").text(state.ComplexArg.Index)))
                 .append($("<tr>")
-                    .append($("<td>").text("Complex Term"))
+                    .append($("<td>").text("Complex term"))
                     .append($("<td>").text(state.ComplexArg.Cell))))
+    }
+
+    unifyTable(state = this.state()) {
+        if (state.UnifFrames.length == 0) {
+            return null
+        }
+        let frame = state.UnifFrames[state.UnifFrames.length-1]
+        return $("<table>")
+            .addClass("globals")
+            .append($("<tbody>")
+                .append($("<tr>")
+                    .append($("<td>").text("Attributed ref"))
+                    .append($("<td>").append(frame.AttributedRef)))
+                .append($("<tr>")
+                    .append($("<td>").text("Binding value"))
+                    .append($("<td>").append(frame.BindingValue)))
+                .append($("<tr>")
+                    .append($("<td>").text("Bindings"))
+                    .append($("<td>").append(this.bindings(frame.Bindings))))
+                .append($("<tr>")
+                    .append($("<td>").text("Attributes"))
+                    .append($("<td>").text(frame.Attributes)))
+                .append($("<tr>")
+                    .append($("<td>").text("NewAttributes"))
+                    .append($("<td>").text(frame.NewAttributes)))
+                .append($("<tr>")
+                    .append($("<td>").text("NewAttribute"))
+                    .append($("<td>").text(frame.NewAttribute))))
+    }
+ 
+
+    bindings(bindingList) {
+        let tbody = $("<tbody>")
+        for (let binding of bindingList) {
+            tbody.append($("<tr>")
+                .append($("<td>").text(binding.Ref))
+                .append($("<td>").text(binding.Value)))
+        }
+        return $("<table>").append(tbody)
     }
 
     tempVars(state = this.state()) {

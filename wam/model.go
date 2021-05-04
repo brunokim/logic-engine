@@ -236,6 +236,9 @@ type Builtin struct {
 	Func func(m *Machine) error
 }
 
+// Internal instruction to finalize a check_attribute loop.
+type endCheckAttribute struct{}
+
 // PutAttr instruction: put_attr <ref addr>, <attr addr>
 type PutAttr struct {
 	Addr      Addr
@@ -248,43 +251,44 @@ type GetAttr struct {
 	Attribute Addr
 }
 
-func (i PutStruct) isInstruction()        {}
-func (i PutVariable) isInstruction()      {}
-func (i PutValue) isInstruction()         {}
-func (i PutConstant) isInstruction()      {}
-func (i PutPair) isInstruction()          {}
-func (i GetStruct) isInstruction()        {}
-func (i GetVariable) isInstruction()      {}
-func (i GetValue) isInstruction()         {}
-func (i GetConstant) isInstruction()      {}
-func (i GetPair) isInstruction()          {}
-func (i UnifyVariable) isInstruction()    {}
-func (i UnifyValue) isInstruction()       {}
-func (i UnifyConstant) isInstruction()    {}
-func (i UnifyVoid) isInstruction()        {}
-func (i Call) isInstruction()             {}
-func (i CallMeta) isInstruction()         {}
-func (i Execute) isInstruction()          {}
-func (i ExecuteMeta) isInstruction()      {}
-func (i Proceed) isInstruction()          {}
-func (i Halt) isInstruction()             {}
-func (i Allocate) isInstruction()         {}
-func (i Deallocate) isInstruction()       {}
-func (i TryMeElse) isInstruction()        {}
-func (i RetryMeElse) isInstruction()      {}
-func (i TrustMe) isInstruction()          {}
-func (i Try) isInstruction()              {}
-func (i Retry) isInstruction()            {}
-func (i Trust) isInstruction()            {}
-func (i SwitchOnTerm) isInstruction()     {}
-func (i SwitchOnConstant) isInstruction() {}
-func (i SwitchOnStruct) isInstruction()   {}
-func (i NeckCut) isInstruction()          {}
-func (i Cut) isInstruction()              {}
-func (i Fail) isInstruction()             {}
-func (i Builtin) isInstruction()          {}
-func (i PutAttr) isInstruction()          {}
-func (i GetAttr) isInstruction()          {}
+func (i PutStruct) isInstruction()         {}
+func (i PutVariable) isInstruction()       {}
+func (i PutValue) isInstruction()          {}
+func (i PutConstant) isInstruction()       {}
+func (i PutPair) isInstruction()           {}
+func (i GetStruct) isInstruction()         {}
+func (i GetVariable) isInstruction()       {}
+func (i GetValue) isInstruction()          {}
+func (i GetConstant) isInstruction()       {}
+func (i GetPair) isInstruction()           {}
+func (i UnifyVariable) isInstruction()     {}
+func (i UnifyValue) isInstruction()        {}
+func (i UnifyConstant) isInstruction()     {}
+func (i UnifyVoid) isInstruction()         {}
+func (i Call) isInstruction()              {}
+func (i CallMeta) isInstruction()          {}
+func (i Execute) isInstruction()           {}
+func (i ExecuteMeta) isInstruction()       {}
+func (i Proceed) isInstruction()           {}
+func (i Halt) isInstruction()              {}
+func (i Allocate) isInstruction()          {}
+func (i Deallocate) isInstruction()        {}
+func (i TryMeElse) isInstruction()         {}
+func (i RetryMeElse) isInstruction()       {}
+func (i TrustMe) isInstruction()           {}
+func (i Try) isInstruction()               {}
+func (i Retry) isInstruction()             {}
+func (i Trust) isInstruction()             {}
+func (i SwitchOnTerm) isInstruction()      {}
+func (i SwitchOnConstant) isInstruction()  {}
+func (i SwitchOnStruct) isInstruction()    {}
+func (i NeckCut) isInstruction()           {}
+func (i Cut) isInstruction()               {}
+func (i Fail) isInstruction()              {}
+func (i Builtin) isInstruction()           {}
+func (i endCheckAttribute) isInstruction() {}
+func (i PutAttr) isInstruction()           {}
+func (i GetAttr) isInstruction()           {}
 
 func (i PutStruct) String() string {
 	return fmt.Sprintf("put_struct %v, A%d", i.Functor, i.ArgAddr)
@@ -444,6 +448,10 @@ func (i Fail) String() string {
 
 func (i Builtin) String() string {
 	return fmt.Sprintf("builtin %s, <func %p>", i.Name, i.Func)
+}
+
+func (i endCheckAttribute) String() string {
+	return "end_check_attribute"
 }
 
 func (i PutAttr) String() string {
