@@ -23,7 +23,9 @@ func init() {
 	for _, pred := range unicodePredicates {
 		builtins = append(builtins, builtinUnicodePredicate(pred))
 	}
-	builtins = append(builtins, comparisons...)
+	for _, pred := range comparisonPredicates {
+		builtins = append(builtins, builtinComparisonPredicate(pred))
+	}
 	builtins = append(builtins, attributePredicates...)
 }
 
@@ -47,13 +49,6 @@ var (
 	attributePredicates = []*Clause{
 		&Clause{Functor{"get_attr", 2}, 2, []Instruction{GetAttr{RegAddr(0), RegAddr(1)}, Proceed{}}},
 		&Clause{Functor{"put_attr", 2}, 2, []Instruction{PutAttr{RegAddr(0), RegAddr(1)}, Proceed{}}},
-	}
-	comparisons = []*Clause{
-		&Clause{Functor{"<", 2}, 2, []Instruction{Builtin{"<", lt}, Proceed{}}},
-		&Clause{Functor{"=<", 2}, 2, []Instruction{Builtin{"=<", le}, Proceed{}}},
-		&Clause{Functor{"==", 2}, 2, []Instruction{Builtin{"==", eq}, Proceed{}}},
-		&Clause{Functor{">", 2}, 2, []Instruction{Builtin{">", gt}, Proceed{}}},
-		&Clause{Functor{">=", 2}, 2, []Instruction{Builtin{">=", ge}, Proceed{}}},
 	}
 	fail     = &Clause{Functor{"fail", 0}, 0, []Instruction{Fail{}}}
 	preamble = []*logic.Clause{
@@ -184,42 +179,40 @@ func makeUnicodeIterator(pred unicodePredicate, clause *Clause) func(*Machine) e
 
 // ---- comparisons
 
-func lt(m *Machine) error {
-	x1, x2 := deref(m.Reg[0]), deref(m.Reg[1])
-	if o := compareCells(x1, x2); o != less {
-		return fmt.Errorf("</2: %v < %v is false", x1, x2)
-	}
-	return nil
+type comparisonPredicate struct {
+	functor            Functor
+	accepts1, accepts2 ordering
 }
 
-func le(m *Machine) error {
-	x1, x2 := deref(m.Reg[0]), deref(m.Reg[1])
-	if o := compareCells(x1, x2); !(o == less || o == equal) {
-		return fmt.Errorf("=</2: %v =< %v is false", x1, x2)
-	}
-	return nil
+var comparisonPredicates = []comparisonPredicate{
+	comparisonPredicate{Functor{"@<", 2}, less, less},
+	comparisonPredicate{Functor{"@=<", 2}, less, equal},
+	comparisonPredicate{Functor{"@>", 2}, more, more},
+	comparisonPredicate{Functor{"@>=", 2}, more, equal},
+	comparisonPredicate{Functor{"==", 2}, equal, equal},
+	comparisonPredicate{Functor{"\\==", 2}, less, more},
 }
 
-func gt(m *Machine) error {
-	x1, x2 := deref(m.Reg[0]), deref(m.Reg[1])
-	if o := compareCells(x1, x2); o != more {
-		return fmt.Errorf(">/2: %v > %v is false", x1, x2)
+func builtinComparisonPredicate(pred comparisonPredicate) *Clause {
+	return &Clause{
+		Functor:      pred.functor,
+		NumRegisters: 2,
+		Code: []Instruction{
+			Builtin{
+				Name: pred.functor.Name,
+				Func: makeComparisonPredicate(pred),
+			},
+			Proceed{},
+		},
 	}
-	return nil
 }
 
-func ge(m *Machine) error {
-	x1, x2 := deref(m.Reg[0]), deref(m.Reg[1])
-	if o := compareCells(x1, x2); !(o == more || o == equal) {
-		return fmt.Errorf(">=/2: %v >= %v is false", x1, x2)
+func makeComparisonPredicate(pred comparisonPredicate) func(m *Machine) error {
+	return func(m *Machine) error {
+		x1, x2 := deref(m.Reg[0]), deref(m.Reg[1])
+		if o := compareCells(x1, x2); o == pred.accepts1 || o == pred.accepts2 {
+			return nil
+		}
+		return fmt.Errorf("%v: %v %s %v is false", pred.functor, x1, pred.functor.Name, x2)
 	}
-	return nil
-}
-
-func eq(m *Machine) error {
-	x1, x2 := deref(m.Reg[0]), deref(m.Reg[1])
-	if o := compareCells(x1, x2); o != equal {
-		return fmt.Errorf("==/2: %v == %v is false", x1, x2)
-	}
-	return nil
 }

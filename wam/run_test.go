@@ -1162,8 +1162,8 @@ func TestAttribute(t *testing.T) {
 
 	// check_attribute(domain(Min1, Max1), Value, domain(Min, Max)) :-
 	//   get_attr(Value, range(Min2, Max2)),
-	//   if(<(Min1, Min2), Min = Min2, Min = Min1),
-	//   if(>(Max1, Max2), Max = Max2, Max = Max1),
+	//   if(@<(Min1, Min2), Min = Min2, Min = Min1),
+	//   if(@>(Max1, Max2), Max = Max2, Max = Max1),
 	//   put_attr(Value, range(Min, Max)).
 	clauses, err := wam.CompileClauses([]*logic.Clause{
 		dsl.Clause(
@@ -1172,10 +1172,10 @@ func TestAttribute(t *testing.T) {
 				var_("Value"),
 				comp("range", var_("Min"), var_("Max"))),
 			comp("get_attr", var_("Value"), comp("range", var_("Min2"), var_("Max2"))),
-			comp("if", comp("<", var_("Min1"), var_("Min2")),
+			comp("if", comp("@<", var_("Min1"), var_("Min2")),
 				comp("=", var_("Min"), var_("Min2")),
 				comp("=", var_("Min"), var_("Min1"))),
-			comp("if", comp(">", var_("Max1"), var_("Max2")),
+			comp("if", comp("@>", var_("Max1"), var_("Max2")),
 				comp("=", var_("Max"), var_("Max2")),
 				comp("=", var_("Max"), var_("Max1"))),
 			comp("put_attr", var_("Value"), comp("range", var_("Min"), var_("Max")))),

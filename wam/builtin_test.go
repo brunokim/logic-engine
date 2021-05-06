@@ -31,13 +31,14 @@ func TestComparison(t *testing.T) {
 	m := wam.NewMachine()
 	m.DebugFilename = "debugtest/builtin-comparison.jsonl"
 	solution, err := m.RunQuery(
-		comp("<", int_(1), int_(2)),
-		comp("=<", int_(1), int_(2)),
-		comp("=<", int_(2), int_(2)),
-		comp(">", int_(2), int_(1)),
-		comp(">=", int_(2), int_(1)),
-		comp(">=", int_(2), int_(2)),
-		comp("==", int_(2), int_(2)))
+		comp("@<", int_(1), int_(2)),
+		comp("@=<", int_(1), int_(2)),
+		comp("@=<", int_(2), int_(2)),
+		comp("@>", int_(2), int_(1)),
+		comp("@>=", int_(2), int_(1)),
+		comp("@>=", int_(2), int_(2)),
+		comp("==", int_(2), int_(2)),
+		comp("\\==", int_(2), int_(3)))
 	if err != nil {
 		t.Fatal(err)
 	}
