@@ -44,7 +44,8 @@ export class Wam {
                 .addClass("machine-state")
                 .append(this.tempVarsTable(this.tempVars()))
                 .append(this.globalsTable())
-                .append(this.unifyTable()))
+                .append(this.unifyTable())
+                .append(this.attributesTable()))
             .append(this.envStack())
             .append(this.choiceStack())
     }
@@ -103,6 +104,9 @@ export class Wam {
     globalsTable(state = this.state()) {
         return $("<table>")
             .addClass("globals")
+            .append($(`
+                <thead><tr><th>Global registers</th></tr></thead>
+            `))
             .append($("<tbody>")
                 .append($("<tr>")
                     .append($("<td>").text("Execution mode"))
@@ -128,6 +132,9 @@ export class Wam {
         let frame = state.UnifFrames[state.UnifFrames.length-1]
         return $("<table>")
             .addClass("globals")
+            .append($(`
+                <thead><tr><th>Attribute check</th></tr></thead>
+            `))
             .append($("<tbody>")
                 .append($("<tr>")
                     .append($("<td>").text("Attributed ref"))
@@ -147,6 +154,32 @@ export class Wam {
                 .append($("<tr>")
                     .append($("<td>").text("NewAttribute"))
                     .append($("<td>").text(frame.NewAttribute))))
+    }
+
+    attributesTable(state = this.state()) {
+        if (state.Attributes.length == 0) {
+            return null
+        }
+        let tbody = $("<tbody>")
+        for (let row of state.Attributes) {
+            tbody.append($("<tr>")
+                .append($("<td>").text(`_X${row.Id}`))
+                .append($("<td>").text(row.Attribute))
+                .append($("<td>").text(row.Value)))
+        }
+        return $("<table>")
+            .addClass("attributes")
+            .append($(`
+                <thead>
+                    <tr><th colspan="3">Attributes</th></tr>
+                    <tr>
+                        <th>Ref</th>
+                        <th>Attribute</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                `))
+            .append(tbody)
     }
 
     bindings(bindingList) {

@@ -25,6 +25,11 @@
     border-collapse: collapse;
 }
 
+.globals thead {
+    font-size: 12pt;
+    font-family: sans-serif;
+}
+
 .globals td:first-child {
     font-size: 10pt;
     font-family: sans-serif;
@@ -33,6 +38,23 @@
 
 .globals td:nth-child(2) {
     font-family: monospace;
+}
+
+.attributes thead {
+    font-size: 11pt;
+    font-family: sans-serif;
+}
+
+.attributes thead tr:first-child{
+    font-size: 12pt;
+}
+
+.attributes tbody {
+    font-family: monospace;
+}
+
+.attributes tbody td:first-child {
+    font-weight: bold;
 }
 
 .instructions ol {
@@ -48,7 +70,12 @@
     content: ", ";
 }
 
-.registers, .trail {
+.registers thead {
+    font-size: 12pt;
+    font-family: sans-serif;
+}
+
+.registers tbody, .trail tbody {
     font-family: monospace;
 }
 

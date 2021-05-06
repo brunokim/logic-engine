@@ -3,6 +3,7 @@ package wam
 import (
 	"encoding/json"
 	"reflect"
+	"sort"
 )
 
 func (i RegAddr) MarshalText() ([]byte, error) {
@@ -74,8 +75,15 @@ func (m *Machine) MarshalJSON() ([]byte, error) {
 		"CutChoicePos": enc.getChoicePos(m.CutChoice),
 		"LastRefID":    m.LastRefID,
 		"Backtracked":  m.hasBacktracked,
+		"Attributes":   enc.attributes_(),
 	}
 	return json.Marshal(obj)
+}
+
+type attribute struct {
+	refID int
+	name  string
+	value Cell
 }
 
 type machineEncoder struct {
@@ -86,6 +94,7 @@ type machineEncoder struct {
 	envs       []*Env
 	choices    []*ChoicePoint
 	unifFrames []*UnificationFrame
+	attributes []attribute
 }
 
 func newMachineEncoder(m *Machine) *machineEncoder {
@@ -131,6 +140,14 @@ func newMachineEncoder(m *Machine) *machineEncoder {
 		frame = frame.Prev
 	}
 	enc.unifFrames = frames
+	// Attributes
+	var attributes []attribute
+	for refID, attrs := range m.attributes {
+		for name, attr := range attrs {
+			attributes = append(attributes, attribute{refID, name, attr})
+		}
+	}
+	enc.attributes = attributes
 	m.encoder = enc
 	return enc
 }
@@ -359,6 +376,35 @@ func (enc *machineEncoder) trail(refs []*Ref) []interface{} {
 		s[i] = map[string]interface{}{
 			"Id":   ref.id,
 			"Term": ref.String(),
+		}
+	}
+	return s
+}
+
+func (enc *machineEncoder) attributes_() []interface{} {
+	sort.Slice(enc.attributes, func(i, j int) bool {
+		a1, a2 := enc.attributes[i], enc.attributes[j]
+		if a1.refID < a2.refID {
+			return true
+		}
+		if a1.refID > a2.refID {
+			return false
+		}
+		if a1.name < a2.name {
+			return true
+		}
+		if a1.name > a2.name {
+			return false
+		}
+		// Should never happen: duplicate attribute
+		return false
+	})
+	s := make([]interface{}, len(enc.attributes))
+	for i, attr := range enc.attributes {
+		s[i] = map[string]interface{}{
+			"Id":        attr.refID,
+			"Attribute": attr.name,
+			"Value":     attr.value,
 		}
 	}
 	return s
