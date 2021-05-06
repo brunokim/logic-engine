@@ -650,6 +650,8 @@ type ChoicePoint struct {
 
 type UnificationFrame struct {
 	Prev          *UnificationFrame
+	Continuation  InstrAddr
+	CutChoice     *ChoicePoint
 	Bindings      []Binding
 	Index         int
 	Attributes    []Cell

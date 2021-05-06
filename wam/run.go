@@ -747,8 +747,10 @@ func (m *Machine) preUnify(a1, a2 Cell) (InstrAddr, error) {
 	// Setup machine to check attributes.
 	m.Mode = Unify
 	m.UnificationFrame = &UnificationFrame{
-		Prev:     m.UnificationFrame,
-		Bindings: bindingsToSlice(bindings),
+		Prev:         m.UnificationFrame,
+		Continuation: m.Continuation,
+		CutChoice:    m.CutChoice,
+		Bindings:     bindingsToSlice(bindings),
 	}
 	return m.forward()
 }
@@ -955,6 +957,8 @@ func (m *Machine) checkAttribute() {
 				ref.Cell = cell
 			}
 			m.Mode = Run
+			m.Continuation = frame.Continuation
+			m.CutChoice = frame.CutChoice
 			m.UnificationFrame = frame.Prev
 			return
 		}

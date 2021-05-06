@@ -24,6 +24,7 @@ func init() {
 		builtins = append(builtins, builtinUnicodePredicate(pred))
 	}
 	builtins = append(builtins, comparisons...)
+	builtins = append(builtins, attributePredicates...)
 }
 
 var (
@@ -42,6 +43,10 @@ var (
 			Deallocate{},
 			endCheckAttribute{},
 		},
+	}
+	attributePredicates = []*Clause{
+		&Clause{Functor{"get_attr", 2}, 2, []Instruction{GetAttr{RegAddr(0), RegAddr(1)}, Proceed{}}},
+		&Clause{Functor{"put_attr", 2}, 2, []Instruction{PutAttr{RegAddr(0), RegAddr(1)}, Proceed{}}},
 	}
 	comparisons = []*Clause{
 		&Clause{Functor{"<", 2}, 2, []Instruction{Builtin{"<", lt}, Proceed{}}},
