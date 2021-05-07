@@ -1,16 +1,27 @@
 package wam_test
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
-	"github.com/brunokim/logic-engine/parser"
-	"github.com/brunokim/logic-engine/wam"
+	"github.com/brunokim/logic-engine/solver"
 )
 
-func TestCheckAttribute(t *testing.T) {
-	m := wam.NewMachine()
+func firstSolution(solutions <-chan solver.Solution, cancel func()) (solver.Solution, error) {
+	select {
+	case solution := <-solutions:
+		return solution, nil
+	case <-time.After(10 * time.Millisecond):
+		cancel()
+		return nil, fmt.Errorf("timeout exceeded")
+	}
+}
 
-	logicClauses, err := parser.ParseClauses(`
+// ----
+
+func TestCheckAttribute(t *testing.T) {
+	s, err := solver.New(`
         in_range(X, Min, Max) :-
             put_attr(X, range(Min, Max)).
 
@@ -25,28 +36,17 @@ func TestCheckAttribute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	clauses, err := wam.CompileClauses(logicClauses)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, clause := range clauses {
-		m.AddClause(clause)
-	}
-	m.IterLimit = 150
-	m.DebugFilename = "debugtest/check-attribute.jsonl"
+	s.SetDebug("debugtest/check-attribute.jsonl")
+	s.SetIterLimit(150)
 
-	terms, err := parser.ParseQuery(`
+	solution, err := firstSolution(s.Query(`
         in_range(X, 1, 5),
         in_range(Y, 3, 9),
         =(X, Y),
         get_attr(Y, range(Min, Max))
-    `)
+    `))
 	if err != nil {
 		t.Fatal(err)
-	}
-	solution, err := m.RunQuery(terms...)
-	if err != nil {
-		t.Fatalf("expected nil, got err: %v", err)
 	}
 	min, max := solution[var_("Min")], solution[var_("Max")]
 	minWant, maxWant := int_(3), int_(5)

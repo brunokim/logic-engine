@@ -30,7 +30,7 @@ func TestSolve(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: got err: %v", err)
 	}
-	s.Debug("debugtest/test-solve.jsonl")
+	s.SetDebug("debugtest/test-solve.jsonl")
 	solutions, cancel := s.Query("nat(X)")
 	var got [5]solver.Solution
 	for i := 0; i < 5; i++ {
@@ -63,7 +63,7 @@ func TestSolve_All(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: got err: %v", err)
 	}
-	s.Debug("debugtest/test-solve-all.jsonl")
+	s.SetDebug("debugtest/test-solve-all.jsonl")
 	solutions, _ := s.Query("add(X, Y, s(s(s(0))))")
 	var got []solver.Solution
 	for result := range solutions {

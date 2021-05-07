@@ -66,8 +66,13 @@ func NewSolverFromClauses(clauses []*logic.Clause) (*Solver, error) {
 	return solver, nil
 }
 
-// Debug sets a file to output execution information for the internal machine.
-func (solver *Solver) Debug(filename string) {
+// SetIterLimit sets a maximum number of iterations to the internal machine.
+func (solver *Solver) SetIterLimit(limit int) {
+	solver.m.IterLimit = limit
+}
+
+// SetDebug sets a file to output execution information for the internal machine.
+func (solver *Solver) SetDebug(filename string) {
 	solver.m.DebugFilename = filename
 }
 
