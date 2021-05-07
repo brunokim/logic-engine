@@ -38,7 +38,7 @@ func main() {
 		letters = append(letters, dsl.Atom(string(ch)))
 	}
 	tree := dsl.Var("Tree")
-	m := parser.ParseMachine()
+	m := parser.Machine.Reset()
 	m.DebugFilename = *outputFilename
 	bindings, err := m.RunQuery(dsl.Comp("parse_kb", dsl.List(letters...), tree))
 	if err != nil {

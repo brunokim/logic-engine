@@ -24,7 +24,9 @@ var (
 )
 
 var (
-	m       *wam.Machine
+	// Machine is the underlying WAM with already-compiled parsing rules.
+	// Don't use it directly; call Machine.Reset() to create a copy.
+	Machine *wam.Machine
 	grammar = []*logic.Clause{
 		// Parse term
 		clause(comp("parse", var_("Chars"), var_("Tree")),
@@ -232,11 +234,11 @@ var (
 func init() {
 	clauses, err := wam.CompileClauses(grammar)
 	if err != nil {
-		panic(fmt.Sprintf("solver.init: CompileClauses: %v", err))
+		panic(fmt.Sprintf("parser.init: CompileClauses: %v", err))
 	}
-	m = wam.NewMachine()
+	Machine = wam.NewMachine()
 	for _, clause := range clauses {
-		m.AddClause(clause)
+		Machine.AddClause(clause)
 	}
 }
 
@@ -244,7 +246,7 @@ func init() {
 
 // ParseTerm parses a single term.
 func ParseTerm(text string) (logic.Term, error) {
-	m := m.Reset()
+	m := Machine.Reset()
 	var letters []logic.Term
 	for _, ch := range text {
 		letters = append(letters, dsl.Atom(string(ch)))
@@ -269,7 +271,7 @@ func parseTerm(term logic.Term) (t logic.Term, err error) {
 
 // ParseClauses parses a sequence of facts and rules.
 func ParseClauses(text string) ([]*logic.Clause, error) {
-	m := m.Reset()
+	m := Machine.Reset()
 	var letters []logic.Term
 	for _, ch := range text {
 		letters = append(letters, dsl.Atom(string(ch)))
@@ -293,7 +295,7 @@ func parseClauses(term logic.Term) (clauses []*logic.Clause, err error) {
 
 // ParseQuery parses a sequence of terms.
 func ParseQuery(text string) ([]logic.Term, error) {
-	m := m.Reset()
+	m := Machine.Reset()
 	var letters []logic.Term
 	for _, ch := range text {
 		letters = append(letters, dsl.Atom(string(ch)))
@@ -313,11 +315,6 @@ func parseQuery(term logic.Term) (terms []logic.Term, err error) {
 		}
 	}()
 	return decodeTerms(term), nil
-}
-
-// ParseMachine returns a copy of the parsing WAM used in this package.
-func ParseMachine() *wam.Machine {
-	return m.Reset()
 }
 
 // ---- decode
