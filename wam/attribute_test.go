@@ -12,7 +12,7 @@ func firstSolution(solutions <-chan solver.Solution, cancel func()) (solver.Solu
 	select {
 	case solution := <-solutions:
 		return solution, nil
-	case <-time.After(10 * time.Millisecond):
+	case <-time.After(50 * time.Millisecond):
 		cancel()
 		return nil, fmt.Errorf("timeout exceeded")
 	}

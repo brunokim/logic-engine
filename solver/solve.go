@@ -79,6 +79,10 @@ func (solver *Solver) SetDebug(filename string) {
 // Query returns an (unbuffered) channel of solutions for the provided query,
 // and a cancel function to interrupt the execution.
 //
+// As soon as a value is read from the channel, the next solution starts to
+// be computed. If there's no need for additional solutions, you should call
+// cancel().
+//
 // The last error found is stored in solver.Err.
 func (solver *Solver) Query(text string) (<-chan Solution, func()) {
 	terms, err := parser.ParseQuery(text)
