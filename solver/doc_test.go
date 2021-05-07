@@ -7,7 +7,7 @@ import (
 )
 
 func Example() {
-	s, _ := solver.NewSolver(`
+	s, _ := solver.New(`
         % Natural number definition in terms of successor s(X).
         nat(0).
         nat(s(X)) :- nat(X).

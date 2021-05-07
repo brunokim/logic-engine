@@ -43,8 +43,8 @@ func (s Solution) String() string {
 	return b.String()
 }
 
-// NewSolver parses and compiles the provided clauses.
-func NewSolver(text string) (*Solver, error) {
+// New creates a Solver from parsing and compiling the provided program.
+func New(text string) (*Solver, error) {
 	clauses, err := parser.ParseClauses(text)
 	if err != nil {
 		return nil, err
@@ -52,7 +52,7 @@ func NewSolver(text string) (*Solver, error) {
 	return NewSolverFromClauses(clauses)
 }
 
-// NewSolverFromClauses is like NewSolver, with already parsed clauses.
+// NewFromClauses is like New, with already parsed clauses.
 func NewSolverFromClauses(clauses []*logic.Clause) (*Solver, error) {
 	compiled, err := wam.CompileClauses(clauses)
 	if err != nil {

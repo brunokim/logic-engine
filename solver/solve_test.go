@@ -23,12 +23,12 @@ var (
 )
 
 func TestSolve(t *testing.T) {
-	s, err := solver.NewSolver(`
+	s, err := solver.New(`
         nat(0).
         nat(s(X)) :- nat(X).
     `)
 	if err != nil {
-		t.Fatalf("NewSolver: got err: %v", err)
+		t.Fatalf("New: got err: %v", err)
 	}
 	s.Debug("debugtest/test-solve.jsonl")
 	solutions, cancel := s.Query("nat(X)")
@@ -55,13 +55,13 @@ func TestSolve(t *testing.T) {
 
 func TestSolve_All(t *testing.T) {
 	succ := func(t logic.Term) logic.Term { return comp("s", t) }
-	s, err := solver.NewSolver(`
+	s, err := solver.New(`
         add(0, S, S).
         add(s(A), B, s(S)) :-
             add(A, B, S).
     `)
 	if err != nil {
-		t.Fatalf("NewSolver: got err: %v", err)
+		t.Fatalf("New: got err: %v", err)
 	}
 	s.Debug("debugtest/test-solve-all.jsonl")
 	solutions, _ := s.Query("add(X, Y, s(s(s(0))))")
@@ -81,9 +81,9 @@ func TestSolve_All(t *testing.T) {
 }
 
 func TestSolve_Cancel(t *testing.T) {
-	s, err := solver.NewSolver("loop :- loop.")
+	s, err := solver.New("loop :- loop.")
 	if err != nil {
-		t.Fatalf("NewSolver, got err: %v", err)
+		t.Fatalf("New, got err: %v", err)
 	}
 	solutions, cancel := s.Query("loop")
 	<-time.After(10 * time.Millisecond)
