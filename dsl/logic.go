@@ -39,6 +39,11 @@ func Int(i int) logic.Int {
 	return logic.Int{Value: i}
 }
 
+// Ptr builds a logic pointer.
+func Ptr(v interface{}) logic.Ptr {
+	return logic.Ptr{Value: v}
+}
+
 // Var builds a logic variable.
 func Var(name string) logic.Var {
 	return logic.NewVar(name)
