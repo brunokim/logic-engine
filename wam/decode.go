@@ -218,12 +218,14 @@ func DecodeInstruction(term logic.Term) Instruction {
 		return cut{}
 	case dsl.Indicator("fail", 0):
 		return fail{}
-	case dsl.Indicator("builtin", 0):
+	case dsl.Indicator("builtin", 2):
 		return builtin{decodeString(c.Args[0]), decodeMachineFunc(c.Args[1])}
-	case dsl.Indicator("put_attr", 0):
+	case dsl.Indicator("put_attr", 2):
 		return putAttr{decodeAddr(c.Args[0]), decodeAddr(c.Args[1])}
-	case dsl.Indicator("get_attr", 0):
+	case dsl.Indicator("get_attr", 2):
 		return getAttr{decodeAddr(c.Args[0]), decodeAddr(c.Args[1])}
+	case dsl.Indicator("end_check_attribute", 0):
+		return endCheckAttribute{}
 	default:
 		panic(fmt.Sprintf("decode: unhandled instruction %v", c))
 	}
