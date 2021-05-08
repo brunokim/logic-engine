@@ -98,7 +98,7 @@ func hasDeepcut(clause *logic.Clause) bool {
 	return false
 }
 
-func hasNonLastcall(clause *logic.Clause) bool {
+func hasNonLastCall(clause *logic.Clause) bool {
 	for i, term := range clause.Body {
 		if term.(*logic.Comp).Functor == "call" && i < len(clause.Body)-1 {
 			return true
@@ -322,7 +322,7 @@ func Compile(clause *logic.Clause) *Clause {
 		panic(err)
 	}
 	c := compile(clause2, permanentVars(clause2))
-	c.Code = optimizeLastcall(optimizeInstructions(c.Code))
+	c.Code = optimizeLastCall(optimizeInstructions(c.Code))
 	return c
 }
 
@@ -392,7 +392,7 @@ func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
 	}
 	// If call requires an environment, add an allocate-deallocate pair to the clause.
 	var header, footer []Instruction
-	if currStack > 0 || hasDeepcut(clause) || hasNonLastcall(clause) {
+	if currStack > 0 || hasDeepcut(clause) || hasNonLastCall(clause) {
 		header = []Instruction{allocate{currStack}}
 		footer = []Instruction{deallocate{}}
 	}
@@ -454,7 +454,7 @@ func optimizeInstructions(code []Instruction) []Instruction {
 	return buf
 }
 
-func optimizeLastcall(code []Instruction) []Instruction {
+func optimizeLastCall(code []Instruction) []Instruction {
 	// If code ends with deallocate, swap it with the previous instruction,
 	// that may be either call or callMeta.
 	{
@@ -467,16 +467,16 @@ func optimizeLastcall(code []Instruction) []Instruction {
 	// If code ends with call, change it for execute
 	{
 		n := len(code)
-		call, iscall := code[n-1].(call)
-		if iscall {
+		call, isCall := code[n-1].(call)
+		if isCall {
 			code[n-1] = execute{call.Functor}
 		}
 	}
 	// If code ends with callMeta, change it for executeMeta
 	{
 		n := len(code)
-		call, iscallMeta := code[n-1].(callMeta)
-		if iscallMeta {
+		call, isCallMeta := code[n-1].(callMeta)
+		if isCallMeta {
 			code[n-1] = executeMeta{call.Addr, call.Params}
 		}
 	}

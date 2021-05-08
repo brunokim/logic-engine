@@ -87,7 +87,7 @@ func TestRun_BuildQueryAndProgram(t *testing.T) {
 	}
 }
 
-func TestRun_call(t *testing.T) {
+func TestRun_Call(t *testing.T) {
 	var instrs []logic.Term
 	instrs = append(instrs, queryInstrs...)
 	instrs = append(instrs,
@@ -627,7 +627,7 @@ var (
 	call_s2 = wam.DecodeClause(indicator("call", 1),
 		atom("trust_me"),
 		comp("switch_on_term",
-			comp("instr", ptr(callcall), int_(0)),
+			comp("instr", ptr(callCall), int_(0)),
 			comp("instr", ptr(call_s2_constant), int_(0)),
 			comp("instr", ptr(call_s2_struct), int_(0)),
 			comp("instr", ptr(call_s2_list), int_(0)),
@@ -644,9 +644,9 @@ var (
 		comp("execute", atom("fail/0")))
 	call_s2_struct = wam.DecodeClause(indicator("call", 1),
 		comp("switch_on_struct", dict(
-			atom("call/1"), comp("instr", ptr(callcall), int_(1)))))
+			atom("call/1"), comp("instr", ptr(callCall), int_(1)))))
 	// call(call(X)) :- call(X).
-	callcall = wam.DecodeClause(indicator("call", 1),
+	callCall = wam.DecodeClause(indicator("call", 1),
 		comp("retry_me_else", comp("instr", ptr(callRepeat1), int_(0))),
 		comp("get_struct", atom("call/1"), var_("X0")),
 		comp("unify_variable", var_("X1")),
@@ -820,7 +820,7 @@ var (
 		comp("execute", atom("tree/3")))
 )
 
-func TestNestedcalls(t *testing.T) {
+func TestNestedCalls(t *testing.T) {
 	m := wam.NewMachine()
 	m.AddClause(tree1)
 
@@ -862,7 +862,7 @@ func TestNestedcalls(t *testing.T) {
 	}
 }
 
-func TestcallMeta(t *testing.T) {
+func TestCallMeta(t *testing.T) {
 	m := wam.NewMachine()
 	m.IterLimit = 30
 	m.DebugFilename = "debugtest/call-meta.jsonl"
@@ -889,7 +889,7 @@ func TestcallMeta(t *testing.T) {
 	}
 }
 
-func TestMetaMetacall(t *testing.T) {
+func TestMetaMetaCall(t *testing.T) {
 	m := wam.NewMachine()
 	m.IterLimit = 30
 	m.DebugFilename = "debugtest/meta-meta-call.jsonl"
