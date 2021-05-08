@@ -358,7 +358,7 @@ func (m *Machine) newChoicePoint(alternative InstrAddr) *ChoicePoint {
 		Args:            make([]Cell, numArgs),
 		LastRefID:       m.LastRefID,
 		Env:             m.Env,
-		cutChoice:       m.cutChoice,
+		CutChoice:       m.CutChoice,
 	}
 	copy(choicePoint.Args, m.Reg)
 	return choicePoint
@@ -500,7 +500,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 	case call:
 		// Save instruction pointer, and set it to clause location.
 		m.Continuation = m.CodePtr.inc()
-		m.cutChoice = m.ChoicePoint
+		m.CutChoice = m.ChoicePoint
 		return m.call(instr.Functor)
 	case callMeta:
 		// call clause pointed by a ref or struct.
@@ -509,11 +509,11 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 			return m.backtrack(fmt.Errorf("call_meta: %v", err))
 		}
 		m.Continuation = m.CodePtr.inc()
-		m.cutChoice = m.ChoicePoint
+		m.CutChoice = m.ChoicePoint
 		return m.call(functor)
 	case execute:
 		// Trampoline into other clause, without changing the continuation.
-		m.cutChoice = m.ChoicePoint
+		m.CutChoice = m.ChoicePoint
 		return m.call(instr.Functor)
 	case executeMeta:
 		// Trampoline into other dynamic clause, without changing the continuation.
@@ -521,7 +521,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		if err != nil {
 			return m.backtrack(fmt.Errorf("execute_meta: %v", err))
 		}
-		m.cutChoice = m.ChoicePoint
+		m.CutChoice = m.ChoicePoint
 		return m.call(functor)
 	case proceed:
 		// Jump to the continuation.
@@ -535,7 +535,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 			Prev:          m.Env,
 			Continuation:  m.Continuation,
 			PermanentVars: make([]Cell, instr.NumVars),
-			cutChoice:     m.cutChoice,
+			CutChoice:     m.CutChoice,
 		}
 		m.Continuation.Clause = nil
 		m.Env = env
@@ -614,18 +614,18 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 	case neckCut:
 		// Remove any choicepoint created since the function call, removing choicepoints
 		// due to indexing.
-		if m.ChoicePoint == m.cutChoice {
+		if m.ChoicePoint == m.CutChoice {
 			break
 		}
-		m.ChoicePoint = m.cutChoice
+		m.ChoicePoint = m.CutChoice
 		m.tidyTrail()
 	case cut:
 		// Remove any choicepoint created since the function initial execution, keeping
 		// choicepoints due to indexing.
-		if m.Env.cutChoice == m.ChoicePoint {
+		if m.Env.CutChoice == m.ChoicePoint {
 			break
 		}
-		m.ChoicePoint = m.Env.cutChoice
+		m.ChoicePoint = m.Env.CutChoice
 		m.tidyTrail()
 	case fail:
 		// fail unconditionally.
@@ -678,7 +678,7 @@ func (m *Machine) backtrack(err error) (InstrAddr, error) {
 	if m.ChoicePoint == nil {
 		return InstrAddr{}, err
 	}
-	m.cutChoice = m.ChoicePoint.cutChoice
+	m.CutChoice = m.ChoicePoint.CutChoice
 	return m.ChoicePoint.NextAlternative, nil
 }
 
@@ -745,7 +745,7 @@ func (m *Machine) preUnify(a1, a2 Cell) (InstrAddr, error) {
 	m.UnificationFrame = &UnificationFrame{
 		Prev:         m.UnificationFrame,
 		Continuation: m.Continuation,
-		cutChoice:    m.cutChoice,
+		CutChoice:    m.CutChoice,
 		Bindings:     bindingsToSlice(bindings),
 	}
 	return m.forward()
@@ -954,7 +954,7 @@ func (m *Machine) checkAttribute() {
 			}
 			m.Mode = Run
 			m.Continuation = frame.Continuation
-			m.cutChoice = frame.cutChoice
+			m.CutChoice = frame.CutChoice
 			m.UnificationFrame = frame.Prev
 			return
 		}
@@ -975,7 +975,7 @@ func (m *Machine) checkAttribute() {
 	m.Reg[1] = frame.Bindings[frame.Index].Value
 	m.Reg[2] = frame.NewAttribute
 	m.Continuation = m.CodePtr
-	m.cutChoice = m.ChoicePoint
+	m.CutChoice = m.ChoicePoint
 	instrAddr, err := m.call(Functor{"$check_attribute:unify", 3})
 	if err != nil {
 		// Should never happen.

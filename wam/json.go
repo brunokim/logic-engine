@@ -72,7 +72,7 @@ func (m *Machine) MarshalJSON() ([]byte, error) {
 		"Envs":         enc.envs_(),
 		"ChoicePos":    enc.getChoicePos(m.ChoicePoint),
 		"ChoicePoints": enc.choices_(),
-		"cutChoicePos": enc.getChoicePos(m.cutChoice),
+		"CutChoicePos": enc.getChoicePos(m.CutChoice),
 		"LastRefID":    m.LastRefID,
 		"Backtracked":  m.hasBacktracked,
 		"Attributes":   enc.attributes_(),
@@ -329,7 +329,7 @@ func (enc *machineEncoder) envs_() []interface{} {
 			"PrevPos":       enc.getEnvPos(env.Prev),
 			"Continuation":  enc.instrAddr(env.Continuation),
 			"PermanentVars": env.PermanentVars,
-			"cutChoicePos":  enc.getChoicePos(env.cutChoice),
+			"CutChoicePos":  enc.getChoicePos(env.CutChoice),
 		}
 	}
 	return s
@@ -345,7 +345,7 @@ func (enc *machineEncoder) choices_() []interface{} {
 			"Trail":           enc.trail(choice.Trail),
 			"LastRefID":       choice.LastRefID,
 			"EnvPos":          enc.getEnvPos(choice.Env),
-			"cutChoicePos":    enc.getChoicePos(choice.cutChoice),
+			"CutChoicePos":    enc.getChoicePos(choice.CutChoice),
 			"Continuation":    enc.instrAddr(choice.Continuation),
 		}
 	}

@@ -583,7 +583,7 @@ type Env struct {
 	// Permanent vars stored in stack to survive between calls.
 	PermanentVars []Cell
 	// Saved choice point if there's a deep cut in clause.
-	cutChoice *ChoicePoint
+	CutChoice *ChoicePoint
 }
 
 // ChoicePoint represents an OR-stack frames with the state associated to an alternative code path.
@@ -601,14 +601,14 @@ type ChoicePoint struct {
 	Args         []Cell
 	LastRefID    int
 	Env          *Env
-	cutChoice    *ChoicePoint
+	CutChoice    *ChoicePoint
 	Continuation InstrAddr
 }
 
 type UnificationFrame struct {
 	Prev          *UnificationFrame
 	Continuation  InstrAddr
-	cutChoice     *ChoicePoint
+	CutChoice     *ChoicePoint
 	Bindings      []Binding
 	Index         int
 	Attributes    []Cell
@@ -685,7 +685,7 @@ type Machine struct {
 	ChoicePoint *ChoicePoint
 
 	// Choice point to restore after a cut.
-	cutChoice *ChoicePoint
+	CutChoice *ChoicePoint
 
 	// Limit of iterations to run.
 	IterLimit int
