@@ -270,14 +270,27 @@ func subClausesInClause(clause *Clause) []*Clause {
 	return clauses
 }
 
+func tryMeChain(instr tryMeElse) []*Clause {
+	var clauses []*Clause
+	clause := instr.Alternative.Clause
+	for clause != nil {
+		clauses = append(clauses, clause)
+		switch ins := clause.Code[0].(type) {
+		case retryMeElse:
+			clause = ins.Alternative.Clause
+		case trustMe:
+			clause = nil
+		default:
+			panic(fmt.Sprintf("unexpected instruction in try_me_else chain: %v", ins))
+		}
+	}
+	return clauses
+}
+
 func subClauses(instr Instruction) []*Clause {
 	switch i := instr.(type) {
 	case tryMeElse:
-		subSub := subClausesInClause(i.Alternative.Clause)
-		return append(subSub, i.Alternative.Clause)
-	case retryMeElse:
-		subSub := subClausesInClause(i.Alternative.Clause)
-		return append(subSub, i.Alternative.Clause)
+		return tryMeChain(i)
 	case try:
 		subSub := subClausesInClause(i.Continuation.Clause)
 		return append(subSub, i.Continuation.Clause)
