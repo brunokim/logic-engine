@@ -589,6 +589,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 				return instr.IfList, nil
 			case DictPair:
 				return instr.IfDict, nil
+			default:
 				panic(fmt.Sprintf("switch_on_term: pair: unhandled pair type %T (%v)", c.Tag, c))
 			}
 		default:

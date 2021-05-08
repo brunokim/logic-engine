@@ -738,7 +738,7 @@ var (
 		comp("proceed", atom("run")))
 )
 
-func Testcut(t *testing.T) {
+func TestCut(t *testing.T) {
 	m := wam.NewMachine()
 	m.AddClause(member1)
 	m.AddClause(setAdd1)

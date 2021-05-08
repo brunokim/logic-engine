@@ -57,11 +57,11 @@ func varAddr(x logic.Var) int {
 
 func decodePairTag(t logic.Term) PairTag {
 	switch t {
-	case logic.Atom{"list"}:
+	case dsl.Atom("list"):
 		return ListPair
-	case logic.Atom{"assoc"}:
+	case dsl.Atom("assoc"):
 		return AssocPair
-	case logic.Atom{"dict"}:
+	case dsl.Atom("dict"):
 		return DictPair
 	default:
 		panic(fmt.Sprintf("invalid pair tag: %v", t))
@@ -70,9 +70,9 @@ func decodePairTag(t logic.Term) PairTag {
 
 func decodeExecutionMode(t logic.Term) ExecutionMode {
 	switch t {
-	case logic.Atom{"run"}:
+	case dsl.Atom("run"):
 		return Run
-	case logic.Atom{"unify"}:
+	case dsl.Atom("unify"):
 		return Unify
 	default:
 		panic(fmt.Sprintf("invalid execution mode: %v", t))
