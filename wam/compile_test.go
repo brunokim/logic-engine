@@ -21,7 +21,7 @@ func TestCompile(t *testing.T) {
 			wam.DecodeClause(indicator("=", 2),
 				comp("get_variable", var_("X2"), var_("X0")),
 				comp("get_value", var_("X2"), var_("X1")),
-				comp("proceed")),
+				comp("proceed", atom("run"))),
 		},
 		{
 			dsl.Clause(comp("nat", comp("s", var_("X"))),
@@ -43,7 +43,7 @@ func TestCompile(t *testing.T) {
 				comp("get_pair", atom("list"), var_("X2")),
 				comp("unify_value", var_("X3")),
 				comp("unify_void"),
-				comp("proceed")),
+				comp("proceed", atom("run"))),
 		},
 		{
 			dsl.Clause(comp("f", var_("X"), var_("Y")),
@@ -69,7 +69,7 @@ func TestCompile(t *testing.T) {
 			wam.DecodeClause(indicator("mul", 3),
 				comp("get_constant", int_(0), var_("X0")),
 				comp("get_constant", int_(0), var_("X2")),
-				comp("proceed")),
+				comp("proceed", atom("run"))),
 		},
 		{
 			dsl.Clause(comp("non-empty", ilist(var_("_"), var_("_")))),
@@ -77,7 +77,7 @@ func TestCompile(t *testing.T) {
 				comp("get_pair", atom("list"), var_("X0")),
 				comp("unify_void"),
 				comp("unify_void"),
-				comp("proceed")),
+				comp("proceed", atom("run"))),
 		},
 		{
 			dsl.Clause(comp(">=3", comp("s", comp("s", comp("s", var_("_")))))),
@@ -88,7 +88,7 @@ func TestCompile(t *testing.T) {
 				comp("unify_variable", var_("X2")),
 				comp("get_struct", atom("s/1"), var_("X2")),
 				comp("unify_void"),
-				comp("proceed")),
+				comp("proceed", atom("run"))),
 		},
 		{
 			dsl.Clause(comp("f", list(comp("g", atom("a")), comp("h", atom("b"))))),
@@ -103,7 +103,7 @@ func TestCompile(t *testing.T) {
 				comp("unify_constant", atom("[]")),
 				comp("get_struct", atom("h/1"), var_("X3")),
 				comp("unify_constant", atom("b")),
-				comp("proceed")),
+				comp("proceed", atom("run"))),
 		},
 		{
 			dsl.Clause(comp("query"),
@@ -181,7 +181,7 @@ func TestCompile(t *testing.T) {
 				// cut
 				comp("cut"),
 				comp("deallocate"),
-				comp("proceed")),
+				comp("proceed", atom("run"))),
 		},
 		// query :- =(
 		//   p({a:1, b:2|P1}, P1, P2),
@@ -279,7 +279,7 @@ func TestCompile(t *testing.T) {
 				comp("get_pair", atom("assoc"), var_("X5")),
 				comp("unify_value", var_("X4")),
 				comp("unify_value", var_("X4")),
-				comp("proceed")),
+				comp("proceed", atom("run"))),
 		},
 	}
 	for _, test := range tests {
@@ -299,23 +299,23 @@ var (
 	vowelA = wam.DecodeClause(indicator("vowel", 1),
 		comp("try_me_else", comp("instr", ptr(vowelE), int_(0))),
 		comp("get_constant", atom("a"), var_("X0")),
-		comp("proceed"))
+		comp("proceed", atom("run")))
 	vowelE = wam.DecodeClause(indicator("vowel", 1),
 		comp("retry_me_else", comp("instr", ptr(vowelI), int_(0))),
 		comp("get_constant", atom("e"), var_("X0")),
-		comp("proceed"))
+		comp("proceed", atom("run")))
 	vowelI = wam.DecodeClause(indicator("vowel", 1),
 		comp("retry_me_else", comp("instr", ptr(vowelO), int_(0))),
 		comp("get_constant", atom("i"), var_("X0")),
-		comp("proceed"))
+		comp("proceed", atom("run")))
 	vowelO = wam.DecodeClause(indicator("vowel", 1),
 		comp("retry_me_else", comp("instr", ptr(vowelU), int_(0))),
 		comp("get_constant", atom("o"), var_("X0")),
-		comp("proceed"))
+		comp("proceed", atom("run")))
 	vowelU = wam.DecodeClause(indicator("vowel", 1),
 		comp("trust_me"),
 		comp("get_constant", atom("u"), var_("X0")),
-		comp("proceed"))
+		comp("proceed", atom("run")))
 	vowelIndex = wam.DecodeClause(indicator("vowel", 1),
 		comp("switch_on_term",
 			comp("instr", ptr(vowelA), int_(0)),
@@ -351,39 +351,39 @@ var (
 	fAtomB = wam.DecodeClause(indicator("f", 1),
 		comp("retry_me_else", comp("instr", ptr(fAtomNil), int_(0))),
 		comp("get_constant", atom("b"), var_("X0")),
-		comp("proceed"))
+		comp("proceed", atom("run")))
 	fAtomNil = wam.DecodeClause(indicator("f", 1),
 		comp("retry_me_else", comp("instr", ptr(fStructG1), int_(0))),
 		comp("get_constant", atom("[]"), var_("X0")),
-		comp("proceed"))
+		comp("proceed", atom("run")))
 	fStructG1 = wam.DecodeClause(indicator("f", 1),
 		comp("retry_me_else", comp("instr", ptr(fList1), int_(0))),
 		comp("get_struct", atom("g/1"), var_("X0")),
 		comp("unify_constant", int_(0)),
-		comp("proceed"))
+		comp("proceed", atom("run")))
 	fList1 = wam.DecodeClause(indicator("f", 1),
 		comp("retry_me_else", comp("instr", ptr(fStructG2), int_(0))),
 		comp("get_pair", atom("list"), var_("X0")),
 		comp("unify_variable", var_("X1")),
 		comp("unify_variable", var_("X2")),
-		comp("proceed"))
+		comp("proceed", atom("run")))
 	fStructG2 = wam.DecodeClause(indicator("f", 1),
 		comp("retry_me_else", comp("instr", ptr(fList2), int_(0))),
 		comp("get_struct", atom("g/1"), var_("X0")),
 		comp("unify_constant", atom("1")),
-		comp("proceed"))
+		comp("proceed", atom("run")))
 	fList2 = wam.DecodeClause(indicator("f", 1),
 		comp("retry_me_else", comp("instr", ptr(fList3), int_(0))),
 		comp("get_pair", atom("list"), var_("X0")),
 		comp("unify_constant", atom("x")),
 		comp("unify_constant", atom("[]")),
-		comp("proceed"))
+		comp("proceed", atom("run")))
 	fList3 = wam.DecodeClause(indicator("f", 1),
 		comp("trust_me"),
 		comp("get_pair", atom("list"), var_("X0")),
 		comp("unify_constant", atom("y")),
 		comp("unify_constant", atom("[]")),
-		comp("proceed"))
+		comp("proceed", atom("run")))
 	fIndex = wam.DecodeClause(indicator("f", 1),
 		/*0*/ comp("switch_on_term",
 			comp("instr", ptr(fAtomA1), int_(0)),

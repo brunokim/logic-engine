@@ -462,6 +462,8 @@ export class Wam {
             return this.switchTable(instr.Continuation)
         case "builtin":
             return instr.Name
+        case "proceed":
+            return instr.Mode
         }
         return null
     }

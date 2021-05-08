@@ -146,7 +146,9 @@ type executeMeta struct {
 	Params []Addr
 }
 
-type proceed struct{}
+type proceed struct {
+	Mode ExecutionMode
+}
 
 type halt struct{}
 
@@ -211,47 +213,43 @@ type getAttr struct {
 	Attribute Addr
 }
 
-// Internal instruction to finalize a check_attribute loop.
-type endCheckAttribute struct{}
-
-func (i putStruct) isInstruction()         {}
-func (i putVariable) isInstruction()       {}
-func (i putValue) isInstruction()          {}
-func (i putConstant) isInstruction()       {}
-func (i putPair) isInstruction()           {}
-func (i getStruct) isInstruction()         {}
-func (i getVariable) isInstruction()       {}
-func (i getValue) isInstruction()          {}
-func (i getConstant) isInstruction()       {}
-func (i getPair) isInstruction()           {}
-func (i unifyVariable) isInstruction()     {}
-func (i unifyValue) isInstruction()        {}
-func (i unifyConstant) isInstruction()     {}
-func (i unifyVoid) isInstruction()         {}
-func (i call) isInstruction()              {}
-func (i callMeta) isInstruction()          {}
-func (i execute) isInstruction()           {}
-func (i executeMeta) isInstruction()       {}
-func (i proceed) isInstruction()           {}
-func (i halt) isInstruction()              {}
-func (i allocate) isInstruction()          {}
-func (i deallocate) isInstruction()        {}
-func (i tryMeElse) isInstruction()         {}
-func (i retryMeElse) isInstruction()       {}
-func (i trustMe) isInstruction()           {}
-func (i try) isInstruction()               {}
-func (i retry) isInstruction()             {}
-func (i trust) isInstruction()             {}
-func (i switchOnTerm) isInstruction()      {}
-func (i switchOnConstant) isInstruction()  {}
-func (i switchOnStruct) isInstruction()    {}
-func (i neckCut) isInstruction()           {}
-func (i cut) isInstruction()               {}
-func (i fail) isInstruction()              {}
-func (i builtin) isInstruction()           {}
-func (i endCheckAttribute) isInstruction() {}
-func (i putAttr) isInstruction()           {}
-func (i getAttr) isInstruction()           {}
+func (i putStruct) isInstruction()        {}
+func (i putVariable) isInstruction()      {}
+func (i putValue) isInstruction()         {}
+func (i putConstant) isInstruction()      {}
+func (i putPair) isInstruction()          {}
+func (i getStruct) isInstruction()        {}
+func (i getVariable) isInstruction()      {}
+func (i getValue) isInstruction()         {}
+func (i getConstant) isInstruction()      {}
+func (i getPair) isInstruction()          {}
+func (i unifyVariable) isInstruction()    {}
+func (i unifyValue) isInstruction()       {}
+func (i unifyConstant) isInstruction()    {}
+func (i unifyVoid) isInstruction()        {}
+func (i call) isInstruction()             {}
+func (i callMeta) isInstruction()         {}
+func (i execute) isInstruction()          {}
+func (i executeMeta) isInstruction()      {}
+func (i proceed) isInstruction()          {}
+func (i halt) isInstruction()             {}
+func (i allocate) isInstruction()         {}
+func (i deallocate) isInstruction()       {}
+func (i tryMeElse) isInstruction()        {}
+func (i retryMeElse) isInstruction()      {}
+func (i trustMe) isInstruction()          {}
+func (i try) isInstruction()              {}
+func (i retry) isInstruction()            {}
+func (i trust) isInstruction()            {}
+func (i switchOnTerm) isInstruction()     {}
+func (i switchOnConstant) isInstruction() {}
+func (i switchOnStruct) isInstruction()   {}
+func (i neckCut) isInstruction()          {}
+func (i cut) isInstruction()              {}
+func (i fail) isInstruction()             {}
+func (i builtin) isInstruction()          {}
+func (i putAttr) isInstruction()          {}
+func (i getAttr) isInstruction()          {}
 
 func (i putStruct) String() string {
 	return fmt.Sprintf("put_struct %v, A%d", i.Functor, i.ArgAddr)
@@ -326,7 +324,7 @@ func (i executeMeta) String() string {
 }
 
 func (i proceed) String() string {
-	return "proceed"
+	return fmt.Sprintf("proceed %v", i.Mode)
 }
 
 func (i halt) String() string {
@@ -411,10 +409,6 @@ func (i fail) String() string {
 
 func (i builtin) String() string {
 	return fmt.Sprintf("builtin %s, <func %p>", i.Name, i.Func)
-}
-
-func (i endCheckAttribute) String() string {
-	return "end_check_attribute"
 }
 
 func (i putAttr) String() string {

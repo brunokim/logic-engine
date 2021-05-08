@@ -68,6 +68,17 @@ func decodePairTag(t logic.Term) PairTag {
 	}
 }
 
+func decodeExecutionMode(t logic.Term) ExecutionMode {
+	switch t {
+	case logic.Atom{"run"}:
+		return Run
+	case logic.Atom{"unify"}:
+		return Unify
+	default:
+		panic(fmt.Sprintf("invalid execution mode: %v", t))
+	}
+}
+
 func decodeAddrList(t logic.Term) []Addr {
 	if t == logic.EmptyList {
 		return nil
@@ -179,8 +190,8 @@ func DecodeInstruction(term logic.Term) Instruction {
 		return execute{decodeFunctor(c.Args[0])}
 	case dsl.Indicator("execute_meta", 2):
 		return executeMeta{decodeAddr(c.Args[0]), decodeAddrList(c.Args[1])}
-	case dsl.Indicator("proceed", 0):
-		return proceed{}
+	case dsl.Indicator("proceed", 1):
+		return proceed{decodeExecutionMode(c.Args[0])}
 	case dsl.Indicator("halt", 0):
 		return halt{}
 	case dsl.Indicator("allocate", 1):
@@ -224,8 +235,6 @@ func DecodeInstruction(term logic.Term) Instruction {
 		return putAttr{decodeAddr(c.Args[0]), decodeAddr(c.Args[1])}
 	case dsl.Indicator("get_attr", 2):
 		return getAttr{decodeAddr(c.Args[0]), decodeAddr(c.Args[1])}
-	case dsl.Indicator("end_check_attribute", 0):
-		return endCheckAttribute{}
 	default:
 		panic(fmt.Sprintf("decode: unhandled instruction %v", c))
 	}

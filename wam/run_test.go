@@ -97,7 +97,7 @@ func TestRun_Call(t *testing.T) {
 
 	var prog []logic.Term
 	prog = append(prog, programInstrs...)
-	prog = append(prog, atom("proceed"))
+	prog = append(prog, comp("proceed", atom("run")))
 	program := wam.DecodeClause(indicator("p", 3), prog...)
 
 	m := wam.NewMachine()
@@ -133,14 +133,14 @@ var (
 		comp("put_value", var_("Y0"), var_("X1")),
 		comp("call", atom("r/2")),
 		atom("deallocate"),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 
 	// q(a, f(a)).
 	q2 = wam.DecodeClause(indicator("q", 2),
 		comp("get_constant", atom("a"), var_("X0")),
 		comp("get_struct", atom("f/1"), var_("X1")),
 		comp("unify_constant", atom("a")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 
 	// r(f(A), f(B)) :- s(B), t(A).
 	r2 = wam.DecodeClause(indicator("r", 2),
@@ -154,18 +154,18 @@ var (
 		comp("put_value", var_("Y0"), var_("X0")),
 		comp("call", atom("t/1")),
 		atom("deallocate"),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 
 	// s(g(b)).
 	s1 = wam.DecodeClause(indicator("s", 1),
 		comp("get_struct", atom("g/1"), var_("X0")),
 		comp("unify_constant", atom("b")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 
 	// t(a).
 	t1 = wam.DecodeClause(indicator("t", 1),
 		comp("get_constant", atom("a"), var_("X0")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 )
 
 func TestRun_allocate(t *testing.T) {
@@ -207,26 +207,26 @@ var (
 	colorRed = wam.DecodeClause(indicator("color", 1),
 		comp("try_me_else", comp("instr", ptr(colorGreen), int_(0))),
 		comp("get_constant", atom("red"), var_("X0")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 	colorGreen = wam.DecodeClause(indicator("color", 1),
 		comp("retry_me_else", comp("instr", ptr(colorBlue), int_(0))),
 		comp("get_constant", atom("green"), var_("X0")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 	colorBlue = wam.DecodeClause(indicator("color", 1),
 		atom("trust_me"),
 		comp("get_constant", atom("blue"), var_("X0")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 
 	// bit(false).
 	// bit(true).
 	bitFalse = wam.DecodeClause(indicator("bit", 1),
 		comp("try_me_else", comp("instr", ptr(bitTrue), int_(0))),
 		comp("get_constant", atom("false"), var_("X0")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 	bitTrue = wam.DecodeClause(indicator("bit", 1),
 		atom("trust_me"),
 		comp("get_constant", atom("true"), var_("X0")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 
 	// bit_color(Bit, Color) :- bit(Bit), color(Color).
 	bitColor = wam.DecodeClause(indicator("bit_color", 2),
@@ -238,7 +238,7 @@ var (
 		comp("put_value", var_("Y0"), var_("X0")),
 		comp("call", atom("color/1")),
 		atom("deallocate"),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 )
 
 func TestRun_ChoicePoints(t *testing.T) {
@@ -282,7 +282,7 @@ var (
 		comp("unify_value", var_("Y1")),
 		comp("call", atom("c/2")),
 		atom("deallocate"),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 	b2 = wam.DecodeClause(indicator("b", 2),
 		comp("allocate", int_(0)),
 		comp("get_variable", var_("X2"), var_("X0")),
@@ -290,31 +290,31 @@ var (
 		comp("put_value", var_("X2"), var_("X0")),
 		comp("call", atom("d/1")),
 		atom("deallocate"),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 	c2_1 = wam.DecodeClause(indicator("c", 2),
 		comp("try_me_else", comp("instr", ptr(c2_2), int_(0))),
 		comp("get_variable", var_("X2"), var_("X0")),
 		comp("get_struct", atom("f/1"), var_("X1")),
 		comp("unify_value", var_("X2")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 	c2_2 = wam.DecodeClause(indicator("c", 2),
 		atom("trust_me"),
 		comp("get_variable", var_("X2"), var_("X0")),
 		comp("get_struct", atom("g/1"), var_("X1")),
 		comp("unify_value", var_("X2")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 	d1_1 = wam.DecodeClause(indicator("d", 1),
 		comp("try_me_else", comp("instr", ptr(d1_2), int_(0))),
 		comp("get_constant", atom("q0"), var_("X0")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 	d1_2 = wam.DecodeClause(indicator("d", 1),
 		comp("retry_me_else", comp("instr", ptr(d1_3), int_(0))),
 		comp("get_constant", atom("q1"), var_("X0")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 	d1_3 = wam.DecodeClause(indicator("d", 1),
 		atom("trust_me"),
 		comp("get_constant", atom("q2"), var_("X0")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 )
 
 func TestRun_Trail(t *testing.T) {
@@ -355,12 +355,12 @@ func TestRun_List(t *testing.T) {
 		comp("get_pair", atom("list"), var_("X1")),
 		comp("unify_constant", atom("b")),
 		comp("unify_constant", atom("[]")),
-		atom("proceed")))
+		comp("proceed", atom("run"))))
 
 	// =(X, X).
 	m.AddClause(wam.DecodeClause(indicator("=", 2),
 		comp("get_value", var_("X0"), var_("X1")),
-		atom("proceed")))
+		comp("proceed", atom("run"))))
 
 	// ?- build_list((a . T)), =(T, (X . [])).
 	m.AddClause(wam.DecodeClause(indicator("", 0),
@@ -408,7 +408,7 @@ func TestRun_Void(t *testing.T) {
 		comp("get_pair", atom("list"), var_("X2")),
 		atom("unify_void"),
 		comp("unify_constant", atom("[]")),
-		atom("proceed")))
+		comp("proceed", atom("run"))))
 
 	// ?- length3((a . (X . (f(_, _, X) . []))))
 	m.AddClause(wam.DecodeClause(indicator("", 0),
@@ -472,7 +472,7 @@ var (
 		comp("try_me_else", comp("instr", ptr(concat2), int_(0))),
 		comp("get_constant", atom("[]"), var_("X0")),
 		comp("get_value", var_("X1"), var_("X2")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 	// [a, b, c]
 	buildList_abc = []logic.Term{
 		comp("put_pair", atom("list"), var_("X5")),
@@ -656,7 +656,7 @@ var (
 	callRepeat1 = wam.DecodeClause(indicator("call", 1),
 		comp("retry_me_else", comp("instr", ptr(callRepeat2), int_(0))),
 		comp("get_constant", atom("repeat"), var_("X0")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 	// call(repeat) :- call(repeat).
 	callRepeat2 = wam.DecodeClause(indicator("call", 1),
 		comp("retry_me_else", comp("instr", ptr(callTrue), int_(0))),
@@ -666,7 +666,7 @@ var (
 	callTrue = wam.DecodeClause(indicator("call", 1),
 		atom("trust_me"),
 		comp("get_constant", atom("true"), var_("X0")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 )
 
 func TestSwitch(t *testing.T) {
@@ -703,7 +703,7 @@ var (
 		comp("unify_value", var_("X2")),
 		atom("unify_void"),
 		atom("neck_cut"),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 	member2 = wam.DecodeClause(indicator("member", 2),
 		atom("trust_me"),
 		comp("get_variable", var_("X2"), var_("X0")),
@@ -727,7 +727,7 @@ var (
 		comp("call", atom("member/2")),
 		atom("cut"),
 		atom("deallocate"),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 	setAdd2 = wam.DecodeClause(indicator("set_add", 3),
 		atom("trust_me"),
 		comp("get_variable", var_("X3"), var_("X0")),
@@ -735,7 +735,7 @@ var (
 		comp("get_pair", atom("list"), var_("X2")),
 		comp("unify_value", var_("X4")),
 		comp("unify_value", var_("X3")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 )
 
 func Testcut(t *testing.T) {
@@ -796,7 +796,7 @@ var (
 		comp("try_me_else", comp("instr", ptr(tree2), int_(0))),
 		comp("get_constant", atom("nil"), var_("X0")),
 		comp("get_value", var_("X2"), var_("X1")),
-		atom("proceed"))
+		comp("proceed", atom("run")))
 
 	tree2 = wam.DecodeClause(indicator("tree", 3),
 		atom("trust_me"),

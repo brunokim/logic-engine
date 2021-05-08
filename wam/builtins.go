@@ -64,11 +64,8 @@ var (
 			comp("asm", comp("get_attr", var_("X0"), var_("X1")))),
 		dsl.Clause(comp("put_attr", var_("X"), var_("Attr")),
 			comp("asm", comp("put_attr", var_("X0"), var_("X1")))),
-		dsl.Clause(comp("$check_attribute", var_("Attr"), var_("Value"), var_("NewAttr")),
-			comp("asm", comp("allocate", int_(0))),
-			comp("asm", comp("call", atom("check_attribute/3"))),
-			comp("asm", atom("deallocate")),
-			comp("asm", atom("end_check_attribute"))),
+		dsl.Clause(comp("$check_attribute:unify", var_("Attr"), var_("Value"), var_("NewAttr")),
+			comp("asm", comp("call", atom("check_attribute/3")))),
 	}
 )
 

@@ -525,6 +525,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		return m.call(functor)
 	case proceed:
 		// Jump to the continuation.
+		m.Mode = instr.Mode
 		nextInstr := m.Continuation
 		m.Continuation.Clause = nil
 		return nextInstr, nil
@@ -633,12 +634,6 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		if err := instr.Func(m); err != nil {
 			return m.backtrack(err)
 		}
-	case endCheckAttribute:
-		//
-		m.Mode = Unify
-		nextInstr := m.Continuation
-		m.Continuation.Clause = nil
-		return nextInstr, nil
 	case putAttr:
 		// Associates attribute to a ref.
 		ref, ok := deref(m.get(instr.Addr)).(*Ref)
@@ -980,7 +975,7 @@ func (m *Machine) checkAttribute() {
 	m.Reg[2] = frame.NewAttribute
 	m.Continuation = m.CodePtr
 	m.cutChoice = m.ChoicePoint
-	instrAddr, err := m.call(Functor{"$check_attribute", 3})
+	instrAddr, err := m.call(Functor{"$check_attribute:unify", 3})
 	if err != nil {
 		// Should never happen.
 		panic(err)

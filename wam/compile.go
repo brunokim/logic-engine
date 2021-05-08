@@ -2,6 +2,7 @@ package wam
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/brunokim/logic-engine/dsl"
 	"github.com/brunokim/logic-engine/logic"
@@ -100,8 +101,18 @@ func hasDeepcut(clause *logic.Clause) bool {
 
 func hasNonLastCall(clause *logic.Clause) bool {
 	for i, term := range clause.Body {
-		if term.(*logic.Comp).Functor == "call" && i < len(clause.Body)-1 {
+		c, ok := term.(*logic.Comp)
+		if !ok {
+			continue
+		}
+		if c.Functor == "call" && i < len(clause.Body)-1 {
 			return true
+		}
+		if c.Indicator() == dsl.Indicator("asm", 1) {
+			arg := c.Args[0]
+			if a, ok := arg.(*logic.Comp); ok && a.Functor == "call" {
+				return true
+			}
 		}
 	}
 	return false
@@ -419,12 +430,19 @@ func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
 	// e.g., '!'
 	n := len(clause.Body)
 	if n == 0 || isbuiltin(clause.Body[n-1].(*logic.Comp)) {
-		c.Code = append(c.Code, proceed{})
+		c.Code = append(c.Code, proceed{getMode(functor.Name)})
 	}
 	c.Code = append(header, c.Code...)
 	c.Code = append(c.Code, footer...)
 	c.NumRegisters = int(ctx.topReg)
 	return c
+}
+
+func getMode(s string) ExecutionMode {
+	if s[0] == '$' && strings.HasSuffix(s, ":unify") {
+		return Unify
+	}
+	return Run
 }
 
 func optimizeInstructions(code []Instruction) []Instruction {
