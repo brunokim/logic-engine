@@ -415,40 +415,40 @@ export class Wam {
 
     instructionFirstArg(instr) {
         switch (instr.Type) {
-        case "PutStruct":
-        case "GetStruct":
-        case "Call":
-        case "Execute":
+        case "putStruct":
+        case "getStruct":
+        case "call":
+        case "execute":
             return instr.Functor
-        case "PutConstant":
-        case "GetConstant":
-        case "UnifyConstant":
+        case "putConstant":
+        case "getConstant":
+        case "unifyConstant":
             return instr.Constant
-        case "PutVariable":
-        case "PutValue":
-        case "GetVariable":
-        case "GetValue":
-        case "UnifyVariable":
-        case "UnifyValue":
-        case "CallMeta":
-        case "ExecuteMeta":
-        case "PutAttr":
-        case "GetAttr":
+        case "putVariable":
+        case "putValue":
+        case "getVariable":
+        case "getValue":
+        case "unifyVariable":
+        case "unifyValue":
+        case "callMeta":
+        case "executeMeta":
+        case "putAttr":
+        case "getAttr":
             return instr.Addr
-        case "UnifyVoid":
-        case "Allocate":
+        case "unifyVoid":
+        case "allocate":
             return instr.NumVars
-        case "PutPair":
-        case "GetPair":
+        case "putPair":
+        case "getPair":
             return instr.Tag
-        case "TryMeElse":
-        case "RetryMeElse":
+        case "tryMeElse":
+        case "retryMeElse":
             return this.instructionAddress(instr.Alternative)
-        case "Try":
-        case "Retry":
-        case "Trust":
+        case "try":
+        case "retry":
+        case "trust":
             return this.instructionAddress(instr.Continuation)
-        case "SwitchOnTerm":
+        case "switchOnTerm":
             return this.switchTable({
                 'if_var': instr.IfVar,
                 'if_const': instr.IfConstant,
@@ -457,10 +457,10 @@ export class Wam {
                 'if_assoc': instr.IfAssoc,
                 'if_dict': instr.IfDict,
             })
-        case "SwitchOnConstant":
-        case "SwitchOnStruct":
+        case "switchOnConstant":
+        case "switchOnStruct":
             return this.switchTable(instr.Continuation)
-        case "Builtin":
+        case "builtin":
             return instr.Name
         }
         return null
@@ -468,22 +468,22 @@ export class Wam {
 
     instructionSecondArg(instr) {
         switch (instr.Type) {
-        case "PutStruct":
-        case "PutVariable":
-        case "PutValue":
-        case "PutConstant":
-        case "PutPair":
-        case "GetStruct":
-        case "GetVariable":
-        case "GetValue":
-        case "GetConstant":
-        case "GetPair":
+        case "putStruct":
+        case "putVariable":
+        case "putValue":
+        case "putConstant":
+        case "putPair":
+        case "getStruct":
+        case "getVariable":
+        case "getValue":
+        case "getConstant":
+        case "getPair":
             return instr.ArgAddr
-        case "CallMeta":
-        case "ExecuteMeta":
+        case "callMeta":
+        case "executeMeta":
             return olist(instr.Params)
-        case "PutAttr":
-        case "GetAttr":
+        case "putAttr":
+        case "getAttr":
             return instr.Attribute
         }
         return null
