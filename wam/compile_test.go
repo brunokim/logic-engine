@@ -18,170 +18,170 @@ func TestCompile(t *testing.T) {
 	}{
 		{
 			dsl.Clause(comp("=", var_("X"), var_("X"))),
-			clause(functor{"=", 2},
-				get_variable{reg(2), reg(0)},
-				get_value{reg(2), reg(1)},
-				proceed{}),
+			wam.DecodeClause(indicator("=", 2),
+				comp("get_variable", var_("X2"), var_("X0")),
+				comp("get_value", var_("X2"), var_("X1")),
+				comp("proceed")),
 		},
 		{
 			dsl.Clause(comp("nat", comp("s", var_("X"))),
 				comp("nat", var_("X"))),
-			clause(functor{"nat", 1},
-				get_struct{functor{"s", 1}, reg(0)},
-				unify_variable{reg(1)},
-				put_value{reg(1), reg(0)},
-				execute{functor{"nat", 1}},
+			wam.DecodeClause(indicator("nat", 1),
+				comp("get_struct", atom("s/1"), var_("X0")),
+				comp("unify_variable", var_("X1")),
+				comp("put_value", var_("X1"), var_("X0")),
+				comp("execute", atom("nat/1")),
 			),
 		},
 		{
 			dsl.Clause(comp("take-1", var_("H"), list(var_("H")), ilist(var_("H"), var_("_")))),
-			clause(functor{"take-1", 3},
-				get_variable{reg(3), reg(0)},
-				get_pair{list_pair, reg(1)},
-				unify_value{reg(3)},
-				unify_constant{watom("[]")},
-				get_pair{list_pair, reg(2)},
-				unify_value{reg(3)},
-				unify_void{},
-				proceed{}),
+			wam.DecodeClause(indicator("take-1", 3),
+				comp("get_variable", var_("X3"), var_("X0")),
+				comp("get_pair", atom("list"), var_("X1")),
+				comp("unify_value", var_("X3")),
+				comp("unify_constant", atom("[]")),
+				comp("get_pair", atom("list"), var_("X2")),
+				comp("unify_value", var_("X3")),
+				comp("unify_void"),
+				comp("proceed")),
 		},
 		{
 			dsl.Clause(comp("f", var_("X"), var_("Y")),
 				comp("g", var_("X"), var_("Z")),
 				comp("h", var_("Y"), var_("Z"))),
-			clause(functor{"f", 2},
-				allocate{2},
+			wam.DecodeClause(indicator("f", 2),
+				comp("allocate", int_(2)),
 				// head
-				get_variable{reg(2), reg(0)},
-				get_variable{stack(0), reg(1)},
+				comp("get_variable", var_("X2"), var_("X0")),
+				comp("get_variable", var_("Y0"), var_("X1")),
 				// body 1
-				put_value{reg(2), reg(0)},
-				put_variable{stack(1), reg(1)},
-				call{functor{"g", 2}},
+				comp("put_value", var_("X2"), var_("X0")),
+				comp("put_variable", var_("Y1"), var_("X1")),
+				comp("call", atom("g/2")),
 				// body 2
-				put_value{stack(0), reg(0)},
-				put_value{stack(1), reg(1)},
-				deallocate{},
-				execute{functor{"h", 2}}),
+				comp("put_value", var_("Y0"), var_("X0")),
+				comp("put_value", var_("Y1"), var_("X1")),
+				comp("deallocate"),
+				comp("execute", atom("h/2"))),
 		},
 		{
 			dsl.Clause(comp("mul", int_(0), var_("_"), int_(0))),
-			clause(functor{"mul", 3},
-				get_constant{wint(0), reg(0)},
-				get_constant{wint(0), reg(2)},
-				proceed{}),
+			wam.DecodeClause(indicator("mul", 3),
+				comp("get_constant", int_(0), var_("X0")),
+				comp("get_constant", int_(0), var_("X2")),
+				comp("proceed")),
 		},
 		{
 			dsl.Clause(comp("non-empty", ilist(var_("_"), var_("_")))),
-			clause(functor{"non-empty", 1},
-				get_pair{list_pair, reg(0)},
-				unify_void{},
-				unify_void{},
-				proceed{}),
+			wam.DecodeClause(indicator("non-empty", 1),
+				comp("get_pair", atom("list"), var_("X0")),
+				comp("unify_void"),
+				comp("unify_void"),
+				comp("proceed")),
 		},
 		{
 			dsl.Clause(comp(">=3", comp("s", comp("s", comp("s", var_("_")))))),
-			clause(functor{">=3", 1},
-				get_struct{functor{"s", 1}, reg(0)},
-				unify_variable{reg(1)},
-				get_struct{functor{"s", 1}, reg(1)},
-				unify_variable{reg(2)},
-				get_struct{functor{"s", 1}, reg(2)},
-				unify_void{},
-				proceed{}),
+			wam.DecodeClause(indicator(">=3", 1),
+				comp("get_struct", atom("s/1"), var_("X0")),
+				comp("unify_variable", var_("X1")),
+				comp("get_struct", atom("s/1"), var_("X1")),
+				comp("unify_variable", var_("X2")),
+				comp("get_struct", atom("s/1"), var_("X2")),
+				comp("unify_void"),
+				comp("proceed")),
 		},
 		{
 			dsl.Clause(comp("f", list(comp("g", atom("a")), comp("h", atom("b"))))),
-			clause(functor{"f", 1},
-				get_pair{list_pair, reg(0)},
-				unify_variable{reg(1)},
-				unify_variable{reg(2)},
-				get_struct{functor{"g", 1}, reg(1)},
-				unify_constant{watom("a")},
-				get_pair{list_pair, reg(2)},
-				unify_variable{reg(3)},
-				unify_constant{watom("[]")},
-				get_struct{functor{"h", 1}, reg(3)},
-				unify_constant{watom("b")},
-				proceed{}),
+			wam.DecodeClause(indicator("f", 1),
+				comp("get_pair", atom("list"), var_("X0")),
+				comp("unify_variable", var_("X1")),
+				comp("unify_variable", var_("X2")),
+				comp("get_struct", atom("g/1"), var_("X1")),
+				comp("unify_constant", atom("a")),
+				comp("get_pair", atom("list"), var_("X2")),
+				comp("unify_variable", var_("X3")),
+				comp("unify_constant", atom("[]")),
+				comp("get_struct", atom("h/1"), var_("X3")),
+				comp("unify_constant", atom("b")),
+				comp("proceed")),
 		},
 		{
 			dsl.Clause(comp("query"),
 				comp("make", comp("p", var_("Z"), comp("h", var_("Z"), var_("W")), comp("f", var_("W"))))),
-			clause(functor{"query", 0},
-				put_struct{functor{"h", 2}, reg(3)},
-				unify_variable{reg(1)},
-				unify_variable{reg(2)},
-				put_struct{functor{"f", 1}, reg(4)},
-				unify_value{reg(2)},
-				put_struct{functor{"p", 3}, reg(0)},
-				unify_value{reg(1)},
-				unify_value{reg(3)},
-				unify_value{reg(4)},
-				execute{functor{"make", 1}}),
+			wam.DecodeClause(indicator("query", 0),
+				comp("put_struct", atom("h/2"), var_("X3")),
+				comp("unify_variable", var_("X1")),
+				comp("unify_variable", var_("X2")),
+				comp("put_struct", atom("f/1"), var_("X4")),
+				comp("unify_value", var_("X2")),
+				comp("put_struct", atom("p/3"), var_("X0")),
+				comp("unify_value", var_("X1")),
+				comp("unify_value", var_("X3")),
+				comp("unify_value", var_("X4")),
+				comp("execute", atom("make/1"))),
 		},
 		{
 			dsl.Clause(comp("mul", var_("A"), comp("s", var_("B")), comp("s", var_("P"))),
 				comp("mul", var_("A"), var_("B"), var_("P1")),
 				comp("add", var_("B"), var_("P1"), var_("P"))),
-			clause(functor{"mul", 3},
-				allocate{3},
+			wam.DecodeClause(indicator("mul", 3),
+				comp("allocate", int_(3)),
 				// head
-				get_variable{reg(3), reg(0)},
-				get_struct{functor{"s", 1}, reg(1)},
-				unify_variable{stack(0)},
-				get_struct{functor{"s", 1}, reg(2)},
-				unify_variable{stack(1)},
+				comp("get_variable", var_("X3"), var_("X0")),
+				comp("get_struct", atom("s/1"), var_("X1")),
+				comp("unify_variable", var_("Y0")),
+				comp("get_struct", atom("s/1"), var_("X2")),
+				comp("unify_variable", var_("Y1")),
 				// body 1
-				put_value{reg(3), reg(0)},
-				put_value{stack(0), reg(1)},
-				put_variable{stack(2), reg(2)},
-				call{functor{"mul", 3}},
+				comp("put_value", var_("X3"), var_("X0")),
+				comp("put_value", var_("Y0"), var_("X1")),
+				comp("put_variable", var_("Y2"), var_("X2")),
+				comp("call", atom("mul/3")),
 				// body 2
-				put_value{stack(0), reg(0)},
-				put_value{stack(2), reg(1)},
-				put_value{stack(1), reg(2)},
-				deallocate{},
-				execute{functor{"add", 3}}),
+				comp("put_value", var_("Y0"), var_("X0")),
+				comp("put_value", var_("Y2"), var_("X1")),
+				comp("put_value", var_("Y1"), var_("X2")),
+				comp("deallocate"),
+				comp("execute", atom("add/3"))),
 		},
 		{
 			dsl.Clause(comp("if*", var_("Cond"), var_("Then"), var_("Else")),
 				var_("Cond"),
 				atom("!"),
 				var_("Then")),
-			clause(functor{"if*", 3},
-				allocate{1},
+			wam.DecodeClause(indicator("if*", 3),
+				comp("allocate", int_(1)),
 				// head
-				get_variable{reg(3), reg(0)},
-				get_variable{stack(0), reg(1)},
-				get_variable{reg(4), reg(2)},
+				comp("get_variable", var_("X3"), var_("X0")),
+				comp("get_variable", var_("Y0"), var_("X1")),
+				comp("get_variable", var_("X4"), var_("X2")),
 				// body
-				put_value{reg(3), reg(0)},
-				call_meta{reg(0), nil},
-				cut{},
-				put_value{stack(0), reg(0)},
-				deallocate{},
-				execute_meta{reg(0), nil}),
+				comp("put_value", var_("X3"), var_("X0")),
+				comp("call_meta", var_("X0"), list()),
+				comp("cut"),
+				comp("put_value", var_("Y0"), var_("X0")),
+				comp("deallocate"),
+				comp("execute_meta", var_("X0"), list())),
 		},
 		{
 			dsl.Clause(comp("term", var_("Term"), var_("L1"), var_("L2")),
 				comp("atom", var_("Term"), var_("L1"), var_("L2")),
 				atom("!")),
-			clause(functor{"term", 3},
-				allocate{0},
+			wam.DecodeClause(indicator("term", 3),
+				comp("allocate", int_(0)),
 				// head
-				get_variable{reg(3), reg(0)},
-				get_variable{reg(4), reg(1)},
-				get_variable{reg(5), reg(2)},
+				comp("get_variable", var_("X3"), var_("X0")),
+				comp("get_variable", var_("X4"), var_("X1")),
+				comp("get_variable", var_("X5"), var_("X2")),
 				// atom(...)
-				put_value{reg(3), reg(0)},
-				put_value{reg(4), reg(1)},
-				put_value{reg(5), reg(2)},
-				call{functor{"atom", 3}},
+				comp("put_value", var_("X3"), var_("X0")),
+				comp("put_value", var_("X4"), var_("X1")),
+				comp("put_value", var_("X5"), var_("X2")),
+				comp("call", atom("atom/3")),
 				// cut
-				cut{},
-				deallocate{},
-				proceed{}),
+				comp("cut"),
+				comp("deallocate"),
+				comp("proceed")),
 		},
 		// query :- =(
 		//   p({a:1, b:2|P1}, P1, P2),
@@ -197,51 +197,51 @@ func TestCompile(t *testing.T) {
 						idict(atom("a"), int_(1), atom("c"), int_(3), var_("P2")),
 						var_("_"),
 						var_("_")))),
-			clause(functor{"query", 0},
+			wam.DecodeClause(indicator("query", 0),
 				// a:1
-				put_pair{assoc_pair, reg(5)},
-				unify_constant{watom("a")},
-				unify_constant{wint(1)},
+				comp("put_pair", atom("assoc"), var_("X5")),
+				comp("unify_constant", atom("a")),
+				comp("unify_constant", int_(1)),
 				// b:2
-				put_pair{assoc_pair, reg(7)},
-				unify_constant{watom("b")},
-				unify_constant{wint(2)},
+				comp("put_pair", atom("assoc"), var_("X7")),
+				comp("unify_constant", atom("b")),
+				comp("unify_constant", int_(2)),
 				// {b:2|P1}
-				put_pair{dict_pair, reg(6)},
-				unify_value{reg(7)},
-				unify_variable{reg(2)}, // P1=X2
+				comp("put_pair", atom("dict"), var_("X6")),
+				comp("unify_value", var_("X7")),
+				comp("unify_variable", var_("X2")), // P1=X2
 				// {a:1, b:2|P1}
-				put_pair{dict_pair, reg(4)},
-				unify_value{reg(5)},
-				unify_value{reg(6)},
+				comp("put_pair", atom("dict"), var_("X4")),
+				comp("unify_value", var_("X5")),
+				comp("unify_value", var_("X6")),
 				// p({...}, P1, P2)
-				put_struct{functor{"p", 3}, reg(0)},
-				unify_value{reg(4)},
-				unify_value{reg(2)},
-				unify_variable{reg(3)}, // P2=X3
+				comp("put_struct", atom("p/3"), var_("X0")),
+				comp("unify_value", var_("X4")),
+				comp("unify_value", var_("X2")),
+				comp("unify_variable", var_("X3")), // P2=X3
 				// a:1
-				put_pair{assoc_pair, reg(9)},
-				unify_constant{watom("a")},
-				unify_constant{wint(1)},
+				comp("put_pair", atom("assoc"), var_("X9")),
+				comp("unify_constant", atom("a")),
+				comp("unify_constant", int_(1)),
 				// c:3
-				put_pair{assoc_pair, reg(11)},
-				unify_constant{watom("c")},
-				unify_constant{wint(3)},
+				comp("put_pair", atom("assoc"), var_("X11")),
+				comp("unify_constant", atom("c")),
+				comp("unify_constant", int_(3)),
 				// {c:3|P2}
-				put_pair{dict_pair, reg(10)},
-				unify_value{reg(11)},
-				unify_value{reg(3)},
+				comp("put_pair", atom("dict"), var_("X10")),
+				comp("unify_value", var_("X11")),
+				comp("unify_value", var_("X3")),
 				// {a:1, c:3|P2}
-				put_pair{dict_pair, reg(8)},
-				unify_value{reg(9)},
-				unify_value{reg(10)},
+				comp("put_pair", atom("dict"), var_("X8")),
+				comp("unify_value", var_("X9")),
+				comp("unify_value", var_("X10")),
 				// p({...}, _, _)
-				put_struct{functor{"p", 3}, reg(1)},
-				unify_value{reg(8)},
-				unify_void{},
-				unify_void{},
+				comp("put_struct", atom("p/3"), var_("X1")),
+				comp("unify_value", var_("X8")),
+				comp("unify_void"),
+				comp("unify_void"),
 				// =(..., ...).
-				execute{functor{"=", 2}}),
+				comp("execute", atom("=/2"))),
 		},
 		// query :- f(g(h(W), W, Z), g(h(Z))).
 		{
@@ -249,37 +249,37 @@ func TestCompile(t *testing.T) {
 				comp("f",
 					comp("g", comp("h", var_("W")), var_("W"), var_("Z")),
 					comp("g", comp("h", var_("Z"))))),
-			clause(functor{"query", 0},
+			wam.DecodeClause(indicator("query", 0),
 				// h(W)
-				put_struct{functor{"h", 1}, reg(4)},
-				unify_variable{reg(2)}, // W=X2
+				comp("put_struct", atom("h/1"), var_("X4")),
+				comp("unify_variable", var_("X2")), // W=X2
 				// g(., W, Z)
-				put_struct{functor{"g", 3}, reg(0)},
-				unify_value{reg(4)},
-				unify_value{reg(2)},
-				unify_variable{reg(3)}, // Z=X3
+				comp("put_struct", atom("g/3"), var_("X0")),
+				comp("unify_value", var_("X4")),
+				comp("unify_value", var_("X2")),
+				comp("unify_variable", var_("X3")), // Z=X3
 				// h(Z)
-				put_struct{functor{"h", 1}, reg(5)},
-				unify_value{reg(3)},
+				comp("put_struct", atom("h/1"), var_("X5")),
+				comp("unify_value", var_("X3")),
 				// g(.)
-				put_struct{functor{"g", 1}, reg(1)},
-				unify_value{reg(5)},
+				comp("put_struct", atom("g/1"), var_("X1")),
+				comp("unify_value", var_("X5")),
 				// :- f(., .).
-				execute{functor{"f", 2}}),
+				comp("execute", atom("f/2"))),
 		},
 		{
 			dsl.Clause(comp("add", var_("Set"), idict(var_("X"), var_("X"), var_("Set")), var_("X"))),
-			clause(functor{"add", 3},
-				get_variable{reg(3), reg(0)}, // Set = X3
-				get_pair{dict_pair, reg(1)},  // {X:X|Set}
-				unify_variable{reg(5)},
-				unify_value{reg(3)},
-				get_variable{reg(4), reg(2)}, // X = X5
+			wam.DecodeClause(indicator("add", 3),
+				comp("get_variable", var_("X3"), var_("X0")), // Set = X3
+				comp("get_pair", atom("dict"), var_("X1")),   // {X:X|Set)
+				comp("unify_variable", var_("X5")),
+				comp("unify_value", var_("X3")),
+				comp("get_variable", var_("X4"), var_("X2")), // X = X5
 				// X:X
-				get_pair{assoc_pair, reg(5)},
-				unify_value{reg(4)},
-				unify_value{reg(4)},
-				proceed{}),
+				comp("get_pair", atom("assoc"), var_("X5")),
+				comp("unify_value", var_("X4")),
+				comp("unify_value", var_("X4")),
+				comp("proceed")),
 		},
 	}
 	for _, test := range tests {
@@ -296,43 +296,40 @@ var (
 	// vowel(i).
 	// vowel(o).
 	// vowel(u).
-	vowelA = clause(functor{"vowel", 1},
-		try_me_else{instr{vowelE, 0}},
-		get_constant{watom("a"), reg(0)},
-		proceed{})
-	vowelE = clause(functor{"vowel", 1},
-		retry_me_else{instr{vowelI, 0}},
-		get_constant{watom("e"), reg(0)},
-		proceed{})
-	vowelI = clause(functor{"vowel", 1},
-		retry_me_else{instr{vowelO, 0}},
-		get_constant{watom("i"), reg(0)},
-		proceed{})
-	vowelO = clause(functor{"vowel", 1},
-		retry_me_else{instr{vowelU, 0}},
-		get_constant{watom("o"), reg(0)},
-		proceed{})
-	vowelU = clause(functor{"vowel", 1},
-		trust_me{},
-		get_constant{watom("u"), reg(0)},
-		proceed{})
-	vowelIndex = &wam.Clause{
-		Functor:      functor{"vowel", 1},
-		NumRegisters: 1,
-		Code: []wam.Instruction{
-			switch_on_term{
-				IfVar:      instr{vowelA, 0},
-				IfConstant: instr{nil, 1},
-			},
-			switch_on_constant{map[constant]instr{
-				watom("a"): instr{vowelA, 1},
-				watom("e"): instr{vowelE, 1},
-				watom("i"): instr{vowelI, 1},
-				watom("o"): instr{vowelO, 1},
-				watom("u"): instr{vowelU, 1},
-			}},
-		},
-	}
+	vowelA = wam.DecodeClause(indicator("vowel", 1),
+		comp("try_me_else", comp("instr", ptr(vowelE), int_(0))),
+		comp("get_constant", atom("a"), var_("X0")),
+		comp("proceed"))
+	vowelE = wam.DecodeClause(indicator("vowel", 1),
+		comp("retry_me_else", comp("instr", ptr(vowelI), int_(0))),
+		comp("get_constant", atom("e"), var_("X0")),
+		comp("proceed"))
+	vowelI = wam.DecodeClause(indicator("vowel", 1),
+		comp("retry_me_else", comp("instr", ptr(vowelO), int_(0))),
+		comp("get_constant", atom("i"), var_("X0")),
+		comp("proceed"))
+	vowelO = wam.DecodeClause(indicator("vowel", 1),
+		comp("retry_me_else", comp("instr", ptr(vowelU), int_(0))),
+		comp("get_constant", atom("o"), var_("X0")),
+		comp("proceed"))
+	vowelU = wam.DecodeClause(indicator("vowel", 1),
+		comp("trust_me"),
+		comp("get_constant", atom("u"), var_("X0")),
+		comp("proceed"))
+	vowelIndex = wam.DecodeClause(indicator("vowel", 1),
+		comp("switch_on_term",
+			comp("instr", ptr(vowelA), int_(0)),
+			comp("instr", ptr(nil), int_(1)),
+			comp("instr", ptr(nil), int_(0)),
+			comp("instr", ptr(nil), int_(0)),
+			comp("instr", ptr(nil), int_(0)),
+			comp("instr", ptr(nil), int_(0))),
+		comp("switch_on_constant", dict(
+			atom("a"), comp("instr", ptr(vowelA), int_(1)),
+			atom("e"), comp("instr", ptr(vowelE), int_(1)),
+			atom("i"), comp("instr", ptr(vowelI), int_(1)),
+			atom("o"), comp("instr", ptr(vowelO), int_(1)),
+			atom("u"), comp("instr", ptr(vowelU), int_(1)))))
 
 	// f(a) :- a().
 	// f(a) :- b().
@@ -343,79 +340,71 @@ var (
 	// f(g(1)).
 	// f([x]).
 	// f([y]).
-	fAtomA1 = clause(functor{"f", 1},
-		try_me_else{instr{fAtomA2, 0}},
-		get_constant{watom("a"), reg(0)},
-		execute{functor{"a", 0}})
-	fAtomA2 = clause(functor{"f", 1},
-		retry_me_else{instr{fAtomB, 0}},
-		get_constant{watom("a"), reg(0)},
-		execute{functor{"b", 0}})
-	fAtomB = clause(functor{"f", 1},
-		retry_me_else{instr{fAtomNil, 0}},
-		get_constant{watom("b"), reg(0)},
-		proceed{})
-	fAtomNil = clause(functor{"f", 1},
-		retry_me_else{instr{fStructG1, 0}},
-		get_constant{watom("[]"), reg(0)},
-		proceed{})
-	fStructG1 = clause(functor{"f", 1},
-		retry_me_else{instr{fList1, 0}},
-		get_struct{functor{"g", 1}, reg(0)},
-		unify_constant{wint(0)},
-		proceed{})
-	fList1 = clause(functor{"f", 1},
-		retry_me_else{instr{fStructG2, 0}},
-		get_pair{list_pair, reg(0)},
-		unify_variable{reg(1)},
-		unify_variable{reg(2)},
-		proceed{})
-	fStructG2 = clause(functor{"f", 1},
-		retry_me_else{instr{fList2, 0}},
-		get_struct{functor{"g", 1}, reg(0)},
-		unify_constant{watom("1")},
-		proceed{})
-	fList2 = clause(functor{"f", 1},
-		retry_me_else{instr{fList3, 0}},
-		get_pair{list_pair, reg(0)},
-		unify_constant{watom("x")},
-		unify_constant{watom("[]")},
-		proceed{})
-	fList3 = clause(functor{"f", 1},
-		trust_me{},
-		get_pair{list_pair, reg(0)},
-		unify_constant{watom("y")},
-		unify_constant{watom("[]")},
-		proceed{})
-	fIndex = &wam.Clause{
-		Functor:      functor{"f", 1},
-		NumRegisters: 3,
-		Code: []wam.Instruction{
-			/*0*/ switch_on_term{
-				IfVar:      instr{fAtomA1, 0},
-				IfConstant: instr{nil, 1},
-				IfStruct:   instr{nil, 4},
-				IfList:     instr{nil, 7},
-				IfAssoc:    instr{},
-				IfDict:     instr{},
-			},
-			/*1*/ switch_on_constant{map[constant]instr{
-				watom("a"):  instr{nil, 2},
-				watom("b"):  instr{fAtomB, 1},
-				watom("[]"): instr{fAtomNil, 1},
-			}},
-			/*2*/ try{instr{fAtomA1, 1}},
-			/*3*/ trust{instr{fAtomA2, 1}},
-			/*4*/ switch_on_struct{map[wam.Functor]instr{
-				functor{"g", 1}: instr{nil, 5},
-			}},
-			/*5*/ try{instr{fStructG1, 1}},
-			/*6*/ trust{instr{fStructG2, 1}},
-			/*7*/ try{instr{fList1, 1}},
-			/*8*/ retry{instr{fList2, 1}},
-			/*9*/ trust{instr{fList3, 1}},
-		},
-	}
+	fAtomA1 = wam.DecodeClause(indicator("f", 1),
+		comp("try_me_else", comp("instr", ptr(fAtomA2), int_(0))),
+		comp("get_constant", atom("a"), var_("X0")),
+		comp("execute", atom("a/0")))
+	fAtomA2 = wam.DecodeClause(indicator("f", 1),
+		comp("retry_me_else", comp("instr", ptr(fAtomB), int_(0))),
+		comp("get_constant", atom("a"), var_("X0")),
+		comp("execute", atom("b/0")))
+	fAtomB = wam.DecodeClause(indicator("f", 1),
+		comp("retry_me_else", comp("instr", ptr(fAtomNil), int_(0))),
+		comp("get_constant", atom("b"), var_("X0")),
+		comp("proceed"))
+	fAtomNil = wam.DecodeClause(indicator("f", 1),
+		comp("retry_me_else", comp("instr", ptr(fStructG1), int_(0))),
+		comp("get_constant", atom("[]"), var_("X0")),
+		comp("proceed"))
+	fStructG1 = wam.DecodeClause(indicator("f", 1),
+		comp("retry_me_else", comp("instr", ptr(fList1), int_(0))),
+		comp("get_struct", atom("g/1"), var_("X0")),
+		comp("unify_constant", int_(0)),
+		comp("proceed"))
+	fList1 = wam.DecodeClause(indicator("f", 1),
+		comp("retry_me_else", comp("instr", ptr(fStructG2), int_(0))),
+		comp("get_pair", atom("list"), var_("X0")),
+		comp("unify_variable", var_("X1")),
+		comp("unify_variable", var_("X2")),
+		comp("proceed"))
+	fStructG2 = wam.DecodeClause(indicator("f", 1),
+		comp("retry_me_else", comp("instr", ptr(fList2), int_(0))),
+		comp("get_struct", atom("g/1"), var_("X0")),
+		comp("unify_constant", atom("1")),
+		comp("proceed"))
+	fList2 = wam.DecodeClause(indicator("f", 1),
+		comp("retry_me_else", comp("instr", ptr(fList3), int_(0))),
+		comp("get_pair", atom("list"), var_("X0")),
+		comp("unify_constant", atom("x")),
+		comp("unify_constant", atom("[]")),
+		comp("proceed"))
+	fList3 = wam.DecodeClause(indicator("f", 1),
+		comp("trust_me"),
+		comp("get_pair", atom("list"), var_("X0")),
+		comp("unify_constant", atom("y")),
+		comp("unify_constant", atom("[]")),
+		comp("proceed"))
+	fIndex = wam.DecodeClause(indicator("f", 1),
+		/*0*/ comp("switch_on_term",
+			comp("instr", ptr(fAtomA1), int_(0)),
+			comp("instr", ptr(nil), int_(1)),
+			comp("instr", ptr(nil), int_(4)),
+			comp("instr", ptr(nil), int_(7)),
+			comp("instr", ptr(nil), int_(0)),
+			comp("instr", ptr(nil), int_(0))),
+		/*1*/ comp("switch_on_constant", dict(
+			atom("a"), comp("instr", ptr(nil), int_(2)),
+			atom("b"), comp("instr", ptr(fAtomB), int_(1)),
+			atom("[]"), comp("instr", ptr(fAtomNil), int_(1)))),
+		/*2*/ comp("try", comp("instr", ptr(fAtomA1), int_(1))),
+		/*3*/ comp("trust", comp("instr", ptr(fAtomA2), int_(1))),
+		/*4*/ comp("switch_on_struct", dict(
+			atom("g/1"), comp("instr", ptr(nil), int_(5)))),
+		/*5*/ comp("try", comp("instr", ptr(fStructG1), int_(1))),
+		/*6*/ comp("trust", comp("instr", ptr(fStructG2), int_(1))),
+		/*7*/ comp("try", comp("instr", ptr(fList1), int_(1))),
+		/*8*/ comp("retry", comp("instr", ptr(fList2), int_(1))),
+		/*9*/ comp("trust", comp("instr", ptr(fList3), int_(1))))
 )
 
 func TestCompileClauses(t *testing.T) {
@@ -466,42 +455,12 @@ func TestCompileClauses(t *testing.T) {
 		},
 	}
 	// Need to ignore self-referential fields because go-cmp can't handle them.
-	opts := cmp.Options{
-		cmpopts.IgnoreFields(switch_on_term{},
-			"IfConstant.Clause",
-			"IfStruct.Clause",
-			"IfList.Clause",
-			"IfAssoc.Clause",
-			"IfDict.Clause"),
-		cmp.Transformer("switch_on_constant.Continuation", func(cont map[constant]instr) map[constant]instr {
-			m := make(map[constant]instr)
-			for key, ins := range cont {
-				if ins.Pos == 1 {
-					m[key] = ins
-				} else {
-					m[key] = instr{Clause: nil, Pos: ins.Pos}
-				}
-			}
-			return m
-		}),
-		cmp.Transformer("switch_on_struct.Continuation", func(cont map[functor]instr) map[functor]instr {
-			m := make(map[functor]instr)
-			for key, ins := range cont {
-				if ins.Pos == 1 {
-					m[key] = ins
-				} else {
-					m[key] = instr{Clause: nil, Pos: ins.Pos}
-				}
-			}
-			return m
-		}),
-	}
 	for _, test := range tests {
 		got, err := wam.CompileClauses(test.clauses)
 		if err != nil {
 			t.Fatalf("want nil, got %v", err)
 		}
-		if diff := cmp.Diff(test.want, got, opts); diff != "" {
+		if diff := cmp.Diff(test.want, got, cmpopts.IgnoreFields(instr{}, "Clause")); diff != "" {
 			t.Errorf("%v: (-want, +got)%s", test.clauses, diff)
 		}
 	}

@@ -132,8 +132,8 @@ func (m *Machine) runCode(i int) (bool, error) {
 	if instr == nil {
 		return false, fmt.Errorf("invalid instruction @ clock %d (did you miss a proceed or deallocate at the end of a clause?)", i)
 	}
-	if _, ok := instr.(Halt); ok {
-		// Return normally when reaching Halt instruction.
+	if _, ok := instr.(halt); ok {
+		// Return normally when reaching halt instruction.
 		return true, nil
 	}
 	select {
@@ -158,13 +158,13 @@ func (m *Machine) debugInit() io.WriteCloser {
 	}
 	f, err := os.Create(m.DebugFilename)
 	if err != nil {
-		log.Printf("Failed to open debug file: %v", err)
+		log.Printf("failed to open debug file: %v", err)
 		return nil
 	}
 	m.shouldEncodeClauses = true
 	data, err := json.Marshal(m)
 	if err != nil {
-		log.Printf("Failed to marshal data: %v", err)
+		log.Printf("failed to marshal data: %v", err)
 		return nil
 	}
 	m.shouldEncodeClauses = false
@@ -178,7 +178,7 @@ func (m *Machine) debugClose(f io.WriteCloser) {
 		return
 	}
 	if err := f.Close(); err != nil {
-		log.Printf("Failed closing debug file: %v", err)
+		log.Printf("failed closing debug file: %v", err)
 	}
 }
 
@@ -188,7 +188,7 @@ func (m *Machine) debugWrite(f io.WriteCloser, counter int) {
 	}
 	data, err := json.Marshal(m)
 	if err != nil {
-		log.Printf("Failed to marshal data: %v", err)
+		log.Printf("failed to marshal data: %v", err)
 		return
 	}
 	f.Write(data)
@@ -235,18 +235,18 @@ func (m *Machine) resetMode() {
 
 func (m *Machine) writeArg(instr Instruction) Cell {
 	switch instr := instr.(type) {
-	case UnifyVariable:
+	case unifyVariable:
 		// Place new unbound ref during query building.
 		x := m.newRef()
 		m.set(instr.Addr, x)
 		return x
-	case UnifyValue:
+	case unifyValue:
 		// Copy already-seen cell from register to the heap during query building.
 		return m.get(instr.Addr)
-	case UnifyConstant:
+	case unifyConstant:
 		// Push a constant to the current struct arg.
 		return instr.Constant
-	case UnifyVoid:
+	case unifyVoid:
 		// Push an unbound variable to the current struct arg.
 		return m.newRef()
 	}
@@ -255,17 +255,17 @@ func (m *Machine) writeArg(instr Instruction) Cell {
 
 func (m *Machine) readArg(instr Instruction, arg Cell) (InstrAddr, error) {
 	switch instr := instr.(type) {
-	case UnifyVariable:
+	case unifyVariable:
 		// Unify newly-seen cell, placing current arg in register.
 		m.set(instr.Addr, arg)
-	case UnifyValue:
+	case unifyValue:
 		// Unify already-seen cell, unifying the address with the arg.
 		cell := m.get(instr.Addr)
 		return m.preUnify(cell, arg)
-	case UnifyConstant:
+	case unifyConstant:
 		// Unify already-seen constant, unifying the address with the arg.
 		return m.readConstant(instr.Constant, arg)
-	case UnifyVoid:
+	case unifyVoid:
 		// Do nothing
 	default:
 		panic(fmt.Sprintf("readArg: unhandled instruction type %T (%v)", instr, instr))
@@ -358,7 +358,7 @@ func (m *Machine) newChoicePoint(alternative InstrAddr) *ChoicePoint {
 		Args:            make([]Cell, numArgs),
 		LastRefID:       m.LastRefID,
 		Env:             m.Env,
-		CutChoice:       m.CutChoice,
+		cutChoice:       m.cutChoice,
 	}
 	copy(choicePoint.Args, m.Reg)
 	return choicePoint
@@ -424,28 +424,28 @@ func (m *Machine) putMeta(addr Addr, params []Addr) (Functor, error) {
 
 func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 	switch instr := instr.(type) {
-	case PutStruct:
+	case putStruct:
 		// Place flattened struct (in post order) during query building.
 		f := makeStructFrom(instr.Functor)
 		m.Reg[instr.ArgAddr] = f
 		m.setMode(Write, f)
-	case PutVariable:
+	case putVariable:
 		// Place newly-seen query argument as an unbound ref during query building.
 		x := m.newRef()
 		m.Reg[instr.ArgAddr] = x
 		m.set(instr.Addr, x)
-	case PutValue:
+	case putValue:
 		// Move already-seen query argument from register to arg register.
 		m.Reg[instr.ArgAddr] = m.get(instr.Addr)
-	case PutConstant:
+	case putConstant:
 		// Put constant as argument in register.
 		m.Reg[instr.ArgAddr] = instr.Constant
-	case PutPair:
+	case putPair:
 		// Put pair as argument in register.
 		l := &Pair{Tag: instr.Tag}
 		m.Reg[instr.ArgAddr] = l
 		m.setMode(Write, l)
-	case GetStruct:
+	case getStruct:
 		// Get flattened struct (in pre order) from register.
 		// If already a literal struct, will read another struct from the heap during unification.
 		// If a ref, will build the struct on the heap instead. In this case, it's necessary to
@@ -464,16 +464,16 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		default:
 			return m.backtrack(&unifyError{cell, instr.Functor})
 		}
-	case GetVariable:
+	case getVariable:
 		// Move newly-seen clause param from arg register to register.
 		m.set(instr.Addr, m.Reg[instr.ArgAddr])
-	case GetValue:
+	case getValue:
 		// Unify already-seen clause param with register value.
 		return m.preUnify(m.get(instr.Addr), m.get(instr.ArgAddr))
-	case GetConstant:
+	case getConstant:
 		// Expect a constant from register.
 		return m.readConstant(instr.Constant, m.get(instr.ArgAddr))
-	case GetPair:
+	case getPair:
 		// Expect a pair from register.
 		cell := deref(m.get(instr.ArgAddr))
 		switch c := cell.(type) {
@@ -489,88 +489,88 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		default:
 			return m.backtrack(&unifyError{cell, &Pair{Tag: instr.Tag}})
 		}
-	case UnifyVariable:
+	case unifyVariable:
 		return m.unifyArg(instr)
-	case UnifyValue:
+	case unifyValue:
 		return m.unifyArg(instr)
-	case UnifyConstant:
+	case unifyConstant:
 		return m.unifyArg(instr)
-	case UnifyVoid:
+	case unifyVoid:
 		return m.unifyArg(instr)
-	case Call:
+	case call:
 		// Save instruction pointer, and set it to clause location.
 		m.Continuation = m.CodePtr.inc()
-		m.CutChoice = m.ChoicePoint
+		m.cutChoice = m.ChoicePoint
 		return m.call(instr.Functor)
-	case CallMeta:
-		// Call clause pointed by a ref or struct.
+	case callMeta:
+		// call clause pointed by a ref or struct.
 		functor, err := m.putMeta(instr.Addr, instr.Params)
 		if err != nil {
 			return m.backtrack(fmt.Errorf("call_meta: %v", err))
 		}
 		m.Continuation = m.CodePtr.inc()
-		m.CutChoice = m.ChoicePoint
+		m.cutChoice = m.ChoicePoint
 		return m.call(functor)
-	case Execute:
+	case execute:
 		// Trampoline into other clause, without changing the continuation.
-		m.CutChoice = m.ChoicePoint
+		m.cutChoice = m.ChoicePoint
 		return m.call(instr.Functor)
-	case ExecuteMeta:
+	case executeMeta:
 		// Trampoline into other dynamic clause, without changing the continuation.
 		functor, err := m.putMeta(instr.Addr, instr.Params)
 		if err != nil {
 			return m.backtrack(fmt.Errorf("execute_meta: %v", err))
 		}
-		m.CutChoice = m.ChoicePoint
+		m.cutChoice = m.ChoicePoint
 		return m.call(functor)
-	case Proceed:
+	case proceed:
 		// Jump to the continuation.
 		nextInstr := m.Continuation
 		m.Continuation.Clause = nil
 		return nextInstr, nil
-	case Allocate:
-		// Allocate a new stack frame.
+	case allocate:
+		// allocate a new stack frame.
 		env := &Env{
 			Prev:          m.Env,
 			Continuation:  m.Continuation,
 			PermanentVars: make([]Cell, instr.NumVars),
-			CutChoice:     m.CutChoice,
+			cutChoice:     m.cutChoice,
 		}
 		m.Continuation.Clause = nil
 		m.Env = env
-	case Deallocate:
+	case deallocate:
 		// Pop the current environment. It may still be in memory if a choice point references it.
 		m.Continuation = m.Env.Continuation
 		m.Env = m.Env.Prev
-	case TryMeElse:
+	case tryMeElse:
 		// Create a choice point, saving current machine state and pointing to next possible clause.
 		m.ChoicePoint = m.newChoicePoint(instr.Alternative)
-	case RetryMeElse:
+	case retryMeElse:
 		// Reset the machine state to latest choice point, and point to the next possible clause.
 		m.restoreFromChoicePoint()
 		m.ChoicePoint.NextAlternative = instr.Alternative
-	case TrustMe:
+	case trustMe:
 		// Reset the machine state to latest choice point, and "deallocate" current choice point.
 		m.restoreFromChoicePoint()
 		m.ChoicePoint = m.ChoicePoint.Prev
-	case Try:
+	case try:
 		// Create a choice point, saving current machine state and pointing to next instruction.
 		// Jump execution to the instruction continuation.
 		m.ChoicePoint = m.newChoicePoint(m.CodePtr.inc())
 		return instr.Continuation, nil
-	case Retry:
+	case retry:
 		// Reset the machine state to latest choice point, and point to the next instruction.
 		// Jump execution to the instruction continuation.
 		m.restoreFromChoicePoint()
 		m.ChoicePoint.NextAlternative = m.CodePtr.inc()
 		return instr.Continuation, nil
-	case Trust:
+	case trust:
 		// Reset the machine state to latest choice point, and "deallocate" current choice point.
 		// Jump execution to the instruction continuation.
 		m.restoreFromChoicePoint()
 		m.ChoicePoint = m.ChoicePoint.Prev
 		return instr.Continuation, nil
-	case SwitchOnTerm:
+	case switchOnTerm:
 		// Jump to instructions matching the first arg type.
 		cell := deref(m.Reg[0])
 		switch c := cell.(type) {
@@ -593,7 +593,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		default:
 			panic(fmt.Sprintf("switch_on_term: unhandled type %T (%v)", cell, cell))
 		}
-	case SwitchOnConstant:
+	case switchOnConstant:
 		// Jump to instructions matching the first arg constant.
 		cell := deref(m.Reg[0]).(Constant)
 		cont, ok := instr.Continuation[cell]
@@ -601,7 +601,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 			return m.backtrack(fmt.Errorf("constant index not found: %v", cell))
 		}
 		return cont, nil
-	case SwitchOnStruct:
+	case switchOnStruct:
 		// Jump to instructions matching the first arg functor.
 		cell := deref(m.Reg[0]).(*Struct)
 		cont, ok := instr.Continuation[cell.Functor()]
@@ -609,27 +609,27 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 			return m.backtrack(fmt.Errorf("functor index not found: %v", cell.Functor()))
 		}
 		return cont, nil
-	case NeckCut:
+	case neckCut:
 		// Remove any choicepoint created since the function call, removing choicepoints
 		// due to indexing.
-		if m.ChoicePoint == m.CutChoice {
+		if m.ChoicePoint == m.cutChoice {
 			break
 		}
-		m.ChoicePoint = m.CutChoice
+		m.ChoicePoint = m.cutChoice
 		m.tidyTrail()
-	case Cut:
+	case cut:
 		// Remove any choicepoint created since the function initial execution, keeping
 		// choicepoints due to indexing.
-		if m.Env.CutChoice == m.ChoicePoint {
+		if m.Env.cutChoice == m.ChoicePoint {
 			break
 		}
-		m.ChoicePoint = m.Env.CutChoice
+		m.ChoicePoint = m.Env.cutChoice
 		m.tidyTrail()
-	case Fail:
-		// Fail unconditionally.
+	case fail:
+		// fail unconditionally.
 		return m.backtrack(fmt.Errorf("fail instruction"))
-	case Builtin:
-		// Calls builtin function.
+	case builtin:
+		// calls builtin function.
 		if err := instr.Func(m); err != nil {
 			return m.backtrack(err)
 		}
@@ -639,7 +639,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		nextInstr := m.Continuation
 		m.Continuation.Clause = nil
 		return nextInstr, nil
-	case PutAttr:
+	case putAttr:
 		// Associates attribute to a ref.
 		ref, ok := deref(m.get(instr.Addr)).(*Ref)
 		if !ok {
@@ -652,7 +652,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		default:
 			return m.backtrack(fmt.Errorf("put_attr: invalid attribute"))
 		}
-	case GetAttr:
+	case getAttr:
 		// Retrieves attribute associated to ref.
 		ref, ok := deref(m.get(instr.Addr)).(*Ref)
 		if !ok {
@@ -682,7 +682,7 @@ func (m *Machine) backtrack(err error) (InstrAddr, error) {
 	if m.ChoicePoint == nil {
 		return InstrAddr{}, err
 	}
-	m.CutChoice = m.ChoicePoint.CutChoice
+	m.cutChoice = m.ChoicePoint.cutChoice
 	return m.ChoicePoint.NextAlternative, nil
 }
 
@@ -749,7 +749,7 @@ func (m *Machine) preUnify(a1, a2 Cell) (InstrAddr, error) {
 	m.UnificationFrame = &UnificationFrame{
 		Prev:         m.UnificationFrame,
 		Continuation: m.Continuation,
-		CutChoice:    m.CutChoice,
+		cutChoice:    m.cutChoice,
 		Bindings:     bindingsToSlice(bindings),
 	}
 	return m.forward()
@@ -958,7 +958,7 @@ func (m *Machine) checkAttribute() {
 			}
 			m.Mode = Run
 			m.Continuation = frame.Continuation
-			m.CutChoice = frame.CutChoice
+			m.cutChoice = frame.cutChoice
 			m.UnificationFrame = frame.Prev
 			return
 		}
@@ -979,7 +979,7 @@ func (m *Machine) checkAttribute() {
 	m.Reg[1] = frame.Bindings[frame.Index].Value
 	m.Reg[2] = frame.NewAttribute
 	m.Continuation = m.CodePtr
-	m.CutChoice = m.ChoicePoint
+	m.cutChoice = m.ChoicePoint
 	instrAddr, err := m.call(Functor{"$check_attribute", 3})
 	if err != nil {
 		// Should never happen.

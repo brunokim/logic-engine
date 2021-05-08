@@ -64,345 +64,308 @@ type Instruction interface {
 	isInstruction()
 }
 
-// PutStruct instruction: put_struct <f/n>, <reg X>
-type PutStruct struct {
+type putStruct struct {
 	Functor Functor
 	ArgAddr RegAddr
 }
 
-// PutVariable instruction: put_variable <addr>, <reg X>
-type PutVariable struct {
+type putVariable struct {
 	Addr    Addr
 	ArgAddr RegAddr
 }
 
-// PutValue instruction: put_value <addr>, <reg X>
-type PutValue struct {
+type putValue struct {
 	Addr    Addr
 	ArgAddr RegAddr
 }
 
-// PutConstant instruction: put_constant <const>, <reg X>
-type PutConstant struct {
+type putConstant struct {
 	Constant Constant
 	ArgAddr  RegAddr
 }
 
-// PutPair instruction: put_pair <tag> <reg X>
-type PutPair struct {
+type putPair struct {
 	Tag     PairTag
 	ArgAddr RegAddr
 }
 
-// GetStruct instruction: get_struct <f/n>, <reg X>
-type GetStruct struct {
+type getStruct struct {
 	Functor Functor
 	ArgAddr RegAddr
 }
 
-// GetVariable instruction: get_variable <addr>, <reg X>
-type GetVariable struct {
+type getVariable struct {
 	Addr    Addr
 	ArgAddr RegAddr
 }
 
-// GetValue instruction: get_value <addr>, <reg X>
-type GetValue struct {
+type getValue struct {
 	Addr    Addr
 	ArgAddr RegAddr
 }
 
-// GetConstant instruction: get_constant <const>, <reg X>
-type GetConstant struct {
+type getConstant struct {
 	Constant Constant
 	ArgAddr  RegAddr
 }
 
-// GetPair instruction: get_pair <tag> <reg X>
-type GetPair struct {
+type getPair struct {
 	Tag     PairTag
 	ArgAddr RegAddr
 }
 
-// UnifyVariable instruction: unify_variable <addr>
-type UnifyVariable struct {
+type unifyVariable struct {
 	Addr Addr
 }
 
-// UnifyValue instruction: unify_value <addr>
-type UnifyValue struct {
+type unifyValue struct {
 	Addr Addr
 }
 
-// UnifyConstant instruction: unify_constant <const>
-type UnifyConstant struct {
+type unifyConstant struct {
 	Constant Constant
 }
 
-// UnifyVoid instruction: unify_void
-type UnifyVoid struct{}
+type unifyVoid struct{}
 
-// Call instruction: call <f/n>
-type Call struct {
+type call struct {
 	Functor Functor
 }
 
-// CallMeta instruction: call_meta <addr>, [<addr1>, <addr2>, <addr3>]
-type CallMeta struct {
+type callMeta struct {
 	Addr   Addr
 	Params []Addr
 }
 
-// Execute instruction: execute <f/n>
-type Execute struct {
+type execute struct {
 	Functor Functor
 }
 
-// ExecuteMeta instruction: execute_meta <addr>, [<addr1>, <addr2>, <addr3>]
-type ExecuteMeta struct {
+type executeMeta struct {
 	Addr   Addr
 	Params []Addr
 }
 
-// Proceed instruction: proceed
-type Proceed struct{}
+type proceed struct{}
 
-// Halt instruction: halt
-type Halt struct{}
+type halt struct{}
 
-// Allocate instruction: allocate <n>
-type Allocate struct {
+type allocate struct {
 	NumVars int
 }
 
-// Deallocate instruction: deallocate
-type Deallocate struct{}
+type deallocate struct{}
 
-// TryMeElse instruction: try_me_else <instr i>
-type TryMeElse struct {
+type tryMeElse struct {
 	Alternative InstrAddr
 }
 
-// RetryMeElse instruction: retry_me_else <instr i>
-type RetryMeElse struct {
+type retryMeElse struct {
 	Alternative InstrAddr
 }
 
-// TrustMe instruction: trust_me
-type TrustMe struct{}
+type trustMe struct{}
 
-// Try instruction: try <instr i>
-type Try struct {
+type try struct {
 	Continuation InstrAddr
 }
 
-// Retry instruction: retry <instr i>
-type Retry struct {
+type retry struct {
 	Continuation InstrAddr
 }
 
-// Trust instruction: trust <instr i>
-type Trust struct {
+type trust struct {
 	Continuation InstrAddr
 }
 
-// SwitchOnTerm instruction: switch_on_term <instr ifVar> <instr ifConst> <instr ifStruct> <instr ifList> <instr ifAssoc> <instr ifDict>
-type SwitchOnTerm struct {
+type switchOnTerm struct {
 	IfVar, IfConstant, IfStruct, IfList, IfAssoc, IfDict InstrAddr
 }
 
-// SwitchOnConstant instruction: switch_on_constant map{"p": <instr i1>, "q": <instr i2>}
-type SwitchOnConstant struct {
+type switchOnConstant struct {
 	Continuation map[Constant]InstrAddr
 }
 
-// SwitchOnStruct instruction: switch_on_constant map{"f/1": <instr i1>, "f/2": <instr i2>}
-type SwitchOnStruct struct {
+type switchOnStruct struct {
 	Continuation map[Functor]InstrAddr
 }
 
-// NeckCut instruction: neck_cut
-type NeckCut struct{}
+type neckCut struct{}
 
-// Cut instruction: cut
-type Cut struct{}
+type cut struct{}
 
-// Fail instruction: fail
-type Fail struct{}
+type fail struct{}
 
-// Builtin instruction: builtin name <func>
-type Builtin struct {
+type builtin struct {
 	Name string
 	Func func(m *Machine) error
+}
+
+type putAttr struct {
+	Addr      Addr
+	Attribute Addr
+}
+
+type getAttr struct {
+	Addr      Addr
+	Attribute Addr
 }
 
 // Internal instruction to finalize a check_attribute loop.
 type endCheckAttribute struct{}
 
-// PutAttr instruction: put_attr <ref addr>, <attr addr>
-type PutAttr struct {
-	Addr      Addr
-	Attribute Addr
-}
-
-// GetAttr instruction: get_attr <ref addr>, <attr addr>
-type GetAttr struct {
-	Addr      Addr
-	Attribute Addr
-}
-
-func (i PutStruct) isInstruction()         {}
-func (i PutVariable) isInstruction()       {}
-func (i PutValue) isInstruction()          {}
-func (i PutConstant) isInstruction()       {}
-func (i PutPair) isInstruction()           {}
-func (i GetStruct) isInstruction()         {}
-func (i GetVariable) isInstruction()       {}
-func (i GetValue) isInstruction()          {}
-func (i GetConstant) isInstruction()       {}
-func (i GetPair) isInstruction()           {}
-func (i UnifyVariable) isInstruction()     {}
-func (i UnifyValue) isInstruction()        {}
-func (i UnifyConstant) isInstruction()     {}
-func (i UnifyVoid) isInstruction()         {}
-func (i Call) isInstruction()              {}
-func (i CallMeta) isInstruction()          {}
-func (i Execute) isInstruction()           {}
-func (i ExecuteMeta) isInstruction()       {}
-func (i Proceed) isInstruction()           {}
-func (i Halt) isInstruction()              {}
-func (i Allocate) isInstruction()          {}
-func (i Deallocate) isInstruction()        {}
-func (i TryMeElse) isInstruction()         {}
-func (i RetryMeElse) isInstruction()       {}
-func (i TrustMe) isInstruction()           {}
-func (i Try) isInstruction()               {}
-func (i Retry) isInstruction()             {}
-func (i Trust) isInstruction()             {}
-func (i SwitchOnTerm) isInstruction()      {}
-func (i SwitchOnConstant) isInstruction()  {}
-func (i SwitchOnStruct) isInstruction()    {}
-func (i NeckCut) isInstruction()           {}
-func (i Cut) isInstruction()               {}
-func (i Fail) isInstruction()              {}
-func (i Builtin) isInstruction()           {}
+func (i putStruct) isInstruction()         {}
+func (i putVariable) isInstruction()       {}
+func (i putValue) isInstruction()          {}
+func (i putConstant) isInstruction()       {}
+func (i putPair) isInstruction()           {}
+func (i getStruct) isInstruction()         {}
+func (i getVariable) isInstruction()       {}
+func (i getValue) isInstruction()          {}
+func (i getConstant) isInstruction()       {}
+func (i getPair) isInstruction()           {}
+func (i unifyVariable) isInstruction()     {}
+func (i unifyValue) isInstruction()        {}
+func (i unifyConstant) isInstruction()     {}
+func (i unifyVoid) isInstruction()         {}
+func (i call) isInstruction()              {}
+func (i callMeta) isInstruction()          {}
+func (i execute) isInstruction()           {}
+func (i executeMeta) isInstruction()       {}
+func (i proceed) isInstruction()           {}
+func (i halt) isInstruction()              {}
+func (i allocate) isInstruction()          {}
+func (i deallocate) isInstruction()        {}
+func (i tryMeElse) isInstruction()         {}
+func (i retryMeElse) isInstruction()       {}
+func (i trustMe) isInstruction()           {}
+func (i try) isInstruction()               {}
+func (i retry) isInstruction()             {}
+func (i trust) isInstruction()             {}
+func (i switchOnTerm) isInstruction()      {}
+func (i switchOnConstant) isInstruction()  {}
+func (i switchOnStruct) isInstruction()    {}
+func (i neckCut) isInstruction()           {}
+func (i cut) isInstruction()               {}
+func (i fail) isInstruction()              {}
+func (i builtin) isInstruction()           {}
 func (i endCheckAttribute) isInstruction() {}
-func (i PutAttr) isInstruction()           {}
-func (i GetAttr) isInstruction()           {}
+func (i putAttr) isInstruction()           {}
+func (i getAttr) isInstruction()           {}
 
-func (i PutStruct) String() string {
+func (i putStruct) String() string {
 	return fmt.Sprintf("put_struct %v, A%d", i.Functor, i.ArgAddr)
 }
 
-func (i PutVariable) String() string {
+func (i putVariable) String() string {
 	return fmt.Sprintf("put_variable %v, A%d", i.Addr, i.ArgAddr)
 }
 
-func (i PutValue) String() string {
+func (i putValue) String() string {
 	return fmt.Sprintf("put_value %v, A%d", i.Addr, i.ArgAddr)
 }
 
-func (i PutConstant) String() string {
+func (i putConstant) String() string {
 	return fmt.Sprintf("put_constant %v, A%d", i.Constant, i.ArgAddr)
 }
 
-func (i PutPair) String() string {
+func (i putPair) String() string {
 	return fmt.Sprintf("put_pair %v, A%d", i.Tag, i.ArgAddr)
 }
 
-func (i GetStruct) String() string {
+func (i getStruct) String() string {
 	return fmt.Sprintf("get_struct %v, A%d", i.Functor, i.ArgAddr)
 }
 
-func (i GetVariable) String() string {
+func (i getVariable) String() string {
 	return fmt.Sprintf("get_variable %v, A%d", i.Addr, i.ArgAddr)
 }
 
-func (i GetValue) String() string {
+func (i getValue) String() string {
 	return fmt.Sprintf("get_value %v, A%d", i.Addr, i.ArgAddr)
 }
 
-func (i GetConstant) String() string {
+func (i getConstant) String() string {
 	return fmt.Sprintf("get_constant %v, A%d", i.Constant, i.ArgAddr)
 }
 
-func (i GetPair) String() string {
+func (i getPair) String() string {
 	return fmt.Sprintf("get_pair %v, A%d", i.Tag, i.ArgAddr)
 }
 
-func (i UnifyVariable) String() string {
+func (i unifyVariable) String() string {
 	return fmt.Sprintf("unify_variable %v", i.Addr)
 }
 
-func (i UnifyValue) String() string {
+func (i unifyValue) String() string {
 	return fmt.Sprintf("unify_value %v", i.Addr)
 }
 
-func (i UnifyConstant) String() string {
+func (i unifyConstant) String() string {
 	return fmt.Sprintf("unify_constant %v", i.Constant)
 }
 
-func (i UnifyVoid) String() string {
+func (i unifyVoid) String() string {
 	return "unify_void"
 }
 
-func (i Call) String() string {
+func (i call) String() string {
 	return fmt.Sprintf("call %v", i.Functor)
 }
 
-func (i CallMeta) String() string {
+func (i callMeta) String() string {
 	return fmt.Sprintf("call_meta %v, %v", i.Addr, i.Params)
 }
 
-func (i Execute) String() string {
+func (i execute) String() string {
 	return fmt.Sprintf("execute %v", i.Functor)
 }
 
-func (i ExecuteMeta) String() string {
+func (i executeMeta) String() string {
 	return fmt.Sprintf("execute_meta %v, %v", i.Addr, i.Params)
 }
 
-func (i Proceed) String() string {
+func (i proceed) String() string {
 	return "proceed"
 }
 
-func (i Halt) String() string {
+func (i halt) String() string {
 	return "halt"
 }
 
-func (i Allocate) String() string {
+func (i allocate) String() string {
 	return fmt.Sprintf("allocate %d", i.NumVars)
 }
 
-func (i Deallocate) String() string {
+func (i deallocate) String() string {
 	return "deallocate"
 }
 
-func (i TryMeElse) String() string {
+func (i tryMeElse) String() string {
 	return fmt.Sprintf("try_me_else %v", i.Alternative)
 }
 
-func (i RetryMeElse) String() string {
+func (i retryMeElse) String() string {
 	return fmt.Sprintf("retry_me_else %v", i.Alternative)
 }
 
-func (i TrustMe) String() string {
+func (i trustMe) String() string {
 	return "trust_me"
 }
 
-func (i Try) String() string {
+func (i try) String() string {
 	return fmt.Sprintf("try %v", i.Continuation)
 }
 
-func (i Retry) String() string {
+func (i retry) String() string {
 	return fmt.Sprintf("retry %v", i.Continuation)
 }
 
-func (i Trust) String() string {
+func (i trust) String() string {
 	return fmt.Sprintf("trust %v", i.Continuation)
 }
 
-func (i SwitchOnTerm) String() string {
+func (i switchOnTerm) String() string {
 	return fmt.Sprintf(`switch_on_term
 	variable: %v
 	constant: %v
@@ -412,7 +375,7 @@ func (i SwitchOnTerm) String() string {
 	struct: %v`, i.IfVar, i.IfConstant, i.IfList, i.IfAssoc, i.IfDict, i.IfStruct)
 }
 
-func (instr SwitchOnConstant) String() string {
+func (instr switchOnConstant) String() string {
 	entries := make([]string, len(instr.Continuation))
 	i := 0
 	for c, cont := range instr.Continuation {
@@ -423,7 +386,7 @@ func (instr SwitchOnConstant) String() string {
 	return fmt.Sprintf("switch_on_constant\n\t%s", strings.Join(entries, "\n\t"))
 }
 
-func (instr SwitchOnStruct) String() string {
+func (instr switchOnStruct) String() string {
 	entries := make([]string, len(instr.Continuation))
 	i := 0
 	for c, cont := range instr.Continuation {
@@ -434,19 +397,19 @@ func (instr SwitchOnStruct) String() string {
 	return fmt.Sprintf("switch_on_struct\n\t%s", strings.Join(entries, "\n\t"))
 }
 
-func (i NeckCut) String() string {
+func (i neckCut) String() string {
 	return "neck_cut"
 }
 
-func (i Cut) String() string {
+func (i cut) String() string {
 	return "cut"
 }
 
-func (i Fail) String() string {
+func (i fail) String() string {
 	return "fail"
 }
 
-func (i Builtin) String() string {
+func (i builtin) String() string {
 	return fmt.Sprintf("builtin %s, <func %p>", i.Name, i.Func)
 }
 
@@ -454,11 +417,11 @@ func (i endCheckAttribute) String() string {
 	return "end_check_attribute"
 }
 
-func (i PutAttr) String() string {
+func (i putAttr) String() string {
 	return fmt.Sprintf("put_attr %v, %v", i.Addr, i.Attribute)
 }
 
-func (i GetAttr) String() string {
+func (i getAttr) String() string {
 	return fmt.Sprintf("get_attr %v, %v", i.Addr, i.Attribute)
 }
 
@@ -626,7 +589,7 @@ type Env struct {
 	// Permanent vars stored in stack to survive between calls.
 	PermanentVars []Cell
 	// Saved choice point if there's a deep cut in clause.
-	CutChoice *ChoicePoint
+	cutChoice *ChoicePoint
 }
 
 // ChoicePoint represents an OR-stack frames with the state associated to an alternative code path.
@@ -644,14 +607,14 @@ type ChoicePoint struct {
 	Args         []Cell
 	LastRefID    int
 	Env          *Env
-	CutChoice    *ChoicePoint
+	cutChoice    *ChoicePoint
 	Continuation InstrAddr
 }
 
 type UnificationFrame struct {
 	Prev          *UnificationFrame
 	Continuation  InstrAddr
-	CutChoice     *ChoicePoint
+	cutChoice     *ChoicePoint
 	Bindings      []Binding
 	Index         int
 	Attributes    []Cell
@@ -728,7 +691,7 @@ type Machine struct {
 	ChoicePoint *ChoicePoint
 
 	// Choice point to restore after a cut.
-	CutChoice *ChoicePoint
+	cutChoice *ChoicePoint
 
 	// Limit of iterations to run.
 	IterLimit int

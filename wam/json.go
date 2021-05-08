@@ -72,7 +72,7 @@ func (m *Machine) MarshalJSON() ([]byte, error) {
 		"Envs":         enc.envs_(),
 		"ChoicePos":    enc.getChoicePos(m.ChoicePoint),
 		"ChoicePoints": enc.choices_(),
-		"CutChoicePos": enc.getChoicePos(m.CutChoice),
+		"cutChoicePos": enc.getChoicePos(m.cutChoice),
 		"LastRefID":    m.LastRefID,
 		"Backtracked":  m.hasBacktracked,
 		"Attributes":   enc.attributes_(),
@@ -198,17 +198,17 @@ func clausePositions(stack []*Clause) map[*Clause]int {
 
 func clausePtrs(instr Instruction) []*Clause {
 	switch instr := instr.(type) {
-	case TryMeElse:
+	case tryMeElse:
 		return []*Clause{instr.Alternative.Clause}
-	case RetryMeElse:
+	case retryMeElse:
 		return []*Clause{instr.Alternative.Clause}
-	case Try:
+	case try:
 		return []*Clause{instr.Continuation.Clause}
-	case Retry:
+	case retry:
 		return []*Clause{instr.Continuation.Clause}
-	case Trust:
+	case trust:
 		return []*Clause{instr.Continuation.Clause}
-	case SwitchOnTerm:
+	case switchOnTerm:
 		return []*Clause{
 			instr.IfVar.Clause,
 			instr.IfConstant.Clause,
@@ -216,7 +216,7 @@ func clausePtrs(instr Instruction) []*Clause {
 			instr.IfAssoc.Clause,
 			instr.IfDict.Clause,
 			instr.IfStruct.Clause}
-	case SwitchOnConstant:
+	case switchOnConstant:
 		clauses := make([]*Clause, len(instr.Continuation))
 		i := 0
 		for _, instrAddr := range instr.Continuation {
@@ -224,7 +224,7 @@ func clausePtrs(instr Instruction) []*Clause {
 			i++
 		}
 		return clauses
-	case SwitchOnStruct:
+	case switchOnStruct:
 		clauses := make([]*Clause, len(instr.Continuation))
 		i := 0
 		for _, instrAddr := range instr.Continuation {
@@ -329,7 +329,7 @@ func (enc *machineEncoder) envs_() []interface{} {
 			"PrevPos":       enc.getEnvPos(env.Prev),
 			"Continuation":  enc.instrAddr(env.Continuation),
 			"PermanentVars": env.PermanentVars,
-			"CutChoicePos":  enc.getChoicePos(env.CutChoice),
+			"cutChoicePos":  enc.getChoicePos(env.cutChoice),
 		}
 	}
 	return s
@@ -345,7 +345,7 @@ func (enc *machineEncoder) choices_() []interface{} {
 			"Trail":           enc.trail(choice.Trail),
 			"LastRefID":       choice.LastRefID,
 			"EnvPos":          enc.getEnvPos(choice.Env),
-			"CutChoicePos":    enc.getChoicePos(choice.CutChoice),
+			"cutChoicePos":    enc.getChoicePos(choice.cutChoice),
 			"Continuation":    enc.instrAddr(choice.Continuation),
 		}
 	}

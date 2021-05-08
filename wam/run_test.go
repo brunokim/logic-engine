@@ -14,38 +14,40 @@ import (
 
 var (
 	// ?- p(Z, h(Z, W), f(W))
-	queryInstrs = []wam.Instruction{
-		put_struct{functor{"h", 2}, reg(2)},
-		unify_variable{reg(1)},
-		unify_variable{reg(4)},
-		put_struct{functor{"f", 1}, reg(3)},
-		unify_value{reg(4)},
-		put_struct{functor{"p", 3}, reg(0)},
-		unify_value{reg(1)},
-		unify_value{reg(2)},
-		unify_value{reg(3)},
+	queryInstrs = []*logic.Comp{
+		comp("put_struct", atom("h/2"), var_("X2")),
+		comp("unify_variable", var_("X1")),
+		comp("unify_variable", var_("X4")),
+		comp("put_struct", atom("f/1"), var_("X3")),
+		comp("unify_value", var_("X4")),
+		comp("put_struct", atom("p/3"), var_("X0")),
+		comp("unify_value", var_("X1")),
+		comp("unify_value", var_("X2")),
+		comp("unify_value", var_("X3")),
 	}
 
 	// p(f(X), h(Y, f(a)), Y).
-	programInstrs = []wam.Instruction{
-		get_struct{functor{"p", 3}, reg(0)},
-		unify_variable{reg(1)},
-		unify_variable{reg(2)},
-		unify_variable{reg(3)},
-		get_struct{functor{"f", 1}, reg(1)},
-		unify_variable{reg(5)},
-		get_struct{functor{"h", 2}, reg(2)},
-		unify_value{reg(3)},
-		unify_variable{reg(5)},
-		get_struct{functor{"f", 1}, reg(5)},
-		unify_variable{reg(6)},
-		get_constant{watom("a"), reg(6)},
+	programInstrs = []*logic.Comp{
+		comp("get_struct", atom("p/3"), var_("X0")),
+		comp("unify_variable", var_("X1")),
+		comp("unify_variable", var_("X2")),
+		comp("unify_variable", var_("X3")),
+		comp("get_struct", atom("f/1"), var_("X1")),
+		comp("unify_variable", var_("X5")),
+		comp("get_struct", atom("h/2"), var_("X2")),
+		comp("unify_value", var_("X3")),
+		comp("unify_variable", var_("X5")),
+		comp("get_struct", atom("f/1"), var_("X5")),
+		comp("unify_variable", var_("X6")),
+		comp("get_constant", atom("a"), var_("X6")),
 	}
 )
 
 func TestRun_BuildQuery(t *testing.T) {
-	query := clause(functor{}, queryInstrs...)
-	query.Code = append(query.Code, halt{})
+	var instrs []*logic.Comp
+	instrs = append(instrs, queryInstrs...)
+	instrs = append(instrs, comp("halt"))
+	query := wam.DecodeClause(indicator("", 0), instrs...)
 	m := wam.NewMachine()
 	m.AddClause(query)
 	m.IterLimit = 10
@@ -63,11 +65,11 @@ func TestRun_BuildQuery(t *testing.T) {
 }
 
 func TestRun_BuildQueryAndProgram(t *testing.T) {
-	instrs := []wam.Instruction{}
+	instrs := []*logic.Comp{}
 	instrs = append(instrs, queryInstrs...)
 	instrs = append(instrs, programInstrs...)
-	instrs = append(instrs, halt{})
-	query := clause(functor{}, instrs...)
+	instrs = append(instrs, comp("halt"))
+	query := wam.DecodeClause(indicator("", 0), instrs...)
 	m := wam.NewMachine()
 	m.AddClause(query)
 	m.IterLimit = 30
@@ -85,12 +87,18 @@ func TestRun_BuildQueryAndProgram(t *testing.T) {
 	}
 }
 
-func TestRun_Call(t *testing.T) {
-	query := &wam.Clause{Code: queryInstrs, NumRegisters: 5}
-	query.Code = append(query.Code, call{functor{"p", 3}}, halt{})
+func TestRun_call(t *testing.T) {
+	var instrs []*logic.Comp
+	instrs = append(instrs, queryInstrs...)
+	instrs = append(instrs,
+		comp("call", atom("p/3")),
+		comp("halt"))
+	query := wam.DecodeClause(indicator("", 0), instrs...)
 
-	program := &wam.Clause{Code: programInstrs, Functor: functor{"p", 3}, NumRegisters: 7}
-	program.Code = append(program.Code, proceed{})
+	var prog []*logic.Comp
+	prog = append(prog, programInstrs...)
+	prog = append(prog, comp("proceed"))
+	program := wam.DecodeClause(indicator("p", 3), prog...)
 
 	m := wam.NewMachine()
 	m.AddClause(query)
@@ -114,53 +122,53 @@ func TestRun_Call(t *testing.T) {
 
 var (
 	// p(X, Y) :- q(X, Z), r(Z, Y).
-	p2 = clause(functor{"p", 2},
-		allocate{2},
-		get_variable{reg(2), reg(0)},
-		get_variable{stack(0), reg(1)},
-		put_value{reg(2), reg(0)},
-		put_variable{stack(1), reg(1)},
-		call{functor{"q", 2}},
-		put_value{stack(1), reg(0)},
-		put_value{stack(0), reg(1)},
-		call{functor{"r", 2}},
-		deallocate{},
-		proceed{})
+	p2 = wam.DecodeClause(indicator("p", 2),
+		comp("allocate", int_(2)),
+		comp("get_variable", var_("X2"), var_("X0")),
+		comp("get_variable", var_("Y0"), var_("X1")),
+		comp("put_value", var_("X2"), var_("X0")),
+		comp("put_variable", var_("Y1"), var_("X1")),
+		comp("call", atom("q/2")),
+		comp("put_value", var_("Y1"), var_("X0")),
+		comp("put_value", var_("Y0"), var_("X1")),
+		comp("call", atom("r/2")),
+		comp("deallocate"),
+		comp("proceed"))
 
 	// q(a, f(a)).
-	q2 = clause(functor{"q", 2},
-		get_constant{watom("a"), reg(0)},
-		get_struct{functor{"f", 1}, reg(1)},
-		unify_constant{watom("a")},
-		proceed{})
+	q2 = wam.DecodeClause(indicator("q", 2),
+		comp("get_constant", atom("a"), var_("X0")),
+		comp("get_struct", atom("f/1"), var_("X1")),
+		comp("unify_constant", atom("a")),
+		comp("proceed"))
 
 	// r(f(A), f(B)) :- s(B), t(A).
-	r2 = clause(functor{"r", 2},
-		allocate{1},
-		get_struct{functor{"f", 1}, reg(0)},
-		unify_variable{stack(0)},
-		get_struct{functor{"f", 1}, reg(1)},
-		unify_variable{reg(2)},
-		put_value{reg(2), reg(0)},
-		call{functor{"s", 1}},
-		put_value{stack(0), reg(0)},
-		call{functor{"t", 1}},
-		deallocate{},
-		proceed{})
+	r2 = wam.DecodeClause(indicator("r", 2),
+		comp("allocate", int_(1)),
+		comp("get_struct", atom("f/1"), var_("X0")),
+		comp("unify_variable", var_("Y0")),
+		comp("get_struct", atom("f/1"), var_("X1")),
+		comp("unify_variable", var_("X2")),
+		comp("put_value", var_("X2"), var_("X0")),
+		comp("call", atom("s/1")),
+		comp("put_value", var_("Y0"), var_("X0")),
+		comp("call", atom("t/1")),
+		comp("deallocate"),
+		comp("proceed"))
 
 	// s(g(b)).
-	s1 = clause(functor{"s", 1},
-		get_struct{functor{"g", 1}, reg(0)},
-		unify_constant{watom("b")},
-		proceed{})
+	s1 = wam.DecodeClause(indicator("s", 1),
+		comp("get_struct", atom("g/1"), var_("X0")),
+		comp("unify_constant", atom("b")),
+		comp("proceed"))
 
 	// t(a).
-	t1 = clause(functor{"t", 1},
-		get_constant{watom("a"), reg(0)},
-		proceed{})
+	t1 = wam.DecodeClause(indicator("t", 1),
+		comp("get_constant", atom("a"), var_("X0")),
+		comp("proceed"))
 )
 
-func TestRun_Allocate(t *testing.T) {
+func TestRun_allocate(t *testing.T) {
 	m := wam.NewMachine()
 	m.AddClause(p2)
 	m.AddClause(q2)
@@ -169,12 +177,12 @@ func TestRun_Allocate(t *testing.T) {
 	m.AddClause(t1)
 
 	// ?- p(X, Y).
-	m.AddClause(clause(functor{},
+	m.AddClause(wam.DecodeClause(indicator("", 0),
 		// Save X and Y at regs X3 and X4, that are not used by any other clauses.
-		put_variable{reg(3), reg(0)},
-		put_variable{reg(4), reg(1)},
-		call{functor{"p", 2}},
-		halt{}))
+		comp("put_variable", var_("X3"), var_("X0")),
+		comp("put_variable", var_("X4"), var_("X1")),
+		comp("call", atom("p/2")),
+		comp("halt")))
 	m.IterLimit = 100
 	m.DebugFilename = "debugtest/run-allocate.jsonl"
 
@@ -196,41 +204,41 @@ var (
 	// color(red).
 	// color(green).
 	// color(blue).
-	colorRed = clause(functor{"color", 1},
-		try_me_else{instr{colorGreen, 0}},
-		get_constant{watom("red"), reg(0)},
-		proceed{})
-	colorGreen = clause(functor{"color", 1},
-		retry_me_else{instr{colorBlue, 0}},
-		get_constant{watom("green"), reg(0)},
-		proceed{})
-	colorBlue = clause(functor{"color", 1},
-		trust_me{},
-		get_constant{watom("blue"), reg(0)},
-		proceed{})
+	colorRed = wam.DecodeClause(indicator("color", 1),
+		comp("try_me_else", comp("instr", ptr(colorGreen), int_(0))),
+		comp("get_constant", atom("red"), var_("X0")),
+		comp("proceed"))
+	colorGreen = wam.DecodeClause(indicator("color", 1),
+		comp("retry_me_else", comp("instr", ptr(colorBlue), int_(0))),
+		comp("get_constant", atom("green"), var_("X0")),
+		comp("proceed"))
+	colorBlue = wam.DecodeClause(indicator("color", 1),
+		comp("trust_me"),
+		comp("get_constant", atom("blue"), var_("X0")),
+		comp("proceed"))
 
 	// bit(false).
 	// bit(true).
-	bitFalse = clause(functor{"bit", 1},
-		try_me_else{instr{bitTrue, 0}},
-		get_constant{watom("false"), reg(0)},
-		proceed{})
-	bitTrue = clause(functor{"bit", 1},
-		trust_me{},
-		get_constant{watom("true"), reg(0)},
-		proceed{})
+	bitFalse = wam.DecodeClause(indicator("bit", 1),
+		comp("try_me_else", comp("instr", ptr(bitTrue), int_(0))),
+		comp("get_constant", atom("false"), var_("X0")),
+		comp("proceed"))
+	bitTrue = wam.DecodeClause(indicator("bit", 1),
+		comp("trust_me"),
+		comp("get_constant", atom("true"), var_("X0")),
+		comp("proceed"))
 
 	// bit_color(Bit, Color) :- bit(Bit), color(Color).
-	bitColor = clause(functor{"bit_color", 2},
-		allocate{1},
-		get_variable{reg(2), reg(0)},
-		get_variable{stack(0), reg(1)},
-		put_value{reg(2), reg(0)},
-		call{functor{"bit", 1}},
-		put_value{stack(0), reg(0)},
-		call{functor{"color", 1}},
-		deallocate{},
-		proceed{})
+	bitColor = wam.DecodeClause(indicator("bit_color", 2),
+		comp("allocate", int_(1)),
+		comp("get_variable", var_("X2"), var_("X0")),
+		comp("get_variable", var_("Y0"), var_("X1")),
+		comp("put_value", var_("X2"), var_("X0")),
+		comp("call", atom("bit/1")),
+		comp("put_value", var_("Y0"), var_("X0")),
+		comp("call", atom("color/1")),
+		comp("deallocate"),
+		comp("proceed"))
 )
 
 func TestRun_ChoicePoints(t *testing.T) {
@@ -240,11 +248,11 @@ func TestRun_ChoicePoints(t *testing.T) {
 	m.AddClause(bitColor)
 
 	// ?- bit_color(true, green).
-	m.AddClause(clause(functor{},
-		put_constant{watom("true"), reg(0)},
-		put_constant{watom("green"), reg(1)},
-		call{functor{"bit_color", 2}},
-		halt{},
+	m.AddClause(wam.DecodeClause(indicator("", 0),
+		comp("put_constant", atom("true"), var_("X0")),
+		comp("put_constant", atom("green"), var_("X1")),
+		comp("call", atom("bit_color/2")),
+		comp("halt"),
 	))
 	m.IterLimit = 30
 	m.DebugFilename = "debugtest/run-choicepoint.jsonl"
@@ -262,51 +270,51 @@ var (
 	// d(q0).
 	// d(q1).
 	// d(q2).
-	a2 = clause(functor{"a", 2},
-		allocate{2},
-		get_variable{reg(2), reg(0)},
-		get_variable{stack(0), reg(1)},
-		put_variable{stack(1), reg(0)},
-		put_value{reg(2), reg(1)},
-		call{functor{"b", 2}},
-		put_value{stack(0), reg(0)},
-		put_struct{functor{"f", 1}, reg(1)},
-		unify_value{stack(1)},
-		call{functor{"c", 2}},
-		deallocate{},
-		proceed{})
-	b2 = clause(functor{"b", 2},
-		allocate{0},
-		get_variable{reg(2), reg(0)},
-		get_constant{watom("p"), reg(1)},
-		put_value{reg(2), reg(0)},
-		call{functor{"d", 1}},
-		deallocate{},
-		proceed{})
-	c2_1 = clause(functor{"c", 2},
-		try_me_else{instr{c2_2, 0}},
-		get_variable{reg(2), reg(0)},
-		get_struct{functor{"f", 1}, reg(1)},
-		unify_value{reg(2)},
-		proceed{})
-	c2_2 = clause(functor{"c", 2},
-		trust_me{},
-		get_variable{reg(2), reg(0)},
-		get_struct{functor{"g", 1}, reg(1)},
-		unify_value{reg(2)},
-		proceed{})
-	d1_1 = clause(functor{"d", 1},
-		try_me_else{instr{d1_2, 0}},
-		get_constant{watom("q0"), reg(0)},
-		proceed{})
-	d1_2 = clause(functor{"d", 1},
-		retry_me_else{instr{d1_3, 0}},
-		get_constant{watom("q1"), reg(0)},
-		proceed{})
-	d1_3 = clause(functor{"d", 1},
-		trust_me{},
-		get_constant{watom("q2"), reg(0)},
-		proceed{})
+	a2 = wam.DecodeClause(indicator("a", 2),
+		comp("allocate", int_(2)),
+		comp("get_variable", var_("X2"), var_("X0")),
+		comp("get_variable", var_("Y0"), var_("X1")),
+		comp("put_variable", var_("Y1"), var_("X0")),
+		comp("put_value", var_("X2"), var_("X1")),
+		comp("call", atom("b/2")),
+		comp("put_value", var_("Y0"), var_("X0")),
+		comp("put_struct", atom("f/1"), var_("X1")),
+		comp("unify_value", var_("Y1")),
+		comp("call", atom("c/2")),
+		comp("deallocate"),
+		comp("proceed"))
+	b2 = wam.DecodeClause(indicator("b", 2),
+		comp("allocate", int_(0)),
+		comp("get_variable", var_("X2"), var_("X0")),
+		comp("get_constant", atom("p"), var_("X1")),
+		comp("put_value", var_("X2"), var_("X0")),
+		comp("call", atom("d/1")),
+		comp("deallocate"),
+		comp("proceed"))
+	c2_1 = wam.DecodeClause(indicator("c", 2),
+		comp("try_me_else", comp("instr", ptr(c2_2), int_(0))),
+		comp("get_variable", var_("X2"), var_("X0")),
+		comp("get_struct", atom("f/1"), var_("X1")),
+		comp("unify_value", var_("X2")),
+		comp("proceed"))
+	c2_2 = wam.DecodeClause(indicator("c", 2),
+		comp("trust_me"),
+		comp("get_variable", var_("X2"), var_("X0")),
+		comp("get_struct", atom("g/1"), var_("X1")),
+		comp("unify_value", var_("X2")),
+		comp("proceed"))
+	d1_1 = wam.DecodeClause(indicator("d", 1),
+		comp("try_me_else", comp("instr", ptr(d1_2), int_(0))),
+		comp("get_constant", atom("q0"), var_("X0")),
+		comp("proceed"))
+	d1_2 = wam.DecodeClause(indicator("d", 1),
+		comp("retry_me_else", comp("instr", ptr(d1_3), int_(0))),
+		comp("get_constant", atom("q1"), var_("X0")),
+		comp("proceed"))
+	d1_3 = wam.DecodeClause(indicator("d", 1),
+		comp("trust_me"),
+		comp("get_constant", atom("q2"), var_("X0")),
+		comp("proceed"))
 )
 
 func TestRun_Trail(t *testing.T) {
@@ -317,12 +325,12 @@ func TestRun_Trail(t *testing.T) {
 	m.AddClause(d1_1)
 
 	// ?- a(X, q1).
-	m.AddClause(clause(functor{},
+	m.AddClause(wam.DecodeClause(indicator("", 0),
 		// Save X at reg X3, that is not used by any other clauses.
-		put_variable{reg(3), reg(0)},
-		put_constant{watom("q1"), reg(1)},
-		call{functor{"a", 2}},
-		halt{}))
+		comp("put_variable", var_("X3"), var_("X0")),
+		comp("put_constant", atom("q1"), var_("X1")),
+		comp("call", atom("a/2")),
+		comp("halt")))
 	m.IterLimit = 50
 	m.DebugFilename = "debugtest/run-trail.jsonl"
 
@@ -340,36 +348,36 @@ func TestRun_Trail(t *testing.T) {
 func TestRun_List(t *testing.T) {
 	m := wam.NewMachine()
 	// build_list((a . (b . []))).
-	m.AddClause(clause(functor{"build_list", 1},
-		get_pair{list_pair, reg(0)},
-		unify_constant{watom("a")},
-		unify_variable{reg(1)},
-		get_pair{list_pair, reg(1)},
-		unify_constant{watom("b")},
-		unify_constant{watom("[]")},
-		proceed{}))
+	m.AddClause(wam.DecodeClause(indicator("build_list", 1),
+		comp("get_pair", atom("list"), var_("X0")),
+		comp("unify_constant", atom("a")),
+		comp("unify_variable", var_("X1")),
+		comp("get_pair", atom("list"), var_("X1")),
+		comp("unify_constant", atom("b")),
+		comp("unify_constant", atom("[]")),
+		comp("proceed")))
 
 	// =(X, X).
-	m.AddClause(clause(functor{"=", 2},
-		get_value{reg(0), reg(1)},
-		proceed{}))
+	m.AddClause(wam.DecodeClause(indicator("=", 2),
+		comp("get_value", var_("X0"), var_("X1")),
+		comp("proceed")))
 
 	// ?- build_list((a . T)), =(T, (X . [])).
-	m.AddClause(clause(functor{},
-		allocate{2},
+	m.AddClause(wam.DecodeClause(indicator("", 0),
+		comp("allocate", int_(2)),
 
-		put_pair{list_pair, reg(0)},
-		unify_constant{watom("a")},
-		unify_variable{stack(0)},
-		call{functor{"build_list", 1}},
+		comp("put_pair", atom("list"), var_("X0")),
+		comp("unify_constant", atom("a")),
+		comp("unify_variable", var_("Y0")),
+		comp("call", atom("build_list/1")),
 
-		put_value{stack(0), reg(0)},
-		put_pair{list_pair, reg(1)},
-		unify_variable{stack(1)},
-		unify_constant{watom("[]")},
-		call{functor{"=", 2}},
+		comp("put_value", var_("Y0"), var_("X0")),
+		comp("put_pair", atom("list"), var_("X1")),
+		comp("unify_variable", var_("Y1")),
+		comp("unify_constant", atom("[]")),
+		comp("call", atom("=/2")),
 
-		halt{}))
+		comp("halt")))
 	m.IterLimit = 50
 	m.DebugFilename = "debugtest/run-list.jsonl"
 
@@ -390,43 +398,43 @@ func TestRun_List(t *testing.T) {
 func TestRun_Void(t *testing.T) {
 	m := wam.NewMachine()
 	// length3((_ . (_ . (_ . [])))).
-	m.AddClause(clause(functor{"length3", 1},
-		get_pair{list_pair, reg(0)},
-		unify_void{},
-		unify_variable{reg(1)},
-		get_pair{list_pair, reg(1)},
-		unify_void{},
-		unify_variable{reg(2)},
-		get_pair{list_pair, reg(2)},
-		unify_void{},
-		unify_constant{watom("[]")},
-		proceed{}))
+	m.AddClause(wam.DecodeClause(indicator("length3", 1),
+		comp("get_pair", atom("list"), var_("X0")),
+		comp("unify_void"),
+		comp("unify_variable", var_("X1")),
+		comp("get_pair", atom("list"), var_("X1")),
+		comp("unify_void"),
+		comp("unify_variable", var_("X2")),
+		comp("get_pair", atom("list"), var_("X2")),
+		comp("unify_void"),
+		comp("unify_constant", atom("[]")),
+		comp("proceed")))
 
 	// ?- length3((a . (X . (f(_, _, X) . []))))
-	m.AddClause(clause(functor{},
+	m.AddClause(wam.DecodeClause(indicator("", 0),
 		// f(_, _, X)
-		put_struct{functor{"f", 3}, reg(3)},
-		unify_void{},
-		unify_void{},
-		unify_variable{reg(4)},
+		comp("put_struct", atom("f/3"), var_("X3")),
+		comp("unify_void"),
+		comp("unify_void"),
+		comp("unify_variable", var_("X4")),
 
 		// (f(...) . [])
-		put_pair{list_pair, reg(2)},
-		unify_value{reg(3)},
-		unify_constant{watom("[]")},
+		comp("put_pair", atom("list"), var_("X2")),
+		comp("unify_value", var_("X3")),
+		comp("unify_constant", atom("[]")),
 
 		// (X . (...))
-		put_pair{list_pair, reg(1)},
-		unify_value{reg(4)},
-		unify_value{reg(2)},
+		comp("put_pair", atom("list"), var_("X1")),
+		comp("unify_value", var_("X4")),
+		comp("unify_value", var_("X2")),
 
 		// (a . (...))
-		put_pair{list_pair, reg(0)},
-		unify_constant{watom("a")},
-		unify_value{reg(1)},
+		comp("put_pair", atom("list"), var_("X0")),
+		comp("unify_constant", atom("a")),
+		comp("unify_value", var_("X1")),
 
-		call{functor{"length3", 1}},
-		halt{}))
+		comp("call", atom("length3/1")),
+		comp("halt")))
 	m.IterLimit = 50
 	m.DebugFilename = "debugtest/run-void.jsonl"
 
@@ -443,45 +451,45 @@ func TestRun_Void(t *testing.T) {
 
 var (
 	// concat([H|T], L, [H|R]) :- concat(T, L, R).
-	concat2 = clause(functor{"concat", 3},
-		trust_me{},
+	concat2 = wam.DecodeClause(indicator("concat", 3),
+		comp("trust_me"),
 
-		get_pair{list_pair, reg(0)},
-		unify_variable{reg(3)},
-		unify_variable{reg(4)},
+		comp("get_pair", atom("list"), var_("X0")),
+		comp("unify_variable", var_("X3")),
+		comp("unify_variable", var_("X4")),
 
 		// L is already in position for next call.
 
-		get_pair{list_pair, reg(2)},
-		unify_value{reg(3)},
-		unify_variable{reg(5)},
+		comp("get_pair", atom("list"), var_("X2")),
+		comp("unify_value", var_("X3")),
+		comp("unify_variable", var_("X5")),
 
-		put_value{reg(4), reg(0)},
-		put_value{reg(5), reg(2)},
-		execute{functor{"concat", 3}})
+		comp("put_value", var_("X4"), var_("X0")),
+		comp("put_value", var_("X5"), var_("X2")),
+		comp("execute", atom("concat/3")))
 	// concat([], L, L).
-	concat1 = clause(functor{"concat", 3},
-		try_me_else{instr{concat2, 0}},
-		get_constant{watom("[]"), reg(0)},
-		get_value{reg(1), reg(2)},
-		proceed{})
+	concat1 = wam.DecodeClause(indicator("concat", 3),
+		comp("try_me_else", comp("instr", ptr(concat2), int_(0))),
+		comp("get_constant", atom("[]"), var_("X0")),
+		comp("get_value", var_("X1"), var_("X2")),
+		comp("proceed"))
 	// [a, b, c]
-	buildList_abc = []wam.Instruction{
-		put_pair{list_pair, reg(5)},
-		unify_constant{watom("c")},
-		unify_constant{watom("[]")},
-		put_pair{list_pair, reg(4)},
-		unify_constant{watom("b")},
-		unify_value{reg(5)},
-		put_pair{list_pair, reg(0)},
-		unify_constant{watom("a")},
-		unify_value{reg(4)},
+	buildList_abc = []*logic.Comp{
+		comp("put_pair", atom("list"), var_("X5")),
+		comp("unify_constant", atom("c")),
+		comp("unify_constant", atom("[]")),
+		comp("put_pair", atom("list"), var_("X4")),
+		comp("unify_constant", atom("b")),
+		comp("unify_value", var_("X5")),
+		comp("put_pair", atom("list"), var_("X0")),
+		comp("unify_constant", atom("a")),
+		comp("unify_value", var_("X4")),
 	}
 	// [d]
-	buildList_d = []wam.Instruction{
-		put_pair{list_pair, reg(1)},
-		unify_constant{watom("d")},
-		unify_constant{watom("[]")},
+	buildList_d = []*logic.Comp{
+		comp("put_pair", atom("list"), var_("X1")),
+		comp("unify_constant", atom("d")),
+		comp("unify_constant", atom("[]")),
 	}
 )
 
@@ -490,14 +498,14 @@ func TestConcat(t *testing.T) {
 	m.AddClause(concat1)
 
 	// ?- concat([a, b, c], [d], L).
-	var instrs []wam.Instruction
+	var instrs []*logic.Comp
 	instrs = append(instrs, buildList_abc...)
 	instrs = append(instrs, buildList_d...)
 	instrs = append(instrs,
-		put_variable{reg(6), reg(2)},
-		call{functor{"concat", 3}},
-		halt{})
-	m.AddClause(clause(functor{}, instrs...))
+		comp("put_variable", var_("X6"), var_("X2")),
+		comp("call", atom("concat/3")),
+		comp("halt"))
+	m.AddClause(wam.DecodeClause(indicator("", 0), instrs...))
 	m.IterLimit = 75
 	m.DebugFilename = "debugtest/run-concat.jsonl"
 
@@ -512,22 +520,22 @@ func TestConcat(t *testing.T) {
 	}
 }
 
-func TestConcat_TryTrust(t *testing.T) {
+func TestConcat_trytrust(t *testing.T) {
 	m := wam.NewMachine()
 	m.AddClause(concat1)
-	m.AddClause(clause(functor{"concat_tryelse", 0},
-		try{instr{concat1, 1}},
-		trust{instr{concat2, 1}}))
+	m.AddClause(wam.DecodeClause(indicator("concat_tryelse", 0),
+		comp("try", comp("instr", ptr(concat1), int_(1))),
+		comp("trust", comp("instr", ptr(concat2), int_(1)))))
 
 	// ?- concat([a, b, c], [d], L).
-	var instrs []wam.Instruction
+	var instrs []*logic.Comp
 	instrs = append(instrs, buildList_abc...)
 	instrs = append(instrs, buildList_d...)
 	instrs = append(instrs,
-		put_variable{reg(6), reg(2)},
-		call{functor{"concat_tryelse", 0}},
-		halt{})
-	m.AddClause(clause(functor{}, instrs...))
+		comp("put_variable", var_("X6"), var_("X2")),
+		comp("call", atom("concat_tryelse/0")),
+		comp("halt"))
+	m.AddClause(wam.DecodeClause(indicator("", 0), instrs...))
 
 	m.IterLimit = 75
 	m.DebugFilename = "debugtest/run-concat-tryelse.jsonl"
@@ -550,121 +558,115 @@ var (
 	//   - call(or(X, Y)) #2
 	//   - call(trace)
 	//   - call(nl)
-	call_s1 = clause(functor{"call", 1},
-		try_me_else{instr{callBuiltin, 0}},
-		switch_on_term{
-			instr{callOr1, 0},
-			instr{call_s1_constant, 0},
-			instr{call_s1_struct, 0},
-			instr{call_s1_list, 0},
-			instr{},
-			instr{},
-		})
-	call_s1_constant = clause(functor{"call", 1},
-		switch_on_constant{map[constant]instr{
-			watom("trace"):   instr{callTrace, 1},
-			watom("notrace"): instr{callNotrace, 1},
-			watom("nl"):      instr{callNl, 1},
-		}})
-	call_s1_list = clause(functor{"call", 1},
-		execute{functor{"fail", 0}})
-	call_s1_struct = clause(functor{"call", 1},
-		switch_on_struct{map[functor]instr{
-			functor{"or", 2}: instr{call_s1_struct_or2, 0},
-		}})
-	call_s1_struct_or2 = clause(functor{"call", 1},
-		try{instr{callOr1, 1}},
-		trust{instr{callOr2, 1}})
+	call_s1 = wam.DecodeClause(indicator("call", 1),
+		comp("try_me_else", comp("instr", ptr(callbuiltin), int_(0))),
+		comp("switch_on_term",
+			comp("instr", ptr(callOr1), int_(0)),
+			comp("instr", ptr(call_s1_constant), int_(0)),
+			comp("instr", ptr(call_s1_struct), int_(0)),
+			comp("instr", ptr(call_s1_list), int_(0)),
+			comp("instr", ptr(nil), int_(0)),
+			comp("instr", ptr(nil), int_(0))))
+	call_s1_constant = wam.DecodeClause(indicator("call", 1),
+		comp("switch_on_constant", dict(
+			atom("trace"), comp("instr", ptr(callTrace), int_(1)),
+			atom("notrace"), comp("instr", ptr(callNotrace), int_(1)),
+			atom("nl"), comp("instr", ptr(callNl), int_(1)))))
+	call_s1_list = wam.DecodeClause(indicator("call", 1),
+		comp("execute", atom("fail/0")))
+	call_s1_struct = wam.DecodeClause(indicator("call", 1),
+		comp("switch_on_struct", dict(
+			atom("or/2"), comp("instr", ptr(call_s1_struct_or2), int_(0)))))
+	call_s1_struct_or2 = wam.DecodeClause(indicator("call", 1),
+		comp("try", comp("instr", ptr(callOr1), int_(1))),
+		comp("trust", comp("instr", ptr(callOr2), int_(1))))
 	// call(or(X, Y)) :- call(X).
-	callOr1 = clause(functor{"call", 1},
-		try_me_else{instr{callTrace, 0}},
-		get_struct{functor{"or", 2}, reg(0)},
-		unify_variable{reg(1)},
-		unify_void{},
-		put_value{reg(1), reg(0)},
-		execute{functor{"call", 1}})
+	callOr1 = wam.DecodeClause(indicator("call", 1),
+		comp("try_me_else", comp("instr", ptr(callTrace), int_(0))),
+		comp("get_struct", atom("or/2"), var_("X0")),
+		comp("unify_variable", var_("X1")),
+		comp("unify_void"),
+		comp("put_value", var_("X1"), var_("X0")),
+		comp("execute", atom("call/1")))
 	// call(trace) :- trace().
-	callTrace = clause(functor{"call", 1},
-		retry_me_else{instr{callOr2, 0}},
-		get_constant{watom("trace"), reg(0)},
-		execute{functor{"trace", 0}})
+	callTrace = wam.DecodeClause(indicator("call", 1),
+		comp("retry_me_else", comp("instr", ptr(callOr2), int_(0))),
+		comp("get_constant", atom("trace"), var_("X0")),
+		comp("execute", atom("trace/0")))
 	// call(or(X, Y)) :- call(Y).
-	callOr2 = clause(functor{"call", 1},
-		retry_me_else{instr{callNotrace, 0}},
-		get_struct{functor{"or", 2}, reg(0)},
-		unify_void{},
-		unify_variable{reg(1)},
-		put_value{reg(1), reg(0)},
-		execute{functor{"call", 1}})
+	callOr2 = wam.DecodeClause(indicator("call", 1),
+		comp("retry_me_else", comp("instr", ptr(callNotrace), int_(0))),
+		comp("get_struct", atom("or/2"), var_("X0")),
+		comp("unify_void"),
+		comp("unify_variable", var_("X1")),
+		comp("put_value", var_("X1"), var_("X0")),
+		comp("execute", atom("call/1")))
 	// call(notrace) :- notrace().
-	callNotrace = clause(functor{"call", 1},
-		retry_me_else{instr{callNl, 0}},
-		get_constant{watom("notrace"), reg(0)},
-		execute{functor{"notrace", 0}})
+	callNotrace = wam.DecodeClause(indicator("call", 1),
+		comp("retry_me_else", comp("instr", ptr(callNl), int_(0))),
+		comp("get_constant", atom("notrace"), var_("X0")),
+		comp("execute", atom("notrace/0")))
 	// call(nl) :- nl().
-	callNl = clause(functor{"call", 1},
-		trust_me{},
-		get_constant{watom("nl"), reg(0)},
-		execute{functor{"nl", 0}})
+	callNl = wam.DecodeClause(indicator("call", 1),
+		comp("trust_me"),
+		comp("get_constant", atom("nl"), var_("X0")),
+		comp("execute", atom("nl/0")))
 	// call(X) :- builtin(X).
-	callBuiltin = clause(functor{"call", 1},
-		retry_me_else{instr{callExtern, 0}},
-		execute{functor{"builtin", 0}})
+	callbuiltin = wam.DecodeClause(indicator("call", 1),
+		comp("retry_me_else", comp("instr", ptr(callExtern), int_(0))),
+		comp("execute", atom("builtin/0")))
 	// call(X) :- extern(X).
-	callExtern = clause(functor{"call", 1},
-		retry_me_else{instr{call_s2, 0}},
-		execute{functor{"extern", 0}})
+	callExtern = wam.DecodeClause(indicator("call", 1),
+		comp("retry_me_else", comp("instr", ptr(call_s2), int_(0))),
+		comp("execute", atom("extern/0")))
 	// call(...) subsequence 2
 	//   - call(call(X))
 	//   - call(repeat) #1
 	//   - call(repeat) #2
 	//   - call(true)
-	call_s2 = clause(functor{"call", 1},
-		trust_me{},
-		switch_on_term{
-			instr{callCall, 0},
-			instr{call_s2_constant, 0},
-			instr{call_s2_struct, 0},
-			instr{call_s2_list, 0},
-			instr{},
-			instr{},
-		})
-	call_s2_constant = clause(functor{"call", 1},
-		switch_on_constant{map[constant]instr{
-			watom("repeat"): instr{call_s2_constant_repeat, 0},
-			watom("true"):   instr{callTrue, 1},
-		}})
-	call_s2_constant_repeat = clause(functor{"call", 1},
-		try{instr{callRepeat1, 1}},
-		trust{instr{callRepeat2, 1}})
-	call_s2_list = clause(functor{"call", 1},
-		execute{functor{"fail", 0}})
-	call_s2_struct = clause(functor{"call", 1},
-		switch_on_struct{map[functor]instr{
-			functor{"call", 1}: instr{callCall, 1},
-		}})
+	call_s2 = wam.DecodeClause(indicator("call", 1),
+		comp("trust_me"),
+		comp("switch_on_term",
+			comp("instr", ptr(callcall), int_(0)),
+			comp("instr", ptr(call_s2_constant), int_(0)),
+			comp("instr", ptr(call_s2_struct), int_(0)),
+			comp("instr", ptr(call_s2_list), int_(0)),
+			comp("instr", ptr(nil), int_(0)),
+			comp("instr", ptr(nil), int_(0))))
+	call_s2_constant = wam.DecodeClause(indicator("call", 1),
+		comp("switch_on_constant", dict(
+			atom("repeat"), comp("instr", ptr(call_s2_constant_repeat), int_(0)),
+			atom("true"), comp("instr", ptr(callTrue), int_(1)))))
+	call_s2_constant_repeat = wam.DecodeClause(indicator("call", 1),
+		comp("try", comp("instr", ptr(callRepeat1), int_(1))),
+		comp("trust", comp("instr", ptr(callRepeat2), int_(1))))
+	call_s2_list = wam.DecodeClause(indicator("call", 1),
+		comp("execute", atom("fail/0")))
+	call_s2_struct = wam.DecodeClause(indicator("call", 1),
+		comp("switch_on_struct", dict(
+			atom("call/1"), comp("instr", ptr(callcall), int_(1)))))
 	// call(call(X)) :- call(X).
-	callCall = clause(functor{"call", 1},
-		retry_me_else{instr{callRepeat1, 0}},
-		get_struct{functor{"call", 1}, reg(0)},
-		unify_variable{reg(1)},
-		put_value{reg(1), reg(0)},
-		execute{functor{"call", 1}})
+	callcall = wam.DecodeClause(indicator("call", 1),
+		comp("retry_me_else", comp("instr", ptr(callRepeat1), int_(0))),
+		comp("get_struct", atom("call/1"), var_("X0")),
+		comp("unify_variable", var_("X1")),
+		comp("put_value", var_("X1"), var_("X0")),
+		comp("execute", atom("call/1")))
 	// call(repeat).
-	callRepeat1 = clause(functor{"call", 1},
-		retry_me_else{instr{callRepeat2, 0}},
-		get_constant{watom("repeat"), reg(0)},
-		proceed{})
+	callRepeat1 = wam.DecodeClause(indicator("call", 1),
+		comp("retry_me_else", comp("instr", ptr(callRepeat2), int_(0))),
+		comp("get_constant", atom("repeat"), var_("X0")),
+		comp("proceed"))
 	// call(repeat) :- call(repeat).
-	callRepeat2 = clause(functor{"call", 1},
-		retry_me_else{instr{callTrue, 0}},
-		get_constant{watom("repeat"), reg(0)},
-		execute{functor{"call", 1}})
+	callRepeat2 = wam.DecodeClause(indicator("call", 1),
+		comp("retry_me_else", comp("instr", ptr(callTrue), int_(0))),
+		comp("get_constant", atom("repeat"), var_("X0")),
+		comp("execute", atom("call/1")))
 	// call(true).
-	callTrue = clause(functor{"call", 1},
-		trust_me{},
-		get_constant{watom("true"), reg(0)},
-		proceed{})
+	callTrue = wam.DecodeClause(indicator("call", 1),
+		comp("trust_me"),
+		comp("get_constant", atom("true"), var_("X0")),
+		comp("proceed"))
 )
 
 func TestSwitch(t *testing.T) {
@@ -672,16 +674,16 @@ func TestSwitch(t *testing.T) {
 	m.AddClause(call_s1)
 
 	// ?- call(true), call(or(call(a), repeat))
-	m.AddClause(clause(functor{},
-		put_constant{watom("true"), reg(0)},
-		call{functor{"call", 1}},
-		put_struct{functor{"call", 1}, reg(1)},
-		unify_constant{watom("a")},
-		put_struct{functor{"or", 2}, reg(0)},
-		unify_value{reg(1)},
-		unify_constant{watom("repeat")},
-		call{functor{"call", 1}},
-		halt{}))
+	m.AddClause(wam.DecodeClause(indicator("", 0),
+		comp("put_constant", atom("true"), var_("X0")),
+		comp("call", atom("call/1")),
+		comp("put_struct", atom("call/1"), var_("X1")),
+		comp("unify_constant", atom("a")),
+		comp("put_struct", atom("or/2"), var_("X0")),
+		comp("unify_value", var_("X1")),
+		comp("unify_constant", atom("repeat")),
+		comp("call", atom("call/1")),
+		comp("halt")))
 
 	m.IterLimit = 75
 	m.DebugFilename = "debugtest/run-switch.jsonl"
@@ -694,79 +696,79 @@ func TestSwitch(t *testing.T) {
 var (
 	// member(X, [X|_]) :- !.
 	// member(X, [_|T]) :- member(X, T).
-	member1 = clause(functor{"member", 2},
-		try_me_else{instr{member2, 0}},
-		get_variable{reg(2), reg(0)},
-		get_pair{list_pair, reg(1)},
-		unify_value{reg(2)},
-		unify_void{},
-		neck_cut{},
-		proceed{})
-	member2 = clause(functor{"member", 2},
-		trust_me{},
-		get_variable{reg(2), reg(0)},
-		get_pair{list_pair, reg(1)},
-		unify_void{},
-		unify_variable{reg(3)},
-		put_value{reg(2), reg(0)},
-		put_value{reg(3), reg(1)},
-		execute{functor{"member", 2}})
+	member1 = wam.DecodeClause(indicator("member", 2),
+		comp("try_me_else", comp("instr", ptr(member2), int_(0))),
+		comp("get_variable", var_("X2"), var_("X0")),
+		comp("get_pair", atom("list"), var_("X1")),
+		comp("unify_value", var_("X2")),
+		comp("unify_void"),
+		comp("neck_cut"),
+		comp("proceed"))
+	member2 = wam.DecodeClause(indicator("member", 2),
+		comp("trust_me"),
+		comp("get_variable", var_("X2"), var_("X0")),
+		comp("get_pair", atom("list"), var_("X1")),
+		comp("unify_void"),
+		comp("unify_variable", var_("X3")),
+		comp("put_value", var_("X2"), var_("X0")),
+		comp("put_value", var_("X3"), var_("X1")),
+		comp("execute", atom("member/2")))
 
 	// set_add(Set, X, Set) :- member(X, Set), !.
 	// set_add(Set, X, [X|Set]).
-	setAdd1 = clause(functor{"set_add", 3},
-		try_me_else{instr{setAdd2, 0}},
-		allocate{0},
-		get_variable{reg(3), reg(0)},
-		get_variable{reg(4), reg(1)},
-		get_value{reg(3), reg(2)},
-		put_value{reg(4), reg(0)},
-		put_value{reg(3), reg(1)},
-		call{functor{"member", 2}},
-		cut{},
-		deallocate{},
-		proceed{})
-	setAdd2 = clause(functor{"set_add", 3},
-		trust_me{},
-		get_variable{reg(3), reg(0)},
-		get_variable{reg(4), reg(1)},
-		get_pair{list_pair, reg(2)},
-		unify_value{reg(4)},
-		unify_value{reg(3)},
-		proceed{})
+	setAdd1 = wam.DecodeClause(indicator("set_add", 3),
+		comp("try_me_else", comp("instr", ptr(setAdd2), int_(0))),
+		comp("allocate", int_(0)),
+		comp("get_variable", var_("X3"), var_("X0")),
+		comp("get_variable", var_("X4"), var_("X1")),
+		comp("get_value", var_("X3"), var_("X2")),
+		comp("put_value", var_("X4"), var_("X0")),
+		comp("put_value", var_("X3"), var_("X1")),
+		comp("call", atom("member/2")),
+		comp("cut"),
+		comp("deallocate"),
+		comp("proceed"))
+	setAdd2 = wam.DecodeClause(indicator("set_add", 3),
+		comp("trust_me"),
+		comp("get_variable", var_("X3"), var_("X0")),
+		comp("get_variable", var_("X4"), var_("X1")),
+		comp("get_pair", atom("list"), var_("X2")),
+		comp("unify_value", var_("X4")),
+		comp("unify_value", var_("X3")),
+		comp("proceed"))
 )
 
-func TestCut(t *testing.T) {
+func Testcut(t *testing.T) {
 	m := wam.NewMachine()
 	m.AddClause(member1)
 	m.AddClause(setAdd1)
 
 	// ?- member(a, [c, a, b]), set_add([a, b], c, L1), set_add(L1, b, L2).
-	m.AddClause(clause(functor{},
+	m.AddClause(wam.DecodeClause(indicator("", 0),
 		// [a, b]
-		put_pair{list_pair, reg(4)},
-		unify_constant{watom("b")},
-		unify_constant{watom("[]")},
-		put_pair{list_pair, reg(3)},
-		unify_constant{watom("a")},
-		unify_value{reg(4)},
+		comp("put_pair", atom("list"), var_("X4")),
+		comp("unify_constant", atom("b")),
+		comp("unify_constant", atom("[]")),
+		comp("put_pair", atom("list"), var_("X3")),
+		comp("unify_constant", atom("a")),
+		comp("unify_value", var_("X4")),
 		// member(a, [c, a, b])
-		put_constant{watom("a"), reg(0)},
-		put_pair{list_pair, reg(1)},
-		unify_constant{watom("c")},
-		unify_value{reg(3)},
-		call{functor{"member", 2}},
+		comp("put_constant", atom("a"), var_("X0")),
+		comp("put_pair", atom("list"), var_("X1")),
+		comp("unify_constant", atom("c")),
+		comp("unify_value", var_("X3")),
+		comp("call", atom("member/2")),
 		// set_add([a, b], c, L1)
-		put_value{reg(3), reg(0)},
-		put_constant{watom("c"), reg(1)},
-		put_variable{reg(5), reg(2)},
-		call{functor{"set_add", 3}},
+		comp("put_value", var_("X3"), var_("X0")),
+		comp("put_constant", atom("c"), var_("X1")),
+		comp("put_variable", var_("X5"), var_("X2")),
+		comp("call", atom("set_add/3")),
 		// set_add(L1, b, L2)
-		put_value{reg(5), reg(0)},
-		put_constant{watom("b"), reg(1)},
-		put_variable{reg(6), reg(2)},
-		call{functor{"set_add", 3}},
-		halt{}))
+		comp("put_value", var_("X5"), var_("X0")),
+		comp("put_constant", atom("b"), var_("X1")),
+		comp("put_variable", var_("X6"), var_("X2")),
+		comp("call", atom("set_add/3")),
+		comp("halt")))
 
 	m.IterLimit = 150
 	m.DebugFilename = "debugtest/cut.jsonl"
@@ -790,61 +792,61 @@ func TestCut(t *testing.T) {
 //   tree(Left, L1, [Name|L2]),
 //   tree(Right, L2, L3).
 var (
-	tree1 = clause(functor{"tree", 3},
-		try_me_else{instr{tree2, 0}},
-		get_constant{watom("nil"), reg(0)},
-		get_value{reg(2), reg(1)},
-		proceed{})
+	tree1 = wam.DecodeClause(indicator("tree", 3),
+		comp("try_me_else", comp("instr", ptr(tree2), int_(0))),
+		comp("get_constant", atom("nil"), var_("X0")),
+		comp("get_value", var_("X2"), var_("X1")),
+		comp("proceed"))
 
-	tree2 = clause(functor{"tree", 3},
-		trust_me{},
-		allocate{3},
-		get_struct{functor{"node", 3}, reg(0)},
-		unify_variable{reg(3)},         // Name
-		unify_variable{reg(4)},         // Left
-		unify_variable{stack(0)},       // Right
-		get_variable{reg(5), reg(1)},   // L1
-		get_variable{stack(1), reg(2)}, // L3
-		put_value{reg(4), reg(0)},
-		put_value{reg(1), reg(1)},
-		put_pair{list_pair, reg(2)},
-		unify_value{reg(3)},
-		unify_variable{stack(2)}, // L2
-		call{functor{"tree", 3}},
-		put_value{stack(0), reg(0)},
-		put_value{stack(2), reg(1)},
-		put_value{stack(1), reg(2)},
-		deallocate{},
-		execute{functor{"tree", 3}})
+	tree2 = wam.DecodeClause(indicator("tree", 3),
+		comp("trust_me"),
+		comp("allocate", int_(3)),
+		comp("get_struct", atom("node/3"), var_("X0")),
+		comp("unify_variable", var_("X3")),           // Name
+		comp("unify_variable", var_("X4")),           // Left
+		comp("unify_variable", var_("Y0")),           // Right
+		comp("get_variable", var_("X5"), var_("X1")), // L1
+		comp("get_variable", var_("Y1"), var_("X2")), // L3
+		comp("put_value", var_("X4"), var_("X0")),
+		comp("put_value", var_("X1"), var_("X1")),
+		comp("put_pair", atom("list"), var_("X2")),
+		comp("unify_value", var_("X3")),
+		comp("unify_variable", var_("Y2")), // L2
+		comp("call", atom("tree/3")),
+		comp("put_value", var_("Y0"), var_("X0")),
+		comp("put_value", var_("Y2"), var_("X1")),
+		comp("put_value", var_("Y1"), var_("X2")),
+		comp("deallocate"),
+		comp("execute", atom("tree/3")))
 )
 
-func TestNestedCalls(t *testing.T) {
+func TestNestedcalls(t *testing.T) {
 	m := wam.NewMachine()
 	m.AddClause(tree1)
 
 	// ?- tree(node(a, node(b, nil, node(c, nil, nil)), node(d, nil, nil)), L, []).
 	// L = [b, c, a, d]
-	m.AddClause(clause(functor{},
-		put_struct{functor{"node", 3}, reg(5)},
-		unify_constant{watom("d")},
-		unify_constant{watom("nil")},
-		unify_constant{watom("nil")},
-		put_struct{functor{"node", 3}, reg(4)},
-		unify_constant{watom("c")},
-		unify_constant{watom("nil")},
-		unify_constant{watom("nil")},
-		put_struct{functor{"node", 3}, reg(3)},
-		unify_constant{watom("b")},
-		unify_constant{watom("nil")},
-		unify_value{reg(4)},
-		put_struct{functor{"node", 3}, reg(0)},
-		unify_constant{watom("a")},
-		unify_value{reg(3)},
-		unify_value{reg(5)},
-		put_variable{reg(6), reg(1)},
-		put_constant{watom("[]"), reg(2)},
-		call{functor{"tree", 3}},
-		halt{}))
+	m.AddClause(wam.DecodeClause(indicator("", 0),
+		comp("put_struct", atom("node/3"), var_("X5")),
+		comp("unify_constant", atom("d")),
+		comp("unify_constant", atom("nil")),
+		comp("unify_constant", atom("nil")),
+		comp("put_struct", atom("node/3"), var_("X4")),
+		comp("unify_constant", atom("c")),
+		comp("unify_constant", atom("nil")),
+		comp("unify_constant", atom("nil")),
+		comp("put_struct", atom("node/3"), var_("X3")),
+		comp("unify_constant", atom("b")),
+		comp("unify_constant", atom("nil")),
+		comp("unify_value", var_("X4")),
+		comp("put_struct", atom("node/3"), var_("X0")),
+		comp("unify_constant", atom("a")),
+		comp("unify_value", var_("X3")),
+		comp("unify_value", var_("X5")),
+		comp("put_variable", var_("X6"), var_("X1")),
+		comp("put_constant", atom("[]"), var_("X2")),
+		comp("call", atom("tree/3")),
+		comp("halt")))
 
 	m.IterLimit = 150
 	m.DebugFilename = "debugtest/nested-calls.jsonl"
@@ -860,7 +862,7 @@ func TestNestedCalls(t *testing.T) {
 	}
 }
 
-func TestCallMeta(t *testing.T) {
+func TestcallMeta(t *testing.T) {
 	m := wam.NewMachine()
 	m.IterLimit = 30
 	m.DebugFilename = "debugtest/call-meta.jsonl"
@@ -887,7 +889,7 @@ func TestCallMeta(t *testing.T) {
 	}
 }
 
-func TestMetaMetaCall(t *testing.T) {
+func TestMetaMetacall(t *testing.T) {
 	m := wam.NewMachine()
 	m.IterLimit = 30
 	m.DebugFilename = "debugtest/meta-meta-call.jsonl"

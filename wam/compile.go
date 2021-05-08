@@ -89,7 +89,7 @@ func numArgs(clause *logic.Clause) int {
 	return max
 }
 
-func hasDeepCut(clause *logic.Clause) bool {
+func hasDeepcut(clause *logic.Clause) bool {
 	for i, term := range clause.Body {
 		if term.(*logic.Comp).Functor == "!" && i > 0 {
 			return true
@@ -98,7 +98,7 @@ func hasDeepCut(clause *logic.Clause) bool {
 	return false
 }
 
-func hasNonLastCall(clause *logic.Clause) bool {
+func hasNonLastcall(clause *logic.Clause) bool {
 	for i, term := range clause.Body {
 		if term.(*logic.Comp).Functor == "call" && i < len(clause.Body)-1 {
 			return true
@@ -136,34 +136,34 @@ func (ctx *compileCtx) getVar(x logic.Var, regAddr RegAddr) Instruction {
 		return nil
 	}
 	if _, ok := ctx.seen[x]; ok {
-		return GetValue{ctx.varAddr[x], regAddr}
+		return getValue{ctx.varAddr[x], regAddr}
 	}
 	ctx.seen[x] = struct{}{}
-	return GetVariable{ctx.varAddr[x], regAddr}
+	return getVariable{ctx.varAddr[x], regAddr}
 }
 
 func (ctx *compileCtx) unifyVar(x logic.Var) Instruction {
 	if x == logic.AnonymousVar {
-		return UnifyVoid{}
+		return unifyVoid{}
 	}
 	if _, ok := ctx.seen[x]; ok {
-		return UnifyValue{ctx.varAddr[x]}
+		return unifyValue{ctx.varAddr[x]}
 	}
 	ctx.seen[x] = struct{}{}
-	return UnifyVariable{ctx.varAddr[x]}
+	return unifyVariable{ctx.varAddr[x]}
 }
 
 func (ctx *compileCtx) putVar(x logic.Var, regAddr RegAddr) Instruction {
 	if x == logic.AnonymousVar {
 		addr := ctx.topReg
 		ctx.topReg++
-		return PutVariable{addr, regAddr}
+		return putVariable{addr, regAddr}
 	}
 	if _, ok := ctx.seen[x]; ok {
-		return PutValue{ctx.varAddr[x], regAddr}
+		return putValue{ctx.varAddr[x], regAddr}
 	}
 	ctx.seen[x] = struct{}{}
-	return PutVariable{ctx.varAddr[x], regAddr}
+	return putVariable{ctx.varAddr[x], regAddr}
 }
 
 // ---- get terms
@@ -171,14 +171,14 @@ func (ctx *compileCtx) putVar(x logic.Var, regAddr RegAddr) Instruction {
 func (ctx *compileCtx) getTerm(term logic.Term, addr RegAddr) []Instruction {
 	switch t := term.(type) {
 	case logic.Atom:
-		return []Instruction{GetConstant{toConstant(t), addr}}
+		return []Instruction{getConstant{toConstant(t), addr}}
 	case logic.Int:
-		return []Instruction{GetConstant{toConstant(t), addr}}
+		return []Instruction{getConstant{toConstant(t), addr}}
 	case logic.Var:
 		return []Instruction{ctx.getVar(t, addr)}
 	case *logic.Comp:
 		instrs := make([]Instruction, len(t.Args)+1)
-		instrs[0] = GetStruct{toFunctor(t.Indicator()), addr}
+		instrs[0] = getStruct{toFunctor(t.Indicator()), addr}
 		for i, arg := range t.Args {
 			instrs[i+1] = ctx.unifyArg(arg)
 		}
@@ -195,7 +195,7 @@ func (ctx *compileCtx) getTerm(term logic.Term, addr RegAddr) []Instruction {
 }
 
 func (ctx *compileCtx) getPair(tag PairTag, addr RegAddr, head, tail logic.Term) []Instruction {
-	return []Instruction{GetPair{tag, addr}, ctx.unifyArg(head), ctx.unifyArg(tail)}
+	return []Instruction{getPair{tag, addr}, ctx.unifyArg(head), ctx.unifyArg(tail)}
 }
 
 // ---- unify terms
@@ -204,15 +204,15 @@ func (ctx *compileCtx) delayComplexArg(arg logic.Term) Instruction {
 	addr := RegAddr(ctx.topReg)
 	ctx.topReg++
 	ctx.delayed = append(ctx.delayed, compound{t: arg, addr: addr})
-	return UnifyVariable{addr}
+	return unifyVariable{addr}
 }
 
 func (ctx *compileCtx) unifyArg(arg logic.Term) Instruction {
 	switch a := arg.(type) {
 	case logic.Atom:
-		return UnifyConstant{toConstant(a)}
+		return unifyConstant{toConstant(a)}
 	case logic.Int:
-		return UnifyConstant{toConstant(a)}
+		return unifyConstant{toConstant(a)}
 	case logic.Var:
 		return ctx.unifyVar(a)
 	case *logic.Comp:
@@ -233,14 +233,14 @@ func (ctx *compileCtx) unifyArg(arg logic.Term) Instruction {
 func (ctx *compileCtx) putTerm(term logic.Term, addr RegAddr) []Instruction {
 	switch t := term.(type) {
 	case logic.Atom:
-		return []Instruction{PutConstant{toConstant(t), addr}}
+		return []Instruction{putConstant{toConstant(t), addr}}
 	case logic.Int:
-		return []Instruction{PutConstant{toConstant(t), addr}}
+		return []Instruction{putConstant{toConstant(t), addr}}
 	case logic.Var:
 		return []Instruction{ctx.putVar(t, addr)}
 	case *logic.Comp:
 		instrs := make([]Instruction, len(t.Args)+1)
-		instrs[0] = PutStruct{toFunctor(t.Indicator()), addr}
+		instrs[0] = putStruct{toFunctor(t.Indicator()), addr}
 		ctx.setArgs(t.Args, instrs)
 		return instrs
 	case *logic.List:
@@ -255,7 +255,7 @@ func (ctx *compileCtx) putTerm(term logic.Term, addr RegAddr) []Instruction {
 }
 
 func (ctx *compileCtx) putPair(tag PairTag, addr RegAddr, head, tail logic.Term) []Instruction {
-	instrs := []Instruction{PutPair{tag, addr}, nil, nil}
+	instrs := []Instruction{putPair{tag, addr}, nil, nil}
 	ctx.setArgs([]logic.Term{head, tail}, instrs)
 	return instrs
 }
@@ -288,9 +288,9 @@ func (ctx *compileCtx) setArgs(args []logic.Term, instrs []Instruction) {
 func (ctx *compileCtx) setArg(arg logic.Term) Instruction {
 	switch a := arg.(type) {
 	case logic.Atom:
-		return UnifyConstant{toConstant(a)}
+		return unifyConstant{toConstant(a)}
 	case logic.Int:
-		return UnifyConstant{toConstant(a)}
+		return unifyConstant{toConstant(a)}
 	case logic.Var:
 		return ctx.unifyVar(a)
 	case *logic.Comp:
@@ -310,7 +310,7 @@ func (ctx *compileCtx) setComplexArg(arg logic.Term) Instruction {
 	addr := ctx.topReg
 	ctx.topReg++
 	ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, addr)...)
-	return UnifyValue{addr}
+	return unifyValue{addr}
 }
 
 // ---- compiling terms
@@ -322,7 +322,7 @@ func Compile(clause *logic.Clause) *Clause {
 		panic(err)
 	}
 	c := compile(clause2, permanentVars(clause2))
-	c.Code = optimizeLastCall(optimizeInstructions(c.Code))
+	c.Code = optimizeLastcall(optimizeInstructions(c.Code))
 	return c
 }
 
@@ -342,15 +342,15 @@ func compileQuery(query []logic.Term) (*Clause, error) {
 	c.Functor = Functor{}
 	// Remove deallocate, so we can retrieve the vars at the end of execution.
 	n := len(c.Code)
-	if _, ok := c.Code[n-1].(Deallocate); ok {
+	if _, ok := c.Code[n-1].(deallocate); ok {
 		c.Code = c.Code[:n-1]
 	}
 	// Add halt instruction
-	c.Code = append(c.Code, Halt{})
+	c.Code = append(c.Code, halt{})
 	return c, nil
 }
 
-func isBuiltin(term *logic.Comp) bool {
+func isbuiltin(term *logic.Comp) bool {
 	ind := term.Indicator()
 	return ind == dsl.Indicator("!", 0) || ind == dsl.Indicator("fail", 0)
 }
@@ -360,18 +360,18 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 	switch term.Indicator() {
 	case dsl.Indicator("!", 0):
 		if pos == 0 {
-			return []Instruction{NeckCut{}}
+			return []Instruction{neckCut{}}
 		}
-		return []Instruction{Cut{}}
+		return []Instruction{cut{}}
 	case dsl.Indicator("fail", 0):
-		return []Instruction{Fail{}}
+		return []Instruction{fail{}}
 	}
 	// Regular goal: put term args into registers X0-Xn and issue a call to f/n.
 	ctx.instrs = nil
 	for i, arg := range term.Args {
 		ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, RegAddr(i))...)
 	}
-	ctx.instrs = append(ctx.instrs, Call{toFunctor(term.Indicator())})
+	ctx.instrs = append(ctx.instrs, call{toFunctor(term.Indicator())})
 	return ctx.instrs
 }
 
@@ -392,9 +392,9 @@ func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
 	}
 	// If call requires an environment, add an allocate-deallocate pair to the clause.
 	var header, footer []Instruction
-	if currStack > 0 || hasDeepCut(clause) || hasNonLastCall(clause) {
-		header = []Instruction{Allocate{currStack}}
-		footer = []Instruction{Deallocate{}}
+	if currStack > 0 || hasDeepcut(clause) || hasNonLastcall(clause) {
+		header = []Instruction{allocate{currStack}}
+		footer = []Instruction{deallocate{}}
 	}
 	// Compile clause head
 	for i, term := range clause.Head.(*logic.Comp).Args {
@@ -414,8 +414,8 @@ func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
 	// Add "proceed" instruction for facts, and when a body ends with a builtin call,
 	// e.g., '!'
 	n := len(clause.Body)
-	if n == 0 || isBuiltin(clause.Body[n-1].(*logic.Comp)) {
-		c.Code = append(c.Code, Proceed{})
+	if n == 0 || isbuiltin(clause.Body[n-1].(*logic.Comp)) {
+		c.Code = append(c.Code, proceed{})
 	}
 	c.Code = append(header, c.Code...)
 	c.Code = append(c.Code, footer...)
@@ -436,9 +436,9 @@ func optimizeInstructions(code []Instruction) []Instruction {
 			buf = append(buf, instr)
 			continue
 		}
-		// Inline CallMeta instruction
-		if instr, ok := instr.(Call); ok && instr.Functor.Name == "call" {
-			callMeta := CallMeta{
+		// Inline callMeta instruction
+		if instr, ok := instr.(call); ok && instr.Functor.Name == "call" {
+			callMeta := callMeta{
 				Addr:   RegAddr(0),
 				Params: make([]Addr, instr.Functor.Arity-1),
 			}
@@ -454,30 +454,30 @@ func optimizeInstructions(code []Instruction) []Instruction {
 	return buf
 }
 
-func optimizeLastCall(code []Instruction) []Instruction {
-	// If code ends with Deallocate, swap it with the previous instruction,
-	// that may be either Call or CallMeta.
+func optimizeLastcall(code []Instruction) []Instruction {
+	// If code ends with deallocate, swap it with the previous instruction,
+	// that may be either call or callMeta.
 	{
 		n := len(code)
-		dealloc, isDeallocate := code[n-1].(Deallocate)
-		if isDeallocate {
+		dealloc, isdeallocate := code[n-1].(deallocate)
+		if isdeallocate {
 			code[n-2], code[n-1] = dealloc, code[n-2]
 		}
 	}
-	// If code ends with Call, change it for Execute
+	// If code ends with call, change it for execute
 	{
 		n := len(code)
-		call, isCall := code[n-1].(Call)
-		if isCall {
-			code[n-1] = Execute{call.Functor}
+		call, iscall := code[n-1].(call)
+		if iscall {
+			code[n-1] = execute{call.Functor}
 		}
 	}
-	// If code ends with CallMeta, change it for ExecuteMeta
+	// If code ends with callMeta, change it for executeMeta
 	{
 		n := len(code)
-		call, isCallMeta := code[n-1].(CallMeta)
-		if isCallMeta {
-			code[n-1] = ExecuteMeta{call.Addr, call.Params}
+		call, iscallMeta := code[n-1].(callMeta)
+		if iscallMeta {
+			code[n-1] = executeMeta{call.Addr, call.Params}
 		}
 	}
 	return code
@@ -561,13 +561,13 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 		}
 	}
 	// Create first indexing instruction.
-	switchOnTerm := SwitchOnTerm{
+	switchOnTerm := switchOnTerm{
 		IfVar:      InstrAddr{codes[0], 0},
-		IfConstant: InstrAddr{fail, 0},
-		IfStruct:   InstrAddr{fail, 0},
-		IfList:     InstrAddr{fail, 0},
-		IfAssoc:    InstrAddr{fail, 0},
-		IfDict:     InstrAddr{fail, 0},
+		IfConstant: InstrAddr{failClause, 0},
+		IfStruct:   InstrAddr{failClause, 0},
+		IfList:     InstrAddr{failClause, 0},
+		IfAssoc:    InstrAddr{failClause, 0},
+		IfDict:     InstrAddr{failClause, 0},
 	}
 	indexClause := &Clause{
 		Functor:      toFunctor(clauses[0].Head.(*logic.Comp).Indicator()),
@@ -586,18 +586,18 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 		instrs := make([]Instruction, len(addrs))
 		for i, addr := range addrs {
 			if i == 0 {
-				instrs[i] = Try{addr}
+				instrs[i] = try{addr}
 			} else if i < len(addrs)-1 {
-				instrs[i] = Retry{addr}
+				instrs[i] = retry{addr}
 			} else {
-				instrs[i] = Trust{addr}
+				instrs[i] = trust{addr}
 			}
 		}
 		return putCode(instrs...)
 	}
 	// Index constants.
 	if len(constIndex) > 0 {
-		switchOnConst := SwitchOnConstant{Continuation: make(map[Constant]InstrAddr)}
+		switchOnConst := switchOnConstant{Continuation: make(map[Constant]InstrAddr)}
 		switchOnTerm.IfConstant = putCode(switchOnConst)
 		for name, addrs := range constIndex {
 			switchOnConst.Continuation[name] = putAddrs(addrs)
@@ -605,7 +605,7 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 	}
 	// Index structures.
 	if len(structIndex) > 0 {
-		switchOnStruct := SwitchOnStruct{Continuation: make(map[Functor]InstrAddr)}
+		switchOnStruct := switchOnStruct{Continuation: make(map[Functor]InstrAddr)}
 		switchOnTerm.IfStruct = putCode(switchOnStruct)
 		for functor, addrs := range structIndex {
 			switchOnStruct.Continuation[functor] = putAddrs(addrs)
@@ -681,11 +681,11 @@ func addChoiceLinks(clauses []*Clause) {
 	for i, clause := range clauses {
 		var instr Instruction
 		if i == 0 {
-			instr = TryMeElse{InstrAddr{clauses[i+1], 0}}
+			instr = tryMeElse{InstrAddr{clauses[i+1], 0}}
 		} else if i < len(clauses)-1 {
-			instr = RetryMeElse{InstrAddr{clauses[i+1], 0}}
+			instr = retryMeElse{InstrAddr{clauses[i+1], 0}}
 		} else {
-			instr = TrustMe{}
+			instr = trustMe{}
 		}
 		clause.Code = append([]Instruction{instr}, clause.Code...)
 	}

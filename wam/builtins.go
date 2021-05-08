@@ -18,7 +18,7 @@ func init() {
 		panic(err)
 	}
 	builtins = append(builtins, initCalls()...)
-	builtins = append(builtins, fail)
+	builtins = append(builtins, failClause)
 	builtins = append(builtins, checkAttribute)
 	for _, pred := range unicodePredicates {
 		builtins = append(builtins, builtinUnicodePredicate(pred))
@@ -40,18 +40,18 @@ var (
 		Functor:      Functor{"$check_attribute", 3},
 		NumRegisters: 3,
 		Code: []Instruction{
-			Allocate{0},
-			Call{Functor{"check_attribute", 3}},
-			Deallocate{},
+			allocate{0},
+			call{Functor{"check_attribute", 3}},
+			deallocate{},
 			endCheckAttribute{},
 		},
 	}
 	attributePredicates = []*Clause{
-		&Clause{Functor{"get_attr", 2}, 2, []Instruction{GetAttr{RegAddr(0), RegAddr(1)}, Proceed{}}},
-		&Clause{Functor{"put_attr", 2}, 2, []Instruction{PutAttr{RegAddr(0), RegAddr(1)}, Proceed{}}},
+		&Clause{Functor{"get_attr", 2}, 2, []Instruction{getAttr{RegAddr(0), RegAddr(1)}, proceed{}}},
+		&Clause{Functor{"put_attr", 2}, 2, []Instruction{putAttr{RegAddr(0), RegAddr(1)}, proceed{}}},
 	}
-	fail     = &Clause{Functor{"fail", 0}, 0, []Instruction{Fail{}}}
-	preamble = []*logic.Clause{
+	failClause = &Clause{Functor{"fail", 0}, 0, []Instruction{fail{}}}
+	preamble   = []*logic.Clause{
 		// =(X, X).
 		dsl.Clause(comp("=", var_("X"), var_("X"))),
 		// true.
@@ -73,7 +73,7 @@ var (
 	}
 )
 
-// Builtin call(...) clauses.
+// builtin call(...) clauses.
 // Compiled calls to call/n are inlined into the instruction call_meta.
 // These functions are used when referenced by (meta-)meta-calls, and
 // are limited to arity 8.
@@ -83,13 +83,13 @@ func initCalls() []*Clause {
 		calls[i] = &Clause{
 			Functor:      Functor{"call", i + 1},
 			NumRegisters: i + 1,
-			// Allocate an env frame to store the continuation. The inner
+			// allocate an env frame to store the continuation. The inner
 			// call(...) will be inlined by the compiler.
 			Code: optimizeInstructions([]Instruction{
-				Allocate{0},
-				Call{Functor{"call", i + 1}},
-				Deallocate{},
-				Proceed{},
+				allocate{0},
+				call{Functor{"call", i + 1}},
+				deallocate{},
+				proceed{},
 			}),
 		}
 	}
@@ -120,8 +120,8 @@ func builtinUnicodePredicate(pred unicodePredicate) *Clause {
 	clause := &Clause{Functor: pred.functor, NumRegisters: 1}
 	start := makeUnicodePredicate(pred, clause)
 	clause.Code = []Instruction{
-		Builtin{Name: pred.functor.Name, Func: start},
-		Proceed{},
+		builtin{Name: pred.functor.Name, Func: start},
+		proceed{},
 	}
 	return clause
 }
@@ -144,8 +144,8 @@ func makeUnicodePredicate(pred unicodePredicate, clause *Clause) func(*Machine) 
 		case *Ref:
 			iterator := makeUnicodeIterator(pred, clause)
 			clause.Code = []Instruction{
-				Builtin{Name: pred.functor.Name + "_ref", Func: iterator},
-				Proceed{},
+				builtin{Name: pred.functor.Name + "_ref", Func: iterator},
+				proceed{},
 			}
 			return iterator(m)
 		default:
@@ -198,11 +198,11 @@ func builtinComparisonPredicate(pred comparisonPredicate) *Clause {
 		Functor:      pred.functor,
 		NumRegisters: 2,
 		Code: []Instruction{
-			Builtin{
+			builtin{
 				Name: pred.functor.Name,
 				Func: makeComparisonPredicate(pred),
 			},
-			Proceed{},
+			proceed{},
 		},
 	}
 }
