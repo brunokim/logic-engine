@@ -17,7 +17,6 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	builtins = append(builtins, initCalls()...)
 	builtins = append(builtins, failClause)
 	for _, pred := range unicodePredicates {
 		builtins = append(builtins, builtinUnicodePredicate(pred))
@@ -66,31 +65,30 @@ var (
 			comp("asm", comp("put_attr", var_("X0"), var_("X1")))),
 		dsl.Clause(comp("$check_attribute:unify", var_("Attr"), var_("Value"), var_("NewAttr")),
 			comp("asm", comp("call", atom("check_attribute/3")))),
+
+		// Compiled calls to call/n are inlined into the instruction call_meta.
+		// These functions are used when referenced by (meta-)meta-calls, and
+		// are limited to 8 args.
+		dsl.Clause(comp("call", var_("Functor")),
+			comp("asm", comp("call", atom("call/1")))),
+		dsl.Clause(comp("call", var_("Functor"), var_("A1")),
+			comp("asm", comp("call", atom("call/2")))),
+		dsl.Clause(comp("call", var_("Functor"), var_("A1"), var_("A2")),
+			comp("asm", comp("call", atom("call/3")))),
+		dsl.Clause(comp("call", var_("Functor"), var_("A1"), var_("A2"), var_("A3")),
+			comp("asm", comp("call", atom("call/4")))),
+		dsl.Clause(comp("call", var_("Functor"), var_("A1"), var_("A2"), var_("A3"), var_("A4")),
+			comp("asm", comp("call", atom("call/5")))),
+		dsl.Clause(comp("call", var_("Functor"), var_("A1"), var_("A2"), var_("A3"), var_("A4"), var_("A5")),
+			comp("asm", comp("call", atom("call/6")))),
+		dsl.Clause(comp("call", var_("Functor"), var_("A1"), var_("A2"), var_("A3"), var_("A4"), var_("A5"), var_("A6")),
+			comp("asm", comp("call", atom("call/7")))),
+		dsl.Clause(comp("call", var_("Functor"), var_("A1"), var_("A2"), var_("A3"), var_("A4"), var_("A5"), var_("A6"), var_("A7")),
+			comp("asm", comp("call", atom("call/8")))),
+		dsl.Clause(comp("call", var_("Functor"), var_("A1"), var_("A2"), var_("A3"), var_("A4"), var_("A5"), var_("A6"), var_("A7"), var_("A8")),
+			comp("asm", comp("call", atom("call/9")))),
 	}
 )
-
-// builtin call(...) clauses.
-// Compiled calls to call/n are inlined into the instruction call_meta.
-// These functions are used when referenced by (meta-)meta-calls, and
-// are limited to arity 8.
-func initCalls() []*Clause {
-	calls := make([]*Clause, 8)
-	for i := 0; i < 8; i++ {
-		calls[i] = &Clause{
-			Functor:      Functor{"call", i + 1},
-			NumRegisters: i + 1,
-			// allocate an env frame to store the continuation. The inner
-			// call(...) will be inlined by the compiler.
-			Code: optimizeInstructions([]Instruction{
-				allocate{0},
-				call{Functor{"call", i + 1}},
-				deallocate{},
-				proceed{},
-			}),
-		}
-	}
-	return calls
-}
 
 // ---- unicode predicates
 
