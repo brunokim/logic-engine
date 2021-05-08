@@ -124,7 +124,17 @@ func decodeMachineFunc(t logic.Term) func(*Machine) error {
 	return ptr.Value.(func(*Machine) error)
 }
 
-func decodeInstruction(c *logic.Comp) Instruction {
+// DecodeInstruction builds an instruction from its representation as a logic term.
+func DecodeInstruction(term logic.Term) Instruction {
+	var c *logic.Comp
+	switch t := term.(type) {
+	case logic.Atom:
+		c = dsl.Comp(t.Name)
+	case *logic.Comp:
+		c = t
+	default:
+		panic(fmt.Sprintf("invalid instruction representation %v", term))
+	}
 	switch c.Indicator() {
 	case dsl.Indicator("put_struct", 2):
 		return putStruct{decodeFunctor(c.Args[0]), decodeRegAddr(c.Args[1])}
@@ -327,10 +337,11 @@ func maxReg(code []Instruction) RegAddr {
 	return max
 }
 
-func DecodeClause(functor logic.Indicator, instructions ...*logic.Comp) *Clause {
+// DecodeClause builds a WAM clause from its representation as a logic term.
+func DecodeClause(functor logic.Indicator, instructions ...logic.Term) *Clause {
 	instrs := make([]Instruction, len(instructions))
 	for i, instruction := range instructions {
-		instrs[i] = decodeInstruction(instruction)
+		instrs[i] = DecodeInstruction(instruction)
 	}
 	max := maxReg(instrs)
 	return &Clause{
