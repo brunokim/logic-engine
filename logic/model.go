@@ -43,6 +43,12 @@ type Int struct {
 	Value int
 }
 
+// Ptr is an atomic term containing a Go pointer.
+type Ptr struct {
+	// Value is an arbitrary Go pointer.
+	Value interface{}
+}
+
 // Var is a variable term.
 type Var struct {
 	// Name is the identifier for a var.
@@ -400,6 +406,8 @@ func Vars(term Term) []Var {
 		xs = t.vars(seen, xs)
 	case Int:
 		xs = t.vars(seen, xs)
+	case Ptr:
+		xs = t.vars(seen, xs)
 	case Var:
 		xs = t.vars(seen, xs)
 	case *Comp:
@@ -418,6 +426,7 @@ func Vars(term Term) []Var {
 
 func (t Atom) vars(seen map[Var]struct{}, xs []Var) []Var { return xs }
 func (t Int) vars(seen map[Var]struct{}, xs []Var) []Var  { return xs }
+func (t Ptr) vars(seen map[Var]struct{}, xs []Var) []Var  { return xs }
 
 func (t Var) vars(seen map[Var]struct{}, xs []Var) []Var {
 	if _, ok := seen[t]; ok {
@@ -486,6 +495,7 @@ func (t *Clause) Vars() []Var {
 
 func (t Atom) hasVar() bool    { return false }
 func (t Int) hasVar() bool     { return false }
+func (t Ptr) hasVar() bool     { return false }
 func (t Var) hasVar() bool     { return true }
 func (t *Comp) hasVar() bool   { return t.hasVar_ }
 func (t *List) hasVar() bool   { return t.hasVar_ }
@@ -498,19 +508,21 @@ func (c *Clause) hasVar() bool { return c.hasVar_ }
 func termOrder(t Term) int {
 	switch t.(type) {
 	case Var:
-		return 1
+		return 10
 	case Int:
-		return 2
+		return 20
+	case Ptr:
+		return 25
 	case Atom:
-		return 3
+		return 30
 	case *Comp:
-		return 4
+		return 40
 	case *List:
-		return 5
+		return 50
 	case *Assoc:
-		return 6
+		return 60
 	case *Dict:
-		return 7
+		return 70
 	default:
 		panic(fmt.Sprintf("logic.termOrder: unhandled type %T", t))
 	}
@@ -554,6 +566,10 @@ func compare(t1, t2 Term) ordering {
 		if v, ok := t2.(Int); ok {
 			return u.compare(v)
 		}
+	case Ptr:
+		if v, ok := t2.(Ptr); ok {
+			return u.compare(v)
+		}
 	case Var:
 		if v, ok := t2.(Var); ok {
 			return u.compare(v)
@@ -586,6 +602,13 @@ func (a Atom) compare(other Atom) ordering {
 
 func (i Int) compare(other Int) ordering {
 	return compareInts(i.Value, other.Value)
+}
+
+func (i Ptr) compare(other Ptr) ordering {
+	if i.Value == other.Value {
+		return equal
+	}
+	return less
 }
 
 func (x Var) compare(other Var) ordering {
@@ -656,6 +679,9 @@ func (t Atom) Less(other Atom) bool { return t.Name < other.Name }
 // Less returns whether this int is less than another.
 func (t Int) Less(other Int) bool { return t.Value < other.Value }
 
+// Less returns whether this ptr is less than another (meaningless comparison).
+func (t Ptr) Less(other Ptr) bool { return t.compare(other) == less }
+
 // Less returns whether this var is less than another, in lexicographic order.
 func (t Var) Less(other Var) bool {
 	if t.Name != other.Name {
@@ -700,6 +726,9 @@ func (t Atom) Eq(other Atom) bool { return t == other }
 // Eq returns whether this int is equal to another.
 func (t Int) Eq(other Int) bool { return t == other }
 
+// Eq returns whether the ptr contents are equal to another.
+func (t Ptr) Eq(other Ptr) bool { return t.Value == other.Value }
+
 // Eq returns whether this var is equal to another.
 func (t Var) Eq(other Var) bool { return t == other }
 
@@ -723,6 +752,10 @@ func (t Atom) String() string {
 
 func (t Int) String() string {
 	return fmt.Sprintf("%d", t.Value)
+}
+
+func (t Ptr) String() string {
+	return fmt.Sprintf("<ptr %p>", t.Value)
 }
 
 func (t Var) String() string {
@@ -788,6 +821,7 @@ func (c *Clause) String() string {
 
 func (t Atom) short() string { return t.String() }
 func (t Int) short() string  { return t.String() }
+func (t Ptr) short() string  { return t.String() }
 func (t Var) short() string  { return t.String() }
 
 func (t *Comp) short() string {
