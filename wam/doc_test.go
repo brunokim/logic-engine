@@ -3,36 +3,36 @@ package wam_test
 import (
 	"fmt"
 
-	"github.com/brunokim/logic-engine/dsl"
+	. "github.com/brunokim/logic-engine/dsl"
 	"github.com/brunokim/logic-engine/logic"
 	"github.com/brunokim/logic-engine/wam"
 )
 
 func Example() {
 	m := wam.NewMachine()
-	clauses := []*logic.Clause{
-		dsl.Clause(dsl.Comp("parent", dsl.Atom("elizabeth"), dsl.Atom("charles"))),
-		dsl.Clause(dsl.Comp("parent", dsl.Atom("philip"), dsl.Atom("charles"))),
-		dsl.Clause(dsl.Comp("parent", dsl.Atom("charles"), dsl.Atom("william"))),
-		dsl.Clause(dsl.Comp("parent", dsl.Atom("diana"), dsl.Atom("william"))),
-		dsl.Clause(dsl.Comp("parent", dsl.Atom("charles"), dsl.Atom("harry"))),
-		dsl.Clause(dsl.Comp("parent", dsl.Atom("diana"), dsl.Atom("harry"))),
+	logicClauses := []*logic.Clause{
+		Clause(Comp("parent", Atom("elizabeth"), Atom("charles"))),
+		Clause(Comp("parent", Atom("philip"), Atom("charles"))),
+		Clause(Comp("parent", Atom("charles"), Atom("william"))),
+		Clause(Comp("parent", Atom("diana"), Atom("william"))),
+		Clause(Comp("parent", Atom("charles"), Atom("harry"))),
+		Clause(Comp("parent", Atom("diana"), Atom("harry"))),
 
-		dsl.Clause(dsl.Comp("grandparent", dsl.Var("G"), dsl.Var("C")),
-			dsl.Comp("parent", dsl.Var("G"), dsl.Var("P")),
-			dsl.Comp("parent", dsl.Var("P"), dsl.Var("C"))),
-		dsl.Clause(dsl.Comp("partner", dsl.Var("P1"), dsl.Var("P2")),
-			dsl.Comp("parent", dsl.Var("P1"), dsl.Var("C")),
-			dsl.Comp("parent", dsl.Var("P2"), dsl.Var("C")),
-			dsl.Comp("\\=", dsl.Var("P1"), dsl.Var("P2"))),
+		Clause(Comp("grandparent", Var("G"), Var("C")),
+			Comp("parent", Var("G"), Var("P")),
+			Comp("parent", Var("P"), Var("C"))),
+		Clause(Comp("partner", Var("P1"), Var("P2")),
+			Comp("parent", Var("P1"), Var("C")),
+			Comp("parent", Var("P2"), Var("C")),
+			Comp("\\=", Var("P1"), Var("P2"))),
 	}
-	compiledClauses, _ := wam.CompileClauses(clauses)
-	for _, clause := range compiledClauses {
+	wamClauses, _ := wam.CompileClauses(logicClauses)
+	for _, clause := range wamClauses {
 		m.AddClause(clause)
 	}
 	bindings, _ := m.RunQuery(
-		dsl.Comp("grandparent", dsl.Var("G1"), dsl.Atom("harry")),
-		dsl.Comp("partner", dsl.Var("G1"), dsl.Var("G2")),
+		Comp("grandparent", Var("G1"), Atom("harry")),
+		Comp("partner", Var("G1"), Var("G2")),
 	)
 	for x, term := range bindings {
 		fmt.Println(x, "=", term)
