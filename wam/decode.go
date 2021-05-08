@@ -69,8 +69,15 @@ func decodePairTag(t logic.Term) PairTag {
 }
 
 func decodeAddrList(t logic.Term) []Addr {
-	// TODO: implement this
-	return nil
+	if t == logic.EmptyList {
+		return nil
+	}
+	list := t.(*logic.List)
+	addrs := make([]Addr, len(list.Terms))
+	for i, term := range list.Terms {
+		addrs[i] = decodeAddr(term)
+	}
+	return addrs
 }
 
 func decodeString(t logic.Term) string {
