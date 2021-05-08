@@ -19,57 +19,56 @@ func init() {
 	}
 	builtins = append(builtins, initCalls()...)
 	builtins = append(builtins, failClause)
-	builtins = append(builtins, checkAttribute)
 	for _, pred := range unicodePredicates {
 		builtins = append(builtins, builtinUnicodePredicate(pred))
 	}
 	for _, pred := range comparisonPredicates {
 		builtins = append(builtins, builtinComparisonPredicate(pred))
 	}
-	builtins = append(builtins, attributePredicates...)
 }
 
 var (
 	comp = dsl.Comp
 	var_ = dsl.Var
 	atom = dsl.Atom
+	int_ = dsl.Int
 )
 
 var (
-	checkAttribute = &Clause{
-		Functor:      Functor{"$check_attribute", 3},
-		NumRegisters: 3,
-		Code: []Instruction{
-			allocate{0},
-			call{Functor{"check_attribute", 3}},
-			deallocate{},
-			endCheckAttribute{},
-		},
-	}
-	attributePredicates = []*Clause{
-		&Clause{Functor{"get_attr", 2}, 2, []Instruction{getAttr{RegAddr(0), RegAddr(1)}, proceed{}}},
-		&Clause{Functor{"put_attr", 2}, 2, []Instruction{putAttr{RegAddr(0), RegAddr(1)}, proceed{}}},
-	}
 	failClause = &Clause{Functor{"fail", 0}, 0, []Instruction{fail{}}}
 	preamble   = []*logic.Clause{
 		// =(X, X).
 		dsl.Clause(comp("=", var_("X"), var_("X"))),
+
 		// true.
 		// false :- fail.
 		dsl.Clause(atom("true")),
 		dsl.Clause(atom("false"), atom("fail")),
+
 		// if(Cond, Then,    _) :- Cond, !, Then.
 		// if(   _,    _, Else) :- Else.
 		dsl.Clause(comp("if", var_("Cond"), var_("Then"), var_("_")),
 			var_("Cond"), atom("!"), var_("Then")),
 		dsl.Clause(comp("if", var_("_"), var_("_"), var_("Else")),
 			var_("Else")),
+
 		// \+(Goal) :- if(Goal, false, true).
 		// \=(X, Y) :- \+(=(X, Y)).
 		dsl.Clause(comp("\\+", var_("Goal")),
 			comp("if", var_("Goal"), atom("false"), atom("true"))),
 		dsl.Clause(comp("\\=", var_("X"), var_("Y")),
 			comp("\\+", comp("=", var_("X"), var_("Y")))),
+
+		// Attributes
+		dsl.Clause(comp("get_attr", var_("X"), var_("Attr")),
+			comp("asm", comp("get_attr", var_("X0"), var_("X1")))),
+		dsl.Clause(comp("put_attr", var_("X"), var_("Attr")),
+			comp("asm", comp("put_attr", var_("X0"), var_("X1")))),
+		dsl.Clause(comp("$check_attribute", var_("Attr"), var_("Value"), var_("NewAttr")),
+			comp("asm", comp("allocate", int_(0))),
+			comp("asm", comp("call", atom("check_attribute/3"))),
+			comp("asm", atom("deallocate")),
+			comp("asm", atom("end_check_attribute"))),
 	}
 )
 

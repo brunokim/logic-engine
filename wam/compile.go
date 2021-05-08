@@ -352,7 +352,9 @@ func compileQuery(query []logic.Term) (*Clause, error) {
 
 func isbuiltin(term *logic.Comp) bool {
 	ind := term.Indicator()
-	return ind == dsl.Indicator("!", 0) || ind == dsl.Indicator("fail", 0)
+	return ind == dsl.Indicator("!", 0) ||
+		ind == dsl.Indicator("fail", 0) ||
+		ind == dsl.Indicator("asm", 1)
 }
 
 func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction {
@@ -365,6 +367,8 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 		return []Instruction{cut{}}
 	case dsl.Indicator("fail", 0):
 		return []Instruction{fail{}}
+	case dsl.Indicator("asm", 1):
+		return []Instruction{DecodeInstruction(term.Args[0])}
 	}
 	// Regular goal: put term args into registers X0-Xn and issue a call to f/n.
 	ctx.instrs = nil
