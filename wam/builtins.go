@@ -186,13 +186,21 @@ type comparisonPredicate struct {
 	accepts1, accepts2 ordering
 }
 
-var comparisonPredicates = []comparisonPredicate{
-	comparisonPredicate{Functor{"@<", 2}, less, less},
-	comparisonPredicate{Functor{"@=<", 2}, less, equal},
-	comparisonPredicate{Functor{"@>", 2}, more, more},
-	comparisonPredicate{Functor{"@>=", 2}, more, equal},
-	comparisonPredicate{Functor{"==", 2}, equal, equal},
-	comparisonPredicate{Functor{"\\==", 2}, less, more},
+var comparisonPredicates = map[string]comparisonPredicate{
+	"@<":   comparisonPredicate{Functor{"@<", 2}, less, less},
+	"@=<":  comparisonPredicate{Functor{"@=<", 2}, less, equal},
+	"@>":   comparisonPredicate{Functor{"@>", 2}, more, more},
+	"@>=":  comparisonPredicate{Functor{"@>=", 2}, more, equal},
+	"==":   comparisonPredicate{Functor{"==", 2}, equal, equal},
+	"\\==": comparisonPredicate{Functor{"\\==", 2}, less, more},
+}
+
+func builtinComparisonInstruction(pred comparisonPredicate, x, y Addr) builtin {
+	return builtin{
+		Name: pred.functor.Name,
+		Args: []Addr{x, y},
+		Func: makeComparisonPredicate(pred),
+	}
 }
 
 func builtinComparisonPredicate(pred comparisonPredicate) *Clause {
@@ -200,11 +208,7 @@ func builtinComparisonPredicate(pred comparisonPredicate) *Clause {
 		Functor:      pred.functor,
 		NumRegisters: 2,
 		Code: []Instruction{
-			builtin{
-				Name: pred.functor.Name,
-				Args: []Addr{RegAddr(0), RegAddr(1)},
-				Func: makeComparisonPredicate(pred),
-			},
+			builtinComparisonInstruction(pred, RegAddr(0), RegAddr(1)),
 			proceed{},
 		},
 	}

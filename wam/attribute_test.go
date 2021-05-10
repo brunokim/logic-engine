@@ -108,7 +108,7 @@ func TestAttributeBacktrack(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.SetDebug("debugtest/attribute-backtrack.jsonl")
-	s.SetIterLimit(150)
+	s.SetIterLimit(400)
 
 	solutions, _ := s.Query("test(X)")
 	var got []solver.Solution

@@ -26,6 +26,7 @@ func (m *Machine) Reset() *Machine {
 	cloned.Code = m.Code
 	cloned.Reg = make([]Cell, len(m.Reg))
 	cloned.DebugFilename = m.DebugFilename
+	cloned.IterLimit = m.IterLimit
 	cloned.attributes = make(map[int]map[string]Cell)
 	cloned.interrupt = make(chan struct{})
 	return cloned
@@ -324,6 +325,25 @@ func (ctx *compileCtx) setComplexArg(arg logic.Term) Instruction {
 	return unifyValue{addr}
 }
 
+// ---- term addr
+
+func (ctx *compileCtx) termAddr(term logic.Term) Addr {
+	switch t := term.(type) {
+	case logic.Atom:
+		return ConstantAddr{toConstant(t)}
+	case logic.Int:
+		return ConstantAddr{toConstant(t)}
+	case logic.Ptr:
+		return ConstantAddr{toConstant(t)}
+	case logic.Var:
+		return ctx.varAddr[t]
+	}
+	addr := ctx.topReg
+	ctx.topReg++
+	ctx.instrs = append(ctx.instrs, ctx.putTerm(term, addr)...)
+	return addr
+}
+
 // ---- compiling terms
 
 // Compile compiles a single logic clause.
@@ -355,38 +375,69 @@ func compileQuery(query []logic.Term) (*Clause, error) {
 	n := len(c.Code)
 	if _, ok := c.Code[n-1].(deallocate); ok {
 		c.Code = c.Code[:n-1]
+		n--
+	}
+	// Remove proceed, if the clause ends with an inline predicate.
+	if _, ok := c.Code[n-1].(proceed); ok {
+		c.Code = c.Code[:n-1]
+		n--
 	}
 	// Add halt instruction
 	c.Code = append(c.Code, halt{})
 	return c, nil
 }
 
-func isbuiltin(term *logic.Comp) bool {
-	ind := term.Indicator()
-	return ind == dsl.Indicator("!", 0) ||
-		ind == dsl.Indicator("fail", 0) ||
-		ind == dsl.Indicator("asm", 1)
+var inlined = []logic.Indicator{
+	dsl.Indicator("!", 0),
+	dsl.Indicator("fail", 0),
+	dsl.Indicator("asm", 1),
+	dsl.Indicator("@<", 2),
+	dsl.Indicator("@=<", 2),
+	dsl.Indicator("@>=", 2),
+	dsl.Indicator("@>", 2),
+	dsl.Indicator("==", 2),
+	dsl.Indicator("\\==", 2),
+}
+
+func isInlined(term *logic.Comp) bool {
+	key := term.Indicator()
+	for _, ind := range inlined {
+		if ind == key {
+			return true
+		}
+	}
+	return false
 }
 
 func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction {
-	// Special cases.
+	ctx.instrs = nil
 	switch term.Indicator() {
 	case dsl.Indicator("!", 0):
 		if pos == 0 {
 			return []Instruction{neckCut{}}
 		}
 		return []Instruction{cut{}}
-	case dsl.Indicator("fail", 0):
+	case dsl.Indicator("fail", 0), dsl.Indicator("false", 0):
 		return []Instruction{fail{}}
 	case dsl.Indicator("asm", 1):
 		return []Instruction{DecodeInstruction(term.Args[0])}
+	case dsl.Indicator("@<", 2),
+		dsl.Indicator("@=<", 2),
+		dsl.Indicator("@>=", 2),
+		dsl.Indicator("@>", 2),
+		dsl.Indicator("==", 2),
+		dsl.Indicator("\\==", 2):
+		x := ctx.termAddr(term.Args[0])
+		y := ctx.termAddr(term.Args[1])
+		pred := comparisonPredicates[term.Functor]
+		ctx.instrs = append(ctx.instrs, builtinComparisonInstruction(pred, x, y))
+	default:
+		// Regular goal: put term args into registers X0-Xn and issue a call to f/n.
+		for i, arg := range term.Args {
+			ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, RegAddr(i))...)
+		}
+		ctx.instrs = append(ctx.instrs, call{toFunctor(term.Indicator())})
 	}
-	// Regular goal: put term args into registers X0-Xn and issue a call to f/n.
-	ctx.instrs = nil
-	for i, arg := range term.Args {
-		ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, RegAddr(i))...)
-	}
-	ctx.instrs = append(ctx.instrs, call{toFunctor(term.Indicator())})
 	return ctx.instrs
 }
 
@@ -426,10 +477,10 @@ func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
 	for i, term := range clause.Body {
 		c.Code = append(c.Code, ctx.compileBodyTerm(i, term.(*logic.Comp))...)
 	}
-	// Add "proceed" instruction for facts, and when a body ends with a builtin call,
+	// Add "proceed" instruction for facts, and when a body ends with an inlined call,
 	// e.g., '!'
 	n := len(clause.Body)
-	if n == 0 || isbuiltin(clause.Body[n-1].(*logic.Comp)) {
+	if n == 0 || isInlined(clause.Body[n-1].(*logic.Comp)) {
 		c.Code = append(c.Code, proceed{getMode(functor.Name)})
 	}
 	c.Code = append(header, c.Code...)

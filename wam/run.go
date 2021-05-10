@@ -203,6 +203,8 @@ func (m *Machine) set(addr Addr, cell Cell) {
 		m.Reg[a] = cell
 	case StackAddr:
 		m.Env.PermanentVars[a] = cell
+	case ConstantAddr:
+		panic(fmt.Sprintf("wam.Machine.set: can't write %v to read-only constant %v", cell, a.Constant))
 	default:
 		panic(fmt.Sprintf("wam.Machine.set: unhandled type %T (%v)", addr, addr))
 	}
@@ -214,6 +216,8 @@ func (m *Machine) get(addr Addr) Cell {
 		return m.Reg[a]
 	case StackAddr:
 		return m.Env.PermanentVars[a]
+	case ConstantAddr:
+		return a.Constant
 	default:
 		panic(fmt.Sprintf("wam.Machine.get: unhandled type %T (%v)", addr, addr))
 	}
