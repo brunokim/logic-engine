@@ -94,7 +94,7 @@ var (
 
 		// Unifiable
 		dsl.Clause(comp("unifiable", var_("X"), var_("Y"), var_("Unifier")),
-			comp("asm", comp("builtin", atom("unifiable"), ptr(builtinUnifiable)))),
+			comp("asm", comp("builtin", atom("unifiable"), ptr(builtinUnifiable), var_("X0"), var_("X1"), var_("X2")))),
 	}
 )
 
@@ -122,7 +122,7 @@ func builtinUnicodePredicate(pred unicodePredicate) *Clause {
 	clause := &Clause{Functor: pred.functor, NumRegisters: 1}
 	start := makeUnicodePredicate(pred, clause)
 	clause.Code = []Instruction{
-		builtin{Name: pred.functor.Name, Func: start},
+		builtin{Name: pred.functor.Name, Func: start, Args: []Addr{RegAddr(0)}},
 		proceed{},
 	}
 	return clause
@@ -130,9 +130,9 @@ func builtinUnicodePredicate(pred unicodePredicate) *Clause {
 
 // Succeeds if first arg is a rune from table; if first arg is a ref, replaces
 // itself with iterator.
-func makeUnicodePredicate(pred unicodePredicate, clause *Clause) func(*Machine) error {
-	return func(m *Machine) error {
-		cell := deref(m.Reg[0])
+func makeUnicodePredicate(pred unicodePredicate, clause *Clause) func(*Machine, []Addr) error {
+	return func(m *Machine, args []Addr) error {
+		cell := deref(m.get(args[0]))
 		switch c := cell.(type) {
 		case WAtom:
 			r, ok := runes.Single(string(c))
@@ -146,10 +146,10 @@ func makeUnicodePredicate(pred unicodePredicate, clause *Clause) func(*Machine) 
 		case *Ref:
 			iterator := makeUnicodeIterator(pred, clause)
 			clause.Code = []Instruction{
-				builtin{Name: pred.functor.Name + "_ref", Func: iterator},
+				builtin{Name: pred.functor.Name + "_ref", Func: iterator, Args: args},
 				proceed{},
 			}
-			return iterator(m)
+			return iterator(m, args)
 		default:
 			return fmt.Errorf("%v: not an atom: %v", pred.functor, cell)
 		}
@@ -157,10 +157,10 @@ func makeUnicodePredicate(pred unicodePredicate, clause *Clause) func(*Machine) 
 }
 
 // The unicode iterator emits all runes from table via backtracking.
-func makeUnicodeIterator(pred unicodePredicate, clause *Clause) func(*Machine) error {
+func makeUnicodeIterator(pred unicodePredicate, clause *Clause) func(*Machine, []Addr) error {
 	allRunes := runes.All(pred.table)
 	var pos int
-	return func(m *Machine) error {
+	return func(m *Machine, args []Addr) error {
 		if pos == 0 {
 			// try_me_else
 			m.ChoicePoint = m.newChoicePoint(InstrAddr{clause, 0})
@@ -172,7 +172,7 @@ func makeUnicodeIterator(pred unicodePredicate, clause *Clause) func(*Machine) e
 			m.restoreFromChoicePoint()
 			m.ChoicePoint = m.ChoicePoint.Prev
 		}
-		x := deref(m.Reg[0])
+		x := deref(m.get(args[0]))
 		m.bind(x, WAtom(string(allRunes[pos])))
 		pos++
 		return nil
@@ -202,6 +202,7 @@ func builtinComparisonPredicate(pred comparisonPredicate) *Clause {
 		Code: []Instruction{
 			builtin{
 				Name: pred.functor.Name,
+				Args: []Addr{RegAddr(0), RegAddr(1)},
 				Func: makeComparisonPredicate(pred),
 			},
 			proceed{},
@@ -209,9 +210,9 @@ func builtinComparisonPredicate(pred comparisonPredicate) *Clause {
 	}
 }
 
-func makeComparisonPredicate(pred comparisonPredicate) func(m *Machine) error {
-	return func(m *Machine) error {
-		x1, x2 := deref(m.Reg[0]), deref(m.Reg[1])
+func makeComparisonPredicate(pred comparisonPredicate) func(*Machine, []Addr) error {
+	return func(m *Machine, args []Addr) error {
+		x1, x2 := deref(m.get(args[0])), deref(m.get(args[1]))
 		if o := compareCells(x1, x2); o == pred.accepts1 || o == pred.accepts2 {
 			return nil
 		}
@@ -221,8 +222,8 @@ func makeComparisonPredicate(pred comparisonPredicate) func(m *Machine) error {
 
 // ---- dif
 
-func builtinUnifiable(m *Machine) error {
-	x, y, unifier := m.Reg[0], m.Reg[1], m.Reg[2]
+func builtinUnifiable(m *Machine, args []Addr) error {
+	x, y, unifier := m.get(args[0]), m.get(args[1]), m.get(args[2])
 	bindings, _, err := m.unifyBindings(x, y)
 	if err != nil {
 		// Unification failed, return empty list of bindings.

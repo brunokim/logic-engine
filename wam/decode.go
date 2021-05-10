@@ -84,8 +84,12 @@ func decodeAddrList(t logic.Term) []Addr {
 		return nil
 	}
 	list := t.(*logic.List)
-	addrs := make([]Addr, len(list.Terms))
-	for i, term := range list.Terms {
+	return decodeAddrs(list.Terms)
+}
+
+func decodeAddrs(terms []logic.Term) []Addr {
+	addrs := make([]Addr, len(terms))
+	for i, term := range terms {
 		addrs[i] = decodeAddr(term)
 	}
 	return addrs
@@ -137,9 +141,9 @@ func decodeFunctorInstrMap(t logic.Term) map[Functor]InstrAddr {
 	return m
 }
 
-func decodeMachineFunc(t logic.Term) func(*Machine) error {
+func decodeMachineFunc(t logic.Term) func(*Machine, []Addr) error {
 	ptr := t.(logic.Ptr)
-	return ptr.Value.(func(*Machine) error)
+	return ptr.Value.(func(*Machine, []Addr) error)
 }
 
 // DecodeInstruction builds an instruction from its representation as a logic term.
@@ -152,6 +156,13 @@ func DecodeInstruction(term logic.Term) Instruction {
 		c = t
 	default:
 		panic(fmt.Sprintf("invalid instruction representation %v", term))
+	}
+	if c.Functor == "builtin" && len(c.Args) >= 2 {
+		return builtin{
+			Name: decodeString(c.Args[0]),
+			Func: decodeMachineFunc(c.Args[1]),
+			Args: decodeAddrs(c.Args[2:]),
+		}
 	}
 	switch c.Indicator() {
 	case dsl.Indicator("put_struct", 2):
@@ -229,8 +240,6 @@ func DecodeInstruction(term logic.Term) Instruction {
 		return cut{}
 	case dsl.Indicator("fail", 0):
 		return fail{}
-	case dsl.Indicator("builtin", 2):
-		return builtin{decodeString(c.Args[0]), decodeMachineFunc(c.Args[1])}
 	case dsl.Indicator("put_attr", 2):
 		return putAttr{decodeAddr(c.Args[0]), decodeAddr(c.Args[1])}
 	case dsl.Indicator("get_attr", 2):

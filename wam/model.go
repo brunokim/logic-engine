@@ -200,7 +200,8 @@ type fail struct{}
 
 type builtin struct {
 	Name string
-	Func func(m *Machine) error
+	Args []Addr
+	Func func(*Machine, []Addr) error
 }
 
 type putAttr struct {
@@ -408,7 +409,11 @@ func (i fail) String() string {
 }
 
 func (i builtin) String() string {
-	return fmt.Sprintf("builtin %s, <func %p>", i.Name, i.Func)
+	addrs := make([]string, len(i.Args))
+	for i, arg := range i.Args {
+		addrs[i] = arg.String()
+	}
+	return fmt.Sprintf("%s %s", i.Name, addrs)
 }
 
 func (i putAttr) String() string {

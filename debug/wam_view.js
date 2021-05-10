@@ -394,7 +394,7 @@ export class Wam {
 
     instructionRow(instr) {
         let row = $("<tr>");
-        row.append($("<td>").text(instructionType(instr.Type)))
+        row.append($("<td>").text(instructionName(instr)))
         for (let arg of this.instructionArgs(instr)) {
             row.append($("<td>").append(arg))
         }
@@ -402,6 +402,9 @@ export class Wam {
     }
 
     instructionArgs(instr) {
+        if (instr.Type == "builtin") {
+            return instr.Args
+        }
         return [
             this.instructionFirstArg(instr),
             this.instructionSecondArg(instr),
@@ -455,8 +458,6 @@ export class Wam {
         case "switchOnConstant":
         case "switchOnStruct":
             return this.switchTable(instr.Continuation)
-        case "builtin":
-            return instr.Name
         case "proceed":
             return instr.Mode
         }
@@ -523,6 +524,13 @@ function parseFunctor(functor) {
     const re = /(.*)\/(\d+)$/
     let [, name, arity] = functor.match(re)
     return [name, +arity]
+}
+
+function instructionName(instr) {
+    if (instr.Type == "builtin") {
+        return instr.Name
+    }
+    return instructionType(instr.Type)
 }
 
 function instructionType(type) {

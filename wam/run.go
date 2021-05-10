@@ -643,7 +643,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		return m.backtrack(fmt.Errorf("fail instruction"))
 	case builtin:
 		// calls builtin function.
-		if err := instr.Func(m); err != nil {
+		if err := instr.Func(m, instr.Args); err != nil {
 			return m.backtrack(err)
 		}
 	case putAttr:
