@@ -328,8 +328,10 @@ func (m *Machine) readConstant(constant Constant, arg Cell) (InstrAddr, error) {
 			return m.backtrack(&unifyError{c, constant})
 		}
 	case *Ref:
-		c.Cell = constant
-		m.trail(c)
+		if _, ok := m.attributes[c.id]; ok {
+			return m.setupVerifyAttributes(map[*Ref]Cell{c: constant})
+		}
+		m.bindRef(c, constant)
 	default:
 		return m.backtrack(&unifyError{cell, constant})
 	}
@@ -663,8 +665,11 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		switch c := cell.(type) {
 		case *Struct:
 			attr = m.getAttribute(ref, c.Name)
+			if attr == nil {
+				return m.backtrack(fmt.Errorf("get_attr: attribute not present"))
+			}
 		default:
-			return m.backtrack(fmt.Errorf("put_attr: invalid attribute"))
+			return m.backtrack(fmt.Errorf("get_attr: invalid attribute"))
 		}
 		return m.preUnify(attr, cell)
 	default:
@@ -744,7 +749,10 @@ func (m *Machine) preUnify(a1, a2 Cell) (InstrAddr, error) {
 	for x := range bindings {
 		x.Cell = nil
 	}
-	// Setup machine to check attributes.
+	return m.setupVerifyAttributes(bindings)
+}
+
+func (m *Machine) setupVerifyAttributes(bindings map[*Ref]Cell) (InstrAddr, error) {
 	m.Mode = Unify
 	m.UnificationFrame = &UnificationFrame{
 		Prev:         m.UnificationFrame,

@@ -63,3 +63,56 @@ func TestCheckAttribute(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestAttributeBacktrack(t *testing.T) {
+	s, err := solver.New(`
+        test_value(1).
+        test_value(2).
+        test_value(3).
+        test_value(4).
+        test(X) :-
+            test_value(Value),
+            in_range(Y, 1, 2), 
+            =(X, Y),           % Check that X didn't keep attribute from previous choicepoint.
+            in_range(X, 3, 5), % Overwrite attribute.
+            =(X, Value).       % Will backtrack for 1 and 2, and succeed for 3 and 4.
+
+        in_range(X, Min, Max) :-
+            put_attr(X, range(Min, Max)).
+
+        % Join ranges if Y also has range attribute, otherwise simply
+        % move it to Y.
+        join_attribute(range, X, Y) :-
+            get_attr(X, range(Min, Max)),
+            if(get_attr(Y, range(A, B)),
+                join_range(X, Y),
+                in_range(Y, Min, Max)).
+
+        % Compute the intersection of ranges, and associate it to Y.
+        join_range(X, Y) :-
+            get_attr(X, range(Min1, Max1)),
+            get_attr(Y, range(Min2, Max2)),
+            if(@<(Min1, Min2), =(Min, Min2), =(Min, Min1)),
+            if(@>(Max1, Max2), =(Max, Max2), =(Max, Max1)),
+            @<(Min, Max),
+            in_range(Y, Min, Max).
+
+        % Check that the value is compatible with the attribute.
+        check_attribute(range(Min, Max), Value) :-
+            @=<(Min, Value),
+            @>(Max, Value).
+    `)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.SetDebug("debugtest/attribute-backtrack.jsonl")
+	s.SetIterLimit(150)
+
+	solutions, _ := s.Query("test(X)")
+	var sols []solver.Solution
+	for solution := range solutions {
+		sols = append(sols, solution)
+	}
+	t.Log(sols)
+	t.Log(s.Err)
+}
