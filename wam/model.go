@@ -606,14 +606,13 @@ type ChoicePoint struct {
 }
 
 type UnificationFrame struct {
-	Prev          *UnificationFrame
-	Continuation  InstrAddr
-	CutChoice     *ChoicePoint
-	Bindings      []Binding
-	Index         int
-	Attributes    []Cell
-	NewAttributes []Cell
-	NewAttribute  Cell
+	Prev         *UnificationFrame
+	Continuation InstrAddr
+	CutChoice    *ChoicePoint
+	Bindings     []Binding
+	Index        int
+	Attributes   []Cell
+	FirstRun     bool
 }
 
 // ExecutionMode sets the machine mode between running code or unifying.

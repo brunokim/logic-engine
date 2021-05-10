@@ -25,13 +25,27 @@ func TestCheckAttribute(t *testing.T) {
         in_range(X, Min, Max) :-
             put_attr(X, range(Min, Max)).
 
-        % The variable range is reduced to the intersection of both
-        % ranges.
-        check_attribute(range(Min1, Max1), Value, range(Min, Max)) :-
-            get_attr(Value, range(Min2, Max2)),
+        % Join ranges if Y also has range attribute, otherwise simply
+        % move it to Y.
+        join_attribute(range, X, Y) :-
+            get_attr(X, range(Min, Max)),
+            if(get_attr(Y, range(A, B)),
+                join_range(X, Y),
+                in_range(Y, Min, Max)).
+
+        % Compute the intersection of ranges, and associate it to Y.
+        join_range(X, Y) :-
+            get_attr(X, range(Min1, Max1)),
+            get_attr(Y, range(Min2, Max2)),
             if(@<(Min1, Min2), =(Min, Min2), =(Min, Min1)),
             if(@>(Max1, Max2), =(Max, Max2), =(Max, Max1)),
-            in_range(Value, Min, Max).
+            @<(Min, Max),
+            in_range(Y, Min, Max).
+
+        % Check that the value is compatible with the attribute.
+        check_attribute(range(Min, Max), Value) :-
+            @=<(Min, Value),
+            @>(Max, Value).
     `)
 	if err != nil {
 		t.Fatal(err)
@@ -39,21 +53,13 @@ func TestCheckAttribute(t *testing.T) {
 	s.SetDebug("debugtest/check-attribute.jsonl")
 	s.SetIterLimit(150)
 
-	solution, err := firstSolution(s.Query(`
+	_, err = firstSolution(s.Query(`
         in_range(X, 1, 5),
         in_range(Y, 3, 9),
         =(X, Y),
-        get_attr(Y, range(Min, Max))
+        =(X, 4),
     `))
 	if err != nil {
 		t.Fatal(err)
-	}
-	min, max := solution[var_("Min")], solution[var_("Max")]
-	minWant, maxWant := int_(3), int_(5)
-	if min != minWant {
-		t.Errorf("Min = %v != %s", min, minWant)
-	}
-	if max != maxWant {
-		t.Errorf("Max = %v != %s", max, maxWant)
 	}
 }

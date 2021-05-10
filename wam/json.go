@@ -356,9 +356,7 @@ func (enc *machineEncoder) unifFrames_() []interface{} {
 	s := make([]interface{}, len(enc.unifFrames))
 	for i, frame := range enc.unifFrames {
 		m := map[string]interface{}{
-			"Attributes":    frame.Attributes,
-			"NewAttributes": frame.NewAttributes,
-			"NewAttribute":  frame.NewAttribute,
+			"Attributes": frame.Attributes,
 		}
 		if frame.Index < len(frame.Bindings) {
 			m["AttributedRef"] = frame.Bindings[frame.Index].Ref

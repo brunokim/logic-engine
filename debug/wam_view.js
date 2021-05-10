@@ -147,13 +147,7 @@ export class Wam {
                     .append($("<td>").append(this.bindings(frame.Bindings))))
                 .append($("<tr>")
                     .append($("<td>").text("Attributes"))
-                    .append($("<td>").text(frame.Attributes)))
-                .append($("<tr>")
-                    .append($("<td>").text("NewAttributes"))
-                    .append($("<td>").text(frame.NewAttributes)))
-                .append($("<tr>")
-                    .append($("<td>").text("NewAttribute"))
-                    .append($("<td>").text(frame.NewAttribute))))
+                    .append($("<td>").text(frame.Attributes))))
     }
 
     attributesTable(state = this.state()) {

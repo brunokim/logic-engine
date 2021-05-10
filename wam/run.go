@@ -111,7 +111,7 @@ func (m *Machine) Run() error {
 		case Run:
 			exit, err = m.runCode(i)
 		case Unify:
-			m.checkAttribute()
+			m.verifyAttributes()
 		}
 		m.debugWrite(f, i)
 		if err != nil {
@@ -382,6 +382,10 @@ func (m *Machine) getAttribute(ref *Ref, name string) Cell {
 		return nil
 	}
 	return attrs[name]
+}
+
+func (m *Machine) deleteAttributes(ref *Ref) {
+	delete(m.attributes, ref.id)
 }
 
 // ---- control
@@ -747,6 +751,7 @@ func (m *Machine) preUnify(a1, a2 Cell) (InstrAddr, error) {
 		Continuation: m.Continuation,
 		CutChoice:    m.CutChoice,
 		Bindings:     bindingsToSlice(bindings),
+		FirstRun:     true,
 	}
 	return m.forward()
 }
@@ -914,6 +919,15 @@ func (m *Machine) dictMatchingPairs(d1, d2 *Pair) ([]Cell, error) {
 	return cells, nil
 }
 
+func attrName(attr Cell) string {
+	switch c := attr.(type) {
+	case *Struct:
+		return c.Name
+	default:
+		panic(fmt.Sprintf("unhandled attribute type %T (%v)", attr, attr))
+	}
+}
+
 func attrsToSlice(as map[string]Cell) []Cell {
 	attrs := make([]Cell, len(as))
 	i := 0
@@ -922,41 +936,16 @@ func attrsToSlice(as map[string]Cell) []Cell {
 		i++
 	}
 	sort.Slice(attrs, func(i, j int) bool {
-		return attrs[i].(*Struct).Name < attrs[j].(*Struct).Name
+		return attrName(attrs[i]) < attrName(attrs[j])
 	})
 	return attrs
 }
 
-func (m *Machine) checkAttribute() {
+func (m *Machine) verifyAttributes() {
 	frame := m.UnificationFrame
-	if frame.NewAttribute != nil {
-		// Returned from check_attributes/3, append new attribute to list.
-		attr := deref(frame.NewAttribute)
-		frame.NewAttributes = append(frame.NewAttributes, attr)
-		frame.NewAttribute = nil
-	}
 	if len(frame.Attributes) == 0 {
-		if len(frame.NewAttributes) > 0 {
-			// Attribute list was exhausted, populate new attributes of the ref.
-			ref := frame.Bindings[frame.Index].Ref
-			for _, attr := range frame.NewAttributes {
-				name := attr.(*Struct).Name
-				m.attributes[ref.id][name] = attr
-			}
+		if !frame.FirstRun {
 			frame.Index++
-			frame.NewAttributes = nil
-		}
-		if frame.Index >= len(frame.Bindings) {
-			// Bindings has been exhausted: restore bindings and return to run code.
-			for _, binding := range frame.Bindings {
-				ref, cell := binding.Ref, binding.Value
-				ref.Cell = cell
-			}
-			m.Mode = Run
-			m.Continuation = frame.Continuation
-			m.CutChoice = frame.CutChoice
-			m.UnificationFrame = frame.Prev
-			return
 		}
 		// Look for attributed ref in remaining bindings.
 		for ; frame.Index < len(frame.Bindings); frame.Index++ {
@@ -966,17 +955,43 @@ func (m *Machine) checkAttribute() {
 				break
 			}
 		}
+		if frame.Index >= len(frame.Bindings) {
+			// Bindings has been exhausted: restore bindings and return to run code.
+			for _, binding := range frame.Bindings {
+				ref, cell := binding.Ref, binding.Value
+				m.deleteAttributes(ref)
+				m.bindRef(ref, cell)
+			}
+			m.Mode = Run
+			m.Continuation = frame.Continuation
+			m.CutChoice = frame.CutChoice
+			m.UnificationFrame = frame.Prev
+			return
+		}
 	}
-	// Pop first attribute and invoke check_attribute/3.
+	// Pop first attribute.
 	attr := frame.Attributes[0]
 	frame.Attributes = frame.Attributes[1:]
-	frame.NewAttribute = m.newRef()
-	m.Reg[0] = attr
-	m.Reg[1] = frame.Bindings[frame.Index].Value
-	m.Reg[2] = frame.NewAttribute
+	frame.FirstRun = false
+	// Prepare machine
+	binding := frame.Bindings[frame.Index]
+	ref, value := binding.Ref, binding.Value
+	var functor Functor
+	if otherRef, ok := value.(*Ref); ok {
+		// If value is a var, call join_attribute(AttrName, X, Y)
+		m.Reg[0] = WAtom(attrName(attr))
+		m.Reg[1] = ref
+		m.Reg[2] = otherRef
+		functor = Functor{"$join_attribute:unify", 3}
+	} else {
+		// If value is not a var, call check_attribute(Attr, Value)
+		m.Reg[0] = attr
+		m.Reg[1] = value
+		functor = Functor{"$check_attribute:unify", 2}
+	}
 	m.Continuation = m.CodePtr
 	m.CutChoice = m.ChoicePoint
-	instrAddr, err := m.call(Functor{"$check_attribute:unify", 3})
+	instrAddr, err := m.call(functor)
 	if err != nil {
 		// Should never happen.
 		panic(err)

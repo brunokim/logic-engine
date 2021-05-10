@@ -63,8 +63,10 @@ var (
 			comp("asm", comp("get_attr", var_("X0"), var_("X1")))),
 		dsl.Clause(comp("put_attr", var_("X"), var_("Attr")),
 			comp("asm", comp("put_attr", var_("X0"), var_("X1")))),
-		dsl.Clause(comp("$check_attribute:unify", var_("Attr"), var_("Value"), var_("NewAttr")),
-			comp("asm", comp("call", atom("check_attribute/3")))),
+		dsl.Clause(comp("$join_attribute:unify", var_("AttrName"), var_("X"), var_("Y")),
+			comp("asm", comp("call", atom("join_attribute/3")))),
+		dsl.Clause(comp("$check_attribute:unify", var_("Attr"), var_("Value")),
+			comp("asm", comp("call", atom("check_attribute/2")))),
 
 		// Compiled calls to call/n are inlined into the instruction call_meta.
 		// These functions are used when referenced by (meta-)meta-calls, and
