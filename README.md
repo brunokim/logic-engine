@@ -19,7 +19,8 @@ full Prolog environment, which necessarily involve some ser-/deserialization.
 - [x] Dicts
 - [x] Prolog parser
 - [ ] DCGs
-- [ ] Attributed variables
+- [X] Attributed variables
+- [ ] Go integration
 - [ ] Delimited continuations
 - [ ] Tabling
 - [ ] Finite-domain constraint solver
