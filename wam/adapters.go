@@ -16,6 +16,8 @@ func toConstant(term logic.Term) Constant {
 		return WAtom(t.Name)
 	case logic.Int:
 		return WInt(t.Value)
+	case logic.Ptr:
+		return WPtr{t.Value}
 	default:
 		panic(fmt.Sprintf("toConstant: unhandled type %T (%v)", term, term))
 	}
@@ -27,6 +29,8 @@ func fromConstant(c Constant) logic.Term {
 		return logic.Atom{Name: string(c)}
 	case WInt:
 		return logic.Int{Value: int(c)}
+	case WPtr:
+		return logic.Ptr{Value: c.ptr}
 	default:
 		panic(fmt.Sprintf("fromConstant: unhandled type %T (%v)", c, c))
 	}
