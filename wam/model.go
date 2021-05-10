@@ -38,11 +38,18 @@ type RegAddr int
 // StackAddr is the index of a local variable in the current environment.
 type StackAddr int
 
-func (a RegAddr) isAddr()   {}
-func (a StackAddr) isAddr() {}
+// ConstantAddr is an indirection for a constant.
+type ConstantAddr struct {
+	Constant
+}
 
-func (a RegAddr) String() string   { return fmt.Sprintf("X%d", a) }
-func (a StackAddr) String() string { return fmt.Sprintf("Y%d", a) }
+func (a RegAddr) isAddr()      {}
+func (a StackAddr) isAddr()    {}
+func (a ConstantAddr) isAddr() {}
+
+func (a RegAddr) String() string      { return fmt.Sprintf("X%d", a) }
+func (a StackAddr) String() string    { return fmt.Sprintf("Y%d", a) }
+func (a ConstantAddr) String() string { return fmt.Sprintf("@%v", a.Constant) }
 
 // ---- Basic types
 

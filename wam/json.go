@@ -14,6 +14,10 @@ func (i StackAddr) MarshalText() ([]byte, error) {
 	return []byte(i.String()), nil
 }
 
+func (i ConstantAddr) MarshalText() ([]byte, error) {
+	return []byte(i.String()), nil
+}
+
 func (f Functor) MarshalText() ([]byte, error) {
 	return []byte(f.String()), nil
 }
