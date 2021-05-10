@@ -742,12 +742,12 @@ func bindingsToSlice(bs map[*Ref]Cell) []Binding {
 }
 
 func (m *Machine) preUnify(a1, a2 Cell) (InstrAddr, error) {
-	bindings, err := m.unifyBindings(a1, a2)
+	bindings, hasAttr, err := m.unifyBindings(a1, a2)
 	if err != nil {
 		return m.backtrack(err)
 	}
 	// Early exit if there's no attributes to check.
-	if bindings == nil {
+	if !hasAttr {
 		return m.forward()
 	}
 	// Undo bindings.
@@ -785,7 +785,7 @@ type unifyCtx struct {
 
 // unify executes a depth-first traversal of cells, binding unbound refs to the other
 // cell, or comparing them for equality.
-func (m *Machine) unifyBindings(a1, a2 Cell) (map[*Ref]Cell, error) {
+func (m *Machine) unifyBindings(a1, a2 Cell) (map[*Ref]Cell, bool, error) {
 	ctx := &unifyCtx{
 		stack:    []Cell{a1, a2},
 		bindings: make(map[*Ref]Cell),
@@ -798,14 +798,10 @@ func (m *Machine) unifyBindings(a1, a2 Cell) (map[*Ref]Cell, error) {
 		a1, a2 := ctx.stack[n-2], ctx.stack[n-1]
 		ctx.stack = ctx.stack[:n-2]
 		if err := m.unifyStep(ctx, a1, a2); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
-	// Early exit if there's no attributes to check.
-	if !ctx.anyAttr {
-		return nil, nil
-	}
-	return ctx.bindings, nil
+	return ctx.bindings, ctx.anyAttr, nil
 }
 
 func (m *Machine) unifyStep(ctx *unifyCtx, a1, a2 Cell) error {

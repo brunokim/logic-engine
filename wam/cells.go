@@ -5,6 +5,18 @@ import (
 	"sort"
 )
 
+func listPair(head, tail Cell) *Pair {
+	return &Pair{Tag: ListPair, Head: head, Tail: tail}
+}
+
+func assocPair(key, val Cell) *Pair {
+	return &Pair{Tag: AssocPair, Head: key, Tail: val}
+}
+
+func dictPair(key, val, parent Cell) *Pair {
+	return &Pair{Tag: DictPair, Head: assocPair(key, val), Tail: parent}
+}
+
 // deref walks the reference chain until if finds a non-ref cell, or an unbound ref.
 func deref(cell Cell) Cell {
 	ref, ok := cell.(*Ref)

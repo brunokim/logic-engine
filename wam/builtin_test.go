@@ -4,7 +4,10 @@ import (
 	"testing"
 
 	"github.com/brunokim/logic-engine/logic"
+	"github.com/brunokim/logic-engine/test_helpers"
 	"github.com/brunokim/logic-engine/wam"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestUnicode(t *testing.T) {
@@ -43,4 +46,25 @@ func TestComparison(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Log(solution)
+}
+
+func TestUnifiable(t *testing.T) {
+	m := wam.NewMachine()
+	m.DebugFilename = "debugtest/builtin-unifiable.jsonl"
+	solution, err := m.RunQuery(
+		comp("unifiable",
+			comp("f", var_("X"), comp("g", atom("b")), comp("h", var_("Y"))),
+			comp("f", comp("h", comp("g", var_("Z"))), var_("Y"), var_("X")),
+			var_("Unifier")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := solution[var_("Unifier")]
+	want := list(
+		assoc(var_("Y"), comp("g", atom("b"))),
+		assoc(var_("X"), comp("h", comp("g", var_("Z")))),
+		assoc(var_("Z"), atom("b")))
+	if diff := cmp.Diff(want, got, test_helpers.IgnoreUnexported); diff != "" {
+		t.Errorf("(-want,+got)\n%s", diff)
+	}
 }

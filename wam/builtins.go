@@ -2,6 +2,7 @@ package wam
 
 import (
 	"fmt"
+	"sort"
 	"unicode"
 
 	"github.com/brunokim/logic-engine/dsl"
@@ -31,6 +32,7 @@ var (
 	var_ = dsl.Var
 	atom = dsl.Atom
 	int_ = dsl.Int
+	ptr  = dsl.Ptr
 )
 
 var (
@@ -89,6 +91,10 @@ var (
 			comp("asm", comp("call", atom("call/8")))),
 		dsl.Clause(comp("call", var_("Functor"), var_("A1"), var_("A2"), var_("A3"), var_("A4"), var_("A5"), var_("A6"), var_("A7"), var_("A8")),
 			comp("asm", comp("call", atom("call/9")))),
+
+		// Unifiable
+		dsl.Clause(comp("unifiable", var_("X"), var_("Y"), var_("Unifier")),
+			comp("asm", comp("builtin", atom("unifiable"), ptr(builtinUnifiable)))),
 	}
 )
 
@@ -211,4 +217,36 @@ func makeComparisonPredicate(pred comparisonPredicate) func(m *Machine) error {
 		}
 		return fmt.Errorf("%v: %v %s %v is false", pred.functor, x1, pred.functor.Name, x2)
 	}
+}
+
+// ---- dif
+
+func builtinUnifiable(m *Machine) error {
+	x, y, unifier := m.Reg[0], m.Reg[1], m.Reg[2]
+	bindings, _, err := m.unifyBindings(x, y)
+	if err != nil {
+		// Unification failed, return empty list of bindings.
+		m.bind(unifier, WAtom("[]"))
+		return nil
+	}
+	// Undo bindings.
+	for x := range bindings {
+		x.Cell = nil
+	}
+	assocs := make([]*Pair, len(bindings))
+	i := 0
+	for x, value := range bindings {
+		assocs[i] = assocPair(x, value)
+		i++
+	}
+	// Sort in descending order, because list will be built backwards.
+	sort.Slice(assocs, func(i, j int) bool {
+		return compareCells(assocs[i], assocs[j]) != less
+	})
+	var list Cell = WAtom("[]")
+	for _, assoc := range assocs {
+		list = listPair(assoc, list)
+	}
+	m.bind(unifier, list)
+	return nil
 }
