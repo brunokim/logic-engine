@@ -314,7 +314,8 @@ export class Wam {
             .append($("<div>")
                 .append(this.tempVarsTable(choice.Args))
                 .append(this.permVarsTable(this.env(state, choice.EnvPos)))
-                .append(this.trailTable(choice.Trail)))
+                .append(this.trailTable(choice.Trail))
+                .append(this.attributesTable(choice)))
     }
 
     // Local ("permanent") variables

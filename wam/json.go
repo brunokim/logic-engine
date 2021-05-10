@@ -75,7 +75,7 @@ func (m *Machine) MarshalJSON() ([]byte, error) {
 		"CutChoicePos": enc.getChoicePos(m.CutChoice),
 		"LastRefID":    m.LastRefID,
 		"Backtracked":  m.hasBacktracked,
-		"Attributes":   enc.attributes_(),
+		"Attributes":   enc.attributes_(enc.attributes),
 	}
 	return json.Marshal(obj)
 }
@@ -343,6 +343,7 @@ func (enc *machineEncoder) choices_() []interface{} {
 			"NextAlternative": enc.instrAddr(choice.NextAlternative),
 			"Args":            choice.Args,
 			"Trail":           enc.trail(choice.Trail),
+			"Attributes":      enc.attrTrail(choice.AttrTrail),
 			"LastRefID":       choice.LastRefID,
 			"EnvPos":          enc.getEnvPos(choice.Env),
 			"CutChoicePos":    enc.getChoicePos(choice.CutChoice),
@@ -379,9 +380,19 @@ func (enc *machineEncoder) trail(refs []*Ref) []interface{} {
 	return s
 }
 
-func (enc *machineEncoder) attributes_() []interface{} {
-	sort.Slice(enc.attributes, func(i, j int) bool {
-		a1, a2 := enc.attributes[i], enc.attributes[j]
+func (enc *machineEncoder) attrTrail(trail map[*Ref]map[string]Cell) []interface{} {
+	var as []attribute
+	for x, attrs := range trail {
+		for name, attr := range attrs {
+			as = append(as, attribute{x.id, name, attr})
+		}
+	}
+	return enc.attributes_(as)
+}
+
+func (enc *machineEncoder) attributes_(as []attribute) []interface{} {
+	sort.Slice(as, func(i, j int) bool {
+		a1, a2 := as[i], as[j]
 		if a1.refID < a2.refID {
 			return true
 		}
@@ -397,8 +408,8 @@ func (enc *machineEncoder) attributes_() []interface{} {
 		// Should never happen: duplicate attribute
 		return false
 	})
-	s := make([]interface{}, len(enc.attributes))
-	for i, attr := range enc.attributes {
+	s := make([]interface{}, len(as))
+	for i, attr := range as {
 		s[i] = map[string]interface{}{
 			"Id":        attr.refID,
 			"Attribute": attr.name,
