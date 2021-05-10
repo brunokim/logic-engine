@@ -273,18 +273,23 @@ func (m *Machine) readArg(instr Instruction, arg Cell) (InstrAddr, error) {
 	return m.forward()
 }
 
+func maxIndex(c Cell) int {
+	switch c := c.(type) {
+	case *Struct:
+		return len(c.Args)
+	case *Pair:
+		return 2
+	default:
+		panic(fmt.Sprintf("unhandled complex type %T (%v)", c, c))
+
+	}
+}
+
 func (m *Machine) unifyArg(instr Instruction) (InstrAddr, error) {
 	defer func() {
 		m.ComplexArg.Index++
-		switch c := m.ComplexArg.Cell.(type) {
-		case *Struct:
-			if m.ComplexArg.Index >= len(c.Args) {
-				m.resetMode()
-			}
-		case *Pair:
-			if m.ComplexArg.Index >= 2 {
-				m.resetMode()
-			}
+		if m.ComplexArg.Index >= maxIndex(m.ComplexArg.Cell) {
+			m.resetMode()
 		}
 	}()
 	switch m.ComplexArg.Mode {
