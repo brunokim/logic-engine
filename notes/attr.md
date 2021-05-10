@@ -414,7 +414,7 @@ run as part of a `check_attribute` from considering the existing unification fra
 - We can make the unification frame an environment frame, and immediately allocate another over it.
 
     my_code/3: 41) get_value X1, X4  % unification of two values
-    
+
     m.Continuation = {my_code/3, 41}
     m.call(check_attribute_shim/0)
 
@@ -425,3 +425,45 @@ run as part of a `check_attribute` from considering the existing unification fra
         call check_attribute/3
         deallocate
 
+## check\_attribute + join\_attribute
+
+    join_attribute(range, X, Y) :-
+        get_attr(X, range(Min1, Max1)),
+        ( get_attr(Y, range(Min2, Max2)) ->
+          ( Min1 @< Min2 -> Min = Min2 ; Min = Min1 ),
+          ( Max1 @> Max2 -> Max = Max2 ; Max = Max1 ),
+          Min @< Max,
+          put_attr(Y, range(Min, Max))
+        ; put_attr(Y, range(Min1, Max1))
+        ).
+
+    check_attribute(range(Min, Max), Value) :-
+        Min @=< Value,
+        Max @> Value.
+
+    :- put_attr(X, 3, 7),
+       put_attr(Y, 5, 9),
+       X = Y,              % put_attr(Y, 5, 7)
+       X = 6.              % Y = 6
+
+
+    for each binding in bindings:
+        for each attr in binding.ref.attrs():
+            if is_ref(binding.value):
+                join_attribute(attr.name, binding.ref, binding.value)
+            else:
+                check_attribute(attr, binding.value)
+        delete_attrs(binding.ref)
+        binding.ref <- binding.value
+
+     Bindings           Attributes   Ref Value
+    [{X:V1, Y:V2, Z:V3}           [] nil   nil]
+    [      {Y:V2, Z:V3} [A1, A2, A3]   X    V1]
+    [      {Y:V2, Z:V3}     [A2, A3]   X    V1]
+    [      {Y:V2, Z:V3}         [A3]   X    V1]
+    [      {Y:V2, Z:V3}           []   X    V1]  % X = V1
+    [            {Z:V3}         [B1]   Y    V2]
+    [            {Z:V3}           []   Y    V2]  % Y = V2
+    [                {}     [C1, C2]   Z    V3]
+    [                {}         [C2]   Z    V3]
+    [                {}           []   Z    V3]  % Z = V3
