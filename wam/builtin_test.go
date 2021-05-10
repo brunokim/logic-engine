@@ -3,12 +3,43 @@ package wam_test
 import (
 	"testing"
 
+	"github.com/brunokim/logic-engine/dsl"
 	"github.com/brunokim/logic-engine/logic"
 	"github.com/brunokim/logic-engine/test_helpers"
 	"github.com/brunokim/logic-engine/wam"
 
 	"github.com/google/go-cmp/cmp"
 )
+
+// Disabled test: "soft-cut" if is not implemented.
+func _TestBacktrackingIf(t *testing.T) {
+	m := wam.NewMachine()
+	clauses, err := wam.CompileClauses([]*logic.Clause{
+		dsl.Clause(comp("test", int_(1))),
+		dsl.Clause(comp("test", int_(2))),
+		dsl.Clause(comp("test", int_(3))),
+		dsl.Clause(comp("test", int_(4))),
+	})
+	m.IterLimit = 150
+	m.DebugFilename = "debugtest/backtracking-if.jsonl"
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, clause := range clauses {
+		m.AddClause(clause)
+	}
+	solution, err := m.RunQuery(comp("->",
+		comp("test", var_("X")),
+		comp("@>", var_("X"), int_(4)),
+		comp("=", var_("X"), int_(5))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := int_(5)
+	if got := solution[var_("X")]; got != want {
+		t.Errorf("X = %v != %v", got, want)
+	}
+}
 
 func TestUnicode(t *testing.T) {
 	m := wam.NewMachine()

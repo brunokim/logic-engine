@@ -31,7 +31,7 @@ func TestCheckAttribute(t *testing.T) {
         % move it to Y.
         join_attribute(range, X, Y) :-
             get_attr(X, range(Min, Max)),
-            if(get_attr(Y, range(A, B)),
+            ->(get_attr(Y, range(A, B)),
                 join_range(X, Y),
                 in_range(Y, Min, Max)).
 
@@ -39,8 +39,8 @@ func TestCheckAttribute(t *testing.T) {
         join_range(X, Y) :-
             get_attr(X, range(Min1, Max1)),
             get_attr(Y, range(Min2, Max2)),
-            if(@<(Min1, Min2), =(Min, Min2), =(Min, Min1)),
-            if(@>(Max1, Max2), =(Max, Max2), =(Max, Max1)),
+            ->(@<(Min1, Min2), =(Min, Min2), =(Min, Min1)),
+            ->(@>(Max1, Max2), =(Max, Max2), =(Max, Max1)),
             @<(Min, Max),
             in_range(Y, Min, Max).
 
@@ -86,7 +86,7 @@ func TestAttributeBacktrack(t *testing.T) {
         % move it to Y.
         join_attribute(range, X, Y) :-
             get_attr(X, range(Min, Max)),
-            if(get_attr(Y, range(_, _)),
+            ->(get_attr(Y, range(_, _)),
                 join_range(X, Y),
                 in_range(Y, Min, Max)).
 
@@ -94,8 +94,8 @@ func TestAttributeBacktrack(t *testing.T) {
         join_range(X, Y) :-
             get_attr(X, range(Min1, Max1)),
             get_attr(Y, range(Min2, Max2)),
-            if(@<(Min1, Min2), =(Min, Min2), =(Min, Min1)),
-            if(@>(Max1, Max2), =(Max, Max2), =(Max, Max1)),
+            ->(@<(Min1, Min2), =(Min, Min2), =(Min, Min1)),
+            ->(@>(Max1, Max2), =(Max, Max2), =(Max, Max1)),
             @<(Min, Max),
             in_range(Y, Min, Max).
 

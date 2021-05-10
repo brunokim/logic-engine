@@ -46,17 +46,17 @@ var (
 		dsl.Clause(atom("true")),
 		dsl.Clause(atom("false"), atom("fail")),
 
-		// if(Cond, Then,    _) :- Cond, !, Then.
-		// if(   _,    _, Else) :- Else.
-		dsl.Clause(comp("if", var_("Cond"), var_("Then"), var_("_")),
+		// ->(Cond, Then,    _) :- Cond, !, Then.
+		// ->(   _,    _, Else) :- Else.
+		dsl.Clause(comp("->", var_("Cond"), var_("Then"), var_("_")),
 			var_("Cond"), atom("!"), var_("Then")),
-		dsl.Clause(comp("if", var_("_"), var_("_"), var_("Else")),
+		dsl.Clause(comp("->", var_("_"), var_("_"), var_("Else")),
 			var_("Else")),
 
 		// \+(Goal) :- if(Goal, false, true).
 		// \=(X, Y) :- \+(=(X, Y)).
 		dsl.Clause(comp("\\+", var_("Goal")),
-			comp("if", var_("Goal"), atom("false"), atom("true"))),
+			comp("->", var_("Goal"), atom("false"), atom("true"))),
 		dsl.Clause(comp("\\=", var_("X"), var_("Y")),
 			comp("\\+", comp("=", var_("X"), var_("Y")))),
 
