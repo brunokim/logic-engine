@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/brunokim/logic-engine/solver"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func firstSolution(solutions <-chan solver.Solution, cancel func()) (solver.Solution, error) {
@@ -84,7 +86,7 @@ func TestAttributeBacktrack(t *testing.T) {
         % move it to Y.
         join_attribute(range, X, Y) :-
             get_attr(X, range(Min, Max)),
-            if(get_attr(Y, range(A, B)),
+            if(get_attr(Y, range(_, _)),
                 join_range(X, Y),
                 in_range(Y, Min, Max)).
 
@@ -109,10 +111,16 @@ func TestAttributeBacktrack(t *testing.T) {
 	s.SetIterLimit(150)
 
 	solutions, _ := s.Query("test(X)")
-	var sols []solver.Solution
+	var got []solver.Solution
 	for solution := range solutions {
-		sols = append(sols, solution)
+		got = append(got, solution)
 	}
-	t.Log(sols)
-	t.Log(s.Err)
+	want := []solver.Solution{
+		solver.Solution{var_("X"): int_(3)},
+		solver.Solution{var_("X"): int_(4)},
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want,+got):\n%s", diff)
+		t.Log(s.Err)
+	}
 }
