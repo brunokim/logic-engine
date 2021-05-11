@@ -460,6 +460,8 @@ export class Wam {
             return this.switchTable(instr.Continuation)
         case "proceed":
             return instr.Mode
+        case "inlineUnify":
+            return instr.Addr1
         }
         return null
     }
@@ -483,6 +485,8 @@ export class Wam {
         case "putAttr":
         case "getAttr":
             return instr.Attribute
+        case "inlineUnify":
+            return instr.Addr2
         }
         return null
     }
@@ -529,6 +533,9 @@ function parseFunctor(functor) {
 function instructionName(instr) {
     if (instr.Type == "builtin") {
         return instr.Name
+    }
+    if (instr.Type == "inlineUnify") {
+        return "="
     }
     return instructionType(instr.Type)
 }

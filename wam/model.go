@@ -221,6 +221,10 @@ type getAttr struct {
 	Attribute Addr
 }
 
+type inlineUnify struct {
+	Addr1, Addr2 Addr
+}
+
 func (i putStruct) isInstruction()        {}
 func (i putVariable) isInstruction()      {}
 func (i putValue) isInstruction()         {}
@@ -258,6 +262,7 @@ func (i fail) isInstruction()             {}
 func (i builtin) isInstruction()          {}
 func (i putAttr) isInstruction()          {}
 func (i getAttr) isInstruction()          {}
+func (i inlineUnify) isInstruction()      {}
 
 func (i putStruct) String() string {
 	return fmt.Sprintf("put_struct %v, A%d", i.Functor, i.ArgAddr)
@@ -429,6 +434,10 @@ func (i putAttr) String() string {
 
 func (i getAttr) String() string {
 	return fmt.Sprintf("get_attr %v, %v", i.Addr, i.Attribute)
+}
+
+func (i inlineUnify) String() string {
+	return fmt.Sprintf("= %v, %v", i.Addr1, i.Addr2)
 }
 
 // ---- Clauses and code

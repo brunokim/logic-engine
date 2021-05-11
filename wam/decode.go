@@ -244,6 +244,8 @@ func DecodeInstruction(term logic.Term) Instruction {
 		return putAttr{decodeAddr(c.Args[0]), decodeAddr(c.Args[1])}
 	case dsl.Indicator("get_attr", 2):
 		return getAttr{decodeAddr(c.Args[0]), decodeAddr(c.Args[1])}
+	case dsl.Indicator("=", 2):
+		return inlineUnify{decodeAddr(c.Args[0]), decodeAddr(c.Args[1])}
 	default:
 		panic(fmt.Sprintf("decode: unhandled instruction %v", c))
 	}

@@ -199,49 +199,50 @@ func TestCompile(t *testing.T) {
 						var_("_")))),
 			wam.DecodeClause(indicator("query", 0),
 				// a:1
-				comp("put_pair", atom("assoc"), var_("X5")),
+				comp("put_pair", atom("assoc"), var_("X6")),
 				comp("unify_constant", atom("a")),
 				comp("unify_constant", int_(1)),
 				// b:2
-				comp("put_pair", atom("assoc"), var_("X7")),
+				comp("put_pair", atom("assoc"), var_("X8")),
 				comp("unify_constant", atom("b")),
 				comp("unify_constant", int_(2)),
 				// {b:2|P1}
-				comp("put_pair", atom("dict"), var_("X6")),
-				comp("unify_value", var_("X7")),
+				comp("put_pair", atom("dict"), var_("X7")),
+				comp("unify_value", var_("X8")),
 				comp("unify_variable", var_("X2")), // P1=X2
 				// {a:1, b:2|P1}
-				comp("put_pair", atom("dict"), var_("X4")),
-				comp("unify_value", var_("X5")),
+				comp("put_pair", atom("dict"), var_("X5")),
 				comp("unify_value", var_("X6")),
+				comp("unify_value", var_("X7")),
 				// p({...}, P1, P2)
-				comp("put_struct", atom("p/3"), var_("X0")),
-				comp("unify_value", var_("X4")),
+				comp("put_struct", atom("p/3"), var_("X4")),
+				comp("unify_value", var_("X5")),
 				comp("unify_value", var_("X2")),
 				comp("unify_variable", var_("X3")), // P2=X3
 				// a:1
-				comp("put_pair", atom("assoc"), var_("X9")),
+				comp("put_pair", atom("assoc"), var_("X11")),
 				comp("unify_constant", atom("a")),
 				comp("unify_constant", int_(1)),
 				// c:3
-				comp("put_pair", atom("assoc"), var_("X11")),
+				comp("put_pair", atom("assoc"), var_("X13")),
 				comp("unify_constant", atom("c")),
 				comp("unify_constant", int_(3)),
 				// {c:3|P2}
-				comp("put_pair", atom("dict"), var_("X10")),
-				comp("unify_value", var_("X11")),
+				comp("put_pair", atom("dict"), var_("X12")),
+				comp("unify_value", var_("X13")),
 				comp("unify_value", var_("X3")),
 				// {a:1, c:3|P2}
-				comp("put_pair", atom("dict"), var_("X8")),
-				comp("unify_value", var_("X9")),
-				comp("unify_value", var_("X10")),
+				comp("put_pair", atom("dict"), var_("X10")),
+				comp("unify_value", var_("X11")),
+				comp("unify_value", var_("X12")),
 				// p({...}, _, _)
-				comp("put_struct", atom("p/3"), var_("X1")),
-				comp("unify_value", var_("X8")),
+				comp("put_struct", atom("p/3"), var_("X9")),
+				comp("unify_value", var_("X10")),
 				comp("unify_void"),
 				comp("unify_void"),
-				// =(..., ...).
-				comp("execute", atom("=/2"))),
+				// =(..., ...)
+				comp("=", var_("X4"), var_("X9")),
+				comp("proceed", atom("run"))),
 		},
 		// query :- f(g(h(W), W, Z), g(h(Z))).
 		{

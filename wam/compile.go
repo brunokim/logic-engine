@@ -391,6 +391,7 @@ var inlined = map[logic.Indicator]struct{}{
 	dsl.Indicator("!", 0):    struct{}{},
 	dsl.Indicator("fail", 0): struct{}{},
 	dsl.Indicator("asm", 1):  struct{}{},
+	dsl.Indicator("=", 2):    struct{}{},
 	dsl.Indicator("@<", 2):   struct{}{},
 	dsl.Indicator("@=<", 2):  struct{}{},
 	dsl.Indicator("@>=", 2):  struct{}{},
@@ -416,6 +417,10 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 		return []Instruction{fail{}}
 	case dsl.Indicator("asm", 1):
 		return []Instruction{DecodeInstruction(term.Args[0])}
+	case dsl.Indicator("=", 2):
+		x := ctx.termAddr(term.Args[0])
+		y := ctx.termAddr(term.Args[1])
+		ctx.instrs = append(ctx.instrs, inlineUnify{x, y})
 	case dsl.Indicator("@<", 2),
 		dsl.Indicator("@=<", 2),
 		dsl.Indicator("@>=", 2),

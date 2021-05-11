@@ -681,6 +681,9 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 			return m.backtrack(fmt.Errorf("get_attr: invalid attribute"))
 		}
 		return m.preUnify(attr, cell)
+	case inlineUnify:
+		// Unify two arbitrary addresses.
+		return m.preUnify(m.get(instr.Addr1), m.get(instr.Addr2))
 	default:
 		panic(fmt.Sprintf("execute: unhandled instruction type %T (%v)", instr, instr))
 	}
