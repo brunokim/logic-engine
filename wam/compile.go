@@ -299,6 +299,16 @@ func (ctx *compileCtx) setComplexArg(arg logic.Term) Instruction {
 
 // ---- term addr
 
+func (ctx *compileCtx) ensureVar(x logic.Var) {
+	if _, ok := ctx.seen[x]; ok {
+		return
+	}
+	ctx.seen[x] = struct{}{}
+	addr := ctx.topReg
+	ctx.topReg++
+	ctx.instrs = append(ctx.instrs, putVariable{ctx.varAddr[x], addr})
+}
+
 func (ctx *compileCtx) termAddr(term logic.Term) Addr {
 	switch t := term.(type) {
 	case logic.Atom:
@@ -308,6 +318,7 @@ func (ctx *compileCtx) termAddr(term logic.Term) Addr {
 	case logic.Ptr:
 		return ConstantAddr{toConstant(t)}
 	case logic.Var:
+		ctx.ensureVar(t)
 		return ctx.varAddr[t]
 	}
 	addr := ctx.topReg

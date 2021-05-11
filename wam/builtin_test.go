@@ -11,6 +11,26 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
+func TestInlineUnify(t *testing.T) {
+	m := wam.NewMachine()
+	m.IterLimit = 40
+	m.DebugFilename = "debugtest/inline-unify.jsonl"
+	got, err := m.RunQuery(
+		comp("=", var_("X"), var_("Y")),
+		comp("=", var_("X"), int_(10)),
+		comp("=", var_("Y"), int_(10)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[logic.Var]logic.Term{
+		var_("X"): int_(10),
+		var_("Y"): var_("X"),
+	}
+	if diff := cmp.Diff(want, got, test_helpers.IgnoreUnexported); diff != "" {
+		t.Errorf("(-want, +got)\n%s", diff)
+	}
+}
+
 // Disabled test: "soft-cut" if is not implemented.
 func _TestBacktrackingIf(t *testing.T) {
 	m := wam.NewMachine()
