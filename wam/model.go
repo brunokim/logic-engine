@@ -187,6 +187,10 @@ type trust struct {
 	Continuation InstrAddr
 }
 
+type label struct {
+	ID int
+}
+
 type switchOnTerm struct {
 	IfVar, IfConstant, IfStruct, IfList, IfAssoc, IfDict InstrAddr
 }
@@ -253,6 +257,7 @@ func (i trustMe) isInstruction()          {}
 func (i try) isInstruction()              {}
 func (i retry) isInstruction()            {}
 func (i trust) isInstruction()            {}
+func (i label) isInstruction()            {}
 func (i switchOnTerm) isInstruction()     {}
 func (i switchOnConstant) isInstruction() {}
 func (i switchOnStruct) isInstruction()   {}
@@ -376,6 +381,10 @@ func (i trust) String() string {
 	return fmt.Sprintf("trust %v", i.Continuation)
 }
 
+func (i label) String() string {
+	return fmt.Sprintf("label %d", i.ID)
+}
+
 func (i switchOnTerm) String() string {
 	return fmt.Sprintf(`switch_on_term
 	variable: %v
@@ -450,24 +459,42 @@ type Clause struct {
 }
 
 // InstrAddr represents the address of an instruction within a clause.
+// If Pos is negative, it represents a label added to the code.
 type InstrAddr struct {
 	Clause *Clause
 	Pos    int
 }
 
 func (ia InstrAddr) isValid() bool {
-	return ia.Pos >= 0 && ia.Clause != nil && ia.Pos < len(ia.Clause.Code)
+	if ia.Clause == nil {
+		return false
+	}
+	pos := ia.pos()
+	return pos >= 0 && pos < len(ia.Clause.Code)
+}
+
+func (ia InstrAddr) pos() int {
+	if ia.Pos >= 0 {
+		return ia.Pos
+	}
+	labelID := -ia.Pos
+	for i, instr := range ia.Clause.Code {
+		if l, ok := instr.(label); ok && l.ID == labelID {
+			return i
+		}
+	}
+	return -1
 }
 
 func (ia InstrAddr) instr() Instruction {
 	if !ia.isValid() {
 		return nil
 	}
-	return ia.Clause.Code[ia.Pos]
+	return ia.Clause.Code[ia.pos()]
 }
 
 func (ia InstrAddr) inc() InstrAddr {
-	return InstrAddr{ia.Clause, ia.Pos + 1}
+	return InstrAddr{ia.Clause, ia.pos() + 1}
 }
 
 func (ia InstrAddr) fullString() string {
@@ -476,9 +503,10 @@ func (ia InstrAddr) fullString() string {
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "\n%% %v\n", ia.Clause)
+	pos := ia.pos()
 	for i, instr := range ia.Clause.Code {
 		n, _ := b.WriteString(instr.String())
-		if i == ia.Pos {
+		if i == pos {
 			width := 25 - n
 			if width < 0 {
 				width = 0

@@ -320,11 +320,12 @@ var (
 	vowelIndex = wam.DecodeClause(indicator("vowel", 1),
 		comp("switch_on_term",
 			comp("instr", ptr(vowelA), int_(0)),
-			comp("instr", ptr(nil), int_(1)),
+			comp("instr", ptr(nil), int_(-1)),
 			comp("instr", ptr(nil), int_(0)),
 			comp("instr", ptr(nil), int_(0)),
 			comp("instr", ptr(nil), int_(0)),
 			comp("instr", ptr(nil), int_(0))),
+		comp("label", int_(1)),
 		comp("switch_on_constant", dict(
 			atom("a"), comp("instr", ptr(vowelA), int_(1)),
 			atom("e"), comp("instr", ptr(vowelE), int_(1)),
@@ -386,26 +387,34 @@ var (
 		comp("unify_constant", atom("[]")),
 		comp("proceed", atom("run")))
 	fIndex = wam.DecodeClause(indicator("f", 1),
-		/*0*/ comp("switch_on_term",
+		comp("switch_on_term",
 			comp("instr", ptr(fAtomA1), int_(0)),
-			comp("instr", ptr(nil), int_(1)),
-			comp("instr", ptr(nil), int_(4)),
-			comp("instr", ptr(nil), int_(7)),
+			comp("instr", ptr(nil), int_(-1)),
+			comp("instr", ptr(nil), int_(-3)),
+			comp("instr", ptr(nil), int_(-5)),
 			comp("instr", ptr(nil), int_(0)),
 			comp("instr", ptr(nil), int_(0))),
-		/*1*/ comp("switch_on_constant", dict(
-			atom("a"), comp("instr", ptr(nil), int_(2)),
+		// Constants
+		comp("label", int_(1)),
+		comp("switch_on_constant", dict(
+			atom("a"), comp("instr", ptr(nil), int_(-2)),
 			atom("b"), comp("instr", ptr(fAtomB), int_(1)),
 			atom("[]"), comp("instr", ptr(fAtomNil), int_(1)))),
-		/*2*/ comp("try", comp("instr", ptr(fAtomA1), int_(1))),
-		/*3*/ comp("trust", comp("instr", ptr(fAtomA2), int_(1))),
-		/*4*/ comp("switch_on_struct", dict(
-			atom("g/1"), comp("instr", ptr(nil), int_(5)))),
-		/*5*/ comp("try", comp("instr", ptr(fStructG1), int_(1))),
-		/*6*/ comp("trust", comp("instr", ptr(fStructG2), int_(1))),
-		/*7*/ comp("try", comp("instr", ptr(fList1), int_(1))),
-		/*8*/ comp("retry", comp("instr", ptr(fList2), int_(1))),
-		/*9*/ comp("trust", comp("instr", ptr(fList3), int_(1))))
+		comp("label", int_(2)),
+		comp("try", comp("instr", ptr(fAtomA1), int_(1))),
+		comp("trust", comp("instr", ptr(fAtomA2), int_(1))),
+		// Structs
+		comp("label", int_(3)),
+		comp("switch_on_struct", dict(
+			atom("g/1"), comp("instr", ptr(nil), int_(-4)))),
+		comp("label", int_(4)),
+		comp("try", comp("instr", ptr(fStructG1), int_(1))),
+		comp("trust", comp("instr", ptr(fStructG2), int_(1))),
+		// Lists
+		comp("label", int_(5)),
+		comp("try", comp("instr", ptr(fList1), int_(1))),
+		comp("retry", comp("instr", ptr(fList2), int_(1))),
+		comp("trust", comp("instr", ptr(fList3), int_(1))))
 )
 
 func TestCompileClauses(t *testing.T) {

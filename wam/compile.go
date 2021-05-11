@@ -645,12 +645,15 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 	indexClause := &Clause{
 		Functor:      toFunctor(clauses[0].Head.(*logic.Comp).Indicator()),
 		NumRegisters: numReg,
-		Code:         []Instruction{nil},
+		Code:         []Instruction{nil}, // First instruction reserved for switch_on_term
 	}
-	putCode := func(instrs ...Instruction) InstrAddr {
-		pos := len(indexClause.Code)
+	labelID := 1
+	putWithMark := func(instrs ...Instruction) InstrAddr {
+		indexClause.Code = append(indexClause.Code, label{labelID})
 		indexClause.Code = append(indexClause.Code, instrs...)
-		return InstrAddr{indexClause, pos}
+		instrAddr := InstrAddr{indexClause, -labelID}
+		labelID++
+		return instrAddr
 	}
 	putAddrs := func(addrs []InstrAddr) InstrAddr {
 		if len(addrs) == 1 {
@@ -666,12 +669,12 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 				instrs[i] = trust{addr}
 			}
 		}
-		return putCode(instrs...)
+		return putWithMark(instrs...)
 	}
 	// Index constants.
 	if len(constIndex) > 0 {
 		switchOnConst := switchOnConstant{Continuation: make(map[Constant]InstrAddr)}
-		switchOnTerm.IfConstant = putCode(switchOnConst)
+		switchOnTerm.IfConstant = putWithMark(switchOnConst)
 		for name, addrs := range constIndex {
 			switchOnConst.Continuation[name] = putAddrs(addrs)
 		}
@@ -679,7 +682,7 @@ func compileSubSequence(clauses []*logic.Clause) *Clause {
 	// Index structures.
 	if len(structIndex) > 0 {
 		switchOnStruct := switchOnStruct{Continuation: make(map[Functor]InstrAddr)}
-		switchOnTerm.IfStruct = putCode(switchOnStruct)
+		switchOnTerm.IfStruct = putWithMark(switchOnStruct)
 		for functor, addrs := range structIndex {
 			switchOnStruct.Continuation[functor] = putAddrs(addrs)
 		}

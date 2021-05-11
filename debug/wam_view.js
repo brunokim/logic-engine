@@ -446,6 +446,8 @@ export class Wam {
         case "retry":
         case "trust":
             return this.instructionAddress(instr.Continuation)
+        case "label":
+            return instr.ID
         case "switchOnTerm":
             return this.switchTable({
                 'if_var': instr.IfVar,

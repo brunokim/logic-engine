@@ -586,6 +586,8 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		m.restoreFromChoicePoint()
 		m.ChoicePoint = m.ChoicePoint.Prev
 		return instr.Continuation, nil
+	case label:
+		// Do nothing, simply forwards to next instruction.
 	case switchOnTerm:
 		// Jump to instructions matching the first arg type.
 		cell := deref(m.Reg[0])

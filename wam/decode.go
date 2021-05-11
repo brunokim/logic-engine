@@ -221,6 +221,8 @@ func DecodeInstruction(term logic.Term) Instruction {
 		return retry{decodeInstr(c.Args[0])}
 	case dsl.Indicator("trust", 1):
 		return trust{decodeInstr(c.Args[0])}
+	case dsl.Indicator("label", 1):
+		return label{decodeInt(c.Args[0])}
 	case dsl.Indicator("switch_on_term", 6):
 		return switchOnTerm{
 			decodeInstr(c.Args[0]),
