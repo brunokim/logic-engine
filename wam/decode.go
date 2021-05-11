@@ -223,6 +223,8 @@ func DecodeInstruction(term logic.Term) Instruction {
 		return trust{decodeInstr(c.Args[0])}
 	case dsl.Indicator("label", 1):
 		return label{decodeInt(c.Args[0])}
+	case dsl.Indicator("jump", 1):
+		return jump{decodeInstr(c.Args[0])}
 	case dsl.Indicator("switch_on_term", 6):
 		return switchOnTerm{
 			decodeInstr(c.Args[0]),

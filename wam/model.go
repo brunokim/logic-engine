@@ -191,6 +191,10 @@ type label struct {
 	ID int
 }
 
+type jump struct {
+	Continuation InstrAddr
+}
+
 type switchOnTerm struct {
 	IfVar, IfConstant, IfStruct, IfList, IfAssoc, IfDict InstrAddr
 }
@@ -258,6 +262,7 @@ func (i try) isInstruction()              {}
 func (i retry) isInstruction()            {}
 func (i trust) isInstruction()            {}
 func (i label) isInstruction()            {}
+func (i jump) isInstruction()             {}
 func (i switchOnTerm) isInstruction()     {}
 func (i switchOnConstant) isInstruction() {}
 func (i switchOnStruct) isInstruction()   {}
@@ -383,6 +388,10 @@ func (i trust) String() string {
 
 func (i label) String() string {
 	return fmt.Sprintf("label %d", i.ID)
+}
+
+func (i jump) String() string {
+	return fmt.Sprintf("jump %v", i.Continuation)
 }
 
 func (i switchOnTerm) String() string {

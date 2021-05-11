@@ -588,6 +588,9 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		return instr.Continuation, nil
 	case label:
 		// Do nothing, simply forwards to next instruction.
+	case jump:
+		// Jump unconditionally to instruction.
+		return instr.Continuation, nil
 	case switchOnTerm:
 		// Jump to instructions matching the first arg type.
 		cell := deref(m.Reg[0])

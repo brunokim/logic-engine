@@ -920,12 +920,12 @@ func TestIf(t *testing.T) {
 	m.DebugFilename = "debugtest/if.jsonl"
 
 	// true.
-	// member(X, [H|T]) :- if(=(X, H), true, member(X, T)).
+	// member(X, [H|T]) :- ->(=(X, H), true, member(X, T)).
 	// ?- member(b, [a, c, b]), member(z, [a, c, b]).
 	clauses, err := wam.CompileClauses([]*logic.Clause{
 		dsl.Clause(atom("true")),
 		dsl.Clause(comp("member", var_("X"), ilist(var_("H"), var_("T"))),
-			comp("if",
+			comp("->",
 				comp("=", var_("X"), var_("H")),
 				atom("true"),
 				comp("member", var_("X"), var_("T")))),

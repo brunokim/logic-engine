@@ -389,7 +389,7 @@ export class Wam {
             return ""
         }
         let clause = this.clauses[ins.ClausePos]
-        return `${clause.Functor}#${ins.ClausePos}[${ins.Pos}]`
+        return `${clause.Functor}#${ins.ClausePos}[${ins.Ref}]`
     }
 
     instructionRow(instr) {
@@ -445,6 +445,7 @@ export class Wam {
         case "try":
         case "retry":
         case "trust":
+        case "jump":
             return this.instructionAddress(instr.Continuation)
         case "label":
             return instr.ID

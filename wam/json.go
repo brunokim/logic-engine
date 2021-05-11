@@ -2,6 +2,7 @@ package wam
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"sort"
 )
@@ -176,9 +177,16 @@ func (enc *machineEncoder) instrAddr(ins InstrAddr) interface{} {
 	if ins.Clause == nil {
 		return nil
 	}
+	var ref string
+	if ins.Pos >= 0 {
+		ref = fmt.Sprintf("pos %d", ins.Pos)
+	} else {
+		ref = fmt.Sprintf("label %d", -ins.Pos)
+	}
 	return map[string]interface{}{
 		"ClausePos": enc.clausePos[ins.Clause],
-		"Pos":       ins.Pos,
+		"Pos":       ins.pos(),
+		"Ref":       ref,
 	}
 }
 
