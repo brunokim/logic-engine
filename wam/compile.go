@@ -91,34 +91,6 @@ func numArgs(clause *logic.Clause) int {
 	return max
 }
 
-func hasDeepcut(clause *logic.Clause) bool {
-	for i, term := range clause.Body {
-		if term.(*logic.Comp).Functor == "!" && i > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func hasNonLastCall(clause *logic.Clause) bool {
-	for i, term := range clause.Body {
-		c, ok := term.(*logic.Comp)
-		if !ok {
-			continue
-		}
-		if c.Functor == "call" && i < len(clause.Body)-1 {
-			return true
-		}
-		if c.Indicator() == dsl.Indicator("asm", 1) {
-			arg := c.Args[0]
-			if a, ok := arg.(*logic.Comp); ok && a.Functor == "call" {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 type compound struct {
 	t    logic.Term
 	addr RegAddr
@@ -456,12 +428,6 @@ func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
 			ctx.topReg++
 		}
 	}
-	// If call requires an environment, add an allocate-deallocate pair to the clause.
-	var header, footer []Instruction
-	if currStack > 0 || hasDeepcut(clause) || hasNonLastCall(clause) {
-		header = []Instruction{allocate{currStack}}
-		footer = []Instruction{deallocate{}}
-	}
 	// Compile clause head
 	for i, term := range clause.Head.(*logic.Comp).Args {
 		c.Code = append(c.Code, ctx.getTerm(term, RegAddr(i))...)
@@ -483,8 +449,11 @@ func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
 	if n == 0 || isInlined(clause.Body[n-1].(*logic.Comp)) {
 		c.Code = append(c.Code, proceed{getMode(functor.Name)})
 	}
-	c.Code = append(header, c.Code...)
-	c.Code = append(c.Code, footer...)
+	// If call requires an environment, add an allocate-deallocate pair to the clause.
+	if currStack > 0 || requiresEnv(c.Code) {
+		c.Code = append([]Instruction{allocate{currStack}}, c.Code...)
+		c.Code = append(c.Code, deallocate{})
+	}
 	c.NumRegisters = int(ctx.topReg)
 	return c
 }
@@ -494,6 +463,20 @@ func getMode(s string) ExecutionMode {
 		return Unify
 	}
 	return Run
+}
+
+func requiresEnv(code []Instruction) bool {
+	for i, instr := range code {
+		switch instr.(type) {
+		case cut:
+			return true
+		case call:
+			if i < len(code)-1 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func optimizeInstructions(code []Instruction) []Instruction {

@@ -53,7 +53,7 @@ var (
 		dsl.Clause(comp("->", var_("_"), var_("_"), var_("Else")),
 			var_("Else")),
 
-		// \+(Goal) :- if(Goal, false, true).
+		// \+(Goal) :- ->(Goal, false, true).
 		// \=(X, Y) :- \+(=(X, Y)).
 		dsl.Clause(comp("\\+", var_("Goal")),
 			comp("->", var_("Goal"), atom("false"), atom("true"))),
