@@ -387,26 +387,21 @@ func compileQuery(query []logic.Term) (*Clause, error) {
 	return c, nil
 }
 
-var inlined = []logic.Indicator{
-	dsl.Indicator("!", 0),
-	dsl.Indicator("fail", 0),
-	dsl.Indicator("asm", 1),
-	dsl.Indicator("@<", 2),
-	dsl.Indicator("@=<", 2),
-	dsl.Indicator("@>=", 2),
-	dsl.Indicator("@>", 2),
-	dsl.Indicator("==", 2),
-	dsl.Indicator("\\==", 2),
+var inlined = map[logic.Indicator]struct{}{
+	dsl.Indicator("!", 0):    struct{}{},
+	dsl.Indicator("fail", 0): struct{}{},
+	dsl.Indicator("asm", 1):  struct{}{},
+	dsl.Indicator("@<", 2):   struct{}{},
+	dsl.Indicator("@=<", 2):  struct{}{},
+	dsl.Indicator("@>=", 2):  struct{}{},
+	dsl.Indicator("@>", 2):   struct{}{},
+	dsl.Indicator("==", 2):   struct{}{},
+	dsl.Indicator("\\==", 2): struct{}{},
 }
 
 func isInlined(term *logic.Comp) bool {
-	key := term.Indicator()
-	for _, ind := range inlined {
-		if ind == key {
-			return true
-		}
-	}
-	return false
+	_, ok := inlined[term.Indicator()]
+	return ok
 }
 
 func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction {
