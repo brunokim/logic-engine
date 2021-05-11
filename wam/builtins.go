@@ -65,38 +65,49 @@ var (
 			comp("asm", comp("get_attr", var_("X0"), var_("X1")))),
 		dsl.Clause(comp("put_attr", var_("X"), var_("Attr")),
 			comp("asm", comp("put_attr", var_("X0"), var_("X1")))),
-		dsl.Clause(comp("$join_attribute:unify", var_("AttrName"), var_("X"), var_("Y")),
-			comp("asm", comp("call", atom("join_attribute/3")))),
-		dsl.Clause(comp("$check_attribute:unify", var_("Attr"), var_("Value")),
-			comp("asm", comp("call", atom("check_attribute/2")))),
+		dsl.Clause(comp("$join_attribute", var_("AttrName"), var_("X"), var_("Y")),
+			comp("asm", comp("call", atom("join_attribute/3"))),
+			comp("asm", comp("proceed", atom("unify")))),
+		dsl.Clause(comp("$check_attribute", var_("Attr"), var_("Value")),
+			comp("asm", comp("call", atom("check_attribute/2"))),
+			comp("asm", comp("proceed", atom("unify")))),
 
 		// Compiled calls to call/n are inlined into the instruction call_meta.
 		// These functions are used when referenced by (meta-)meta-calls, and
 		// are limited to 8 args.
-		dsl.Clause(comp("call", var_("Functor")),
-			comp("asm", comp("call", atom("call/1")))),
-		dsl.Clause(comp("call", var_("Functor"), var_("A1")),
-			comp("asm", comp("call", atom("call/2")))),
-		dsl.Clause(comp("call", var_("Functor"), var_("A1"), var_("A2")),
-			comp("asm", comp("call", atom("call/3")))),
-		dsl.Clause(comp("call", var_("Functor"), var_("A1"), var_("A2"), var_("A3")),
-			comp("asm", comp("call", atom("call/4")))),
-		dsl.Clause(comp("call", var_("Functor"), var_("A1"), var_("A2"), var_("A3"), var_("A4")),
-			comp("asm", comp("call", atom("call/5")))),
-		dsl.Clause(comp("call", var_("Functor"), var_("A1"), var_("A2"), var_("A3"), var_("A4"), var_("A5")),
-			comp("asm", comp("call", atom("call/6")))),
-		dsl.Clause(comp("call", var_("Functor"), var_("A1"), var_("A2"), var_("A3"), var_("A4"), var_("A5"), var_("A6")),
-			comp("asm", comp("call", atom("call/7")))),
-		dsl.Clause(comp("call", var_("Functor"), var_("A1"), var_("A2"), var_("A3"), var_("A4"), var_("A5"), var_("A6"), var_("A7")),
-			comp("asm", comp("call", atom("call/8")))),
-		dsl.Clause(comp("call", var_("Functor"), var_("A1"), var_("A2"), var_("A3"), var_("A4"), var_("A5"), var_("A6"), var_("A7"), var_("A8")),
-			comp("asm", comp("call", atom("call/9")))),
+		makeCall(0),
+		makeCall(1),
+		makeCall(2),
+		makeCall(3),
+		makeCall(4),
+		makeCall(5),
+		makeCall(6),
+		makeCall(7),
+		makeCall(8),
 
 		// Unifiable
 		dsl.Clause(comp("unifiable", var_("X"), var_("Y"), var_("Unifier")),
 			comp("asm", comp("builtin", atom("unifiable"), ptr(builtinUnifiable), var_("X0"), var_("X1"), var_("X2")))),
 	}
 )
+
+// ---- call predicates
+
+// call(Functor, A1, A2,..., An) :-
+//   asm(call("call/n+1")),
+//   asm(proceed(run)).
+func makeCall(numArgs int) *logic.Clause {
+	vars := make([]logic.Term, numArgs+1)
+	vars[0] = var_("Functor")
+	for i := 1; i <= numArgs; i++ {
+		vars[i] = var_(fmt.Sprintf("A%d", i))
+	}
+	functor := fmt.Sprintf("call/%d", numArgs+1)
+	clause := dsl.Clause(comp("call", vars...),
+		comp("asm", comp("call", atom(functor))),
+		comp("asm", comp("proceed", atom("run"))))
+	return clause
+}
 
 // ---- unicode predicates
 

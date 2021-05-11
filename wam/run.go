@@ -1003,12 +1003,12 @@ func (m *Machine) verifyAttributes() {
 		m.Reg[0] = WAtom(attrName(attr))
 		m.Reg[1] = ref
 		m.Reg[2] = otherRef
-		functor = Functor{"$join_attribute:unify", 3}
+		functor = Functor{"$join_attribute", 3}
 	} else {
 		// If value is not a var, call check_attribute(Attr, Value)
 		m.Reg[0] = attr
 		m.Reg[1] = value
-		functor = Functor{"$check_attribute:unify", 2}
+		functor = Functor{"$check_attribute", 2}
 	}
 	m.Continuation = m.CodePtr
 	m.CutChoice = m.ChoicePoint

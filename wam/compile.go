@@ -2,7 +2,6 @@ package wam
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/brunokim/logic-engine/dsl"
 	"github.com/brunokim/logic-engine/logic"
@@ -370,24 +369,6 @@ func compileQuery(query []logic.Term) (*Clause, error) {
 	return c, nil
 }
 
-var inlined = map[logic.Indicator]struct{}{
-	dsl.Indicator("!", 0):    struct{}{},
-	dsl.Indicator("fail", 0): struct{}{},
-	dsl.Indicator("asm", 1):  struct{}{},
-	dsl.Indicator("=", 2):    struct{}{},
-	dsl.Indicator("@<", 2):   struct{}{},
-	dsl.Indicator("@=<", 2):  struct{}{},
-	dsl.Indicator("@>=", 2):  struct{}{},
-	dsl.Indicator("@>", 2):   struct{}{},
-	dsl.Indicator("==", 2):   struct{}{},
-	dsl.Indicator("\\==", 2): struct{}{},
-}
-
-func isInlined(term *logic.Comp) bool {
-	_, ok := inlined[term.Indicator()]
-	return ok
-}
-
 func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction {
 	ctx.instrs = nil
 	switch term.Indicator() {
@@ -454,11 +435,9 @@ func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
 	for i, term := range clause.Body {
 		c.Code = append(c.Code, ctx.compileBodyTerm(i, term.(*logic.Comp))...)
 	}
-	// Add "proceed" instruction for facts, and when a body ends with an inlined call,
-	// e.g., '!'
-	n := len(clause.Body)
-	if n == 0 || isInlined(clause.Body[n-1].(*logic.Comp)) {
-		c.Code = append(c.Code, proceed{getMode(functor.Name)})
+	// Add "proceed" instruction for facts and when a body doesn't end with a call.
+	if requiresProceed(c.Code) {
+		c.Code = append(c.Code, proceed{Run})
 	}
 	// If call requires an environment, add an allocate-deallocate pair to the clause.
 	if currStack > 0 || requiresEnv(c.Code) {
@@ -469,11 +448,15 @@ func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
 	return c
 }
 
-func getMode(s string) ExecutionMode {
-	if s[0] == '$' && strings.HasSuffix(s, ":unify") {
-		return Unify
+// If instructions don't end with call, adds a proceed instruction.
+func requiresProceed(code []Instruction) bool {
+	n := len(code)
+	if n == 0 {
+		return true
 	}
-	return Run
+	_, isLastCall := code[n-1].(call)
+	_, isLastProceed := code[n-1].(proceed)
+	return !(isLastCall || isLastProceed)
 }
 
 func requiresEnv(code []Instruction) bool {
