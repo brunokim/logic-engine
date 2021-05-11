@@ -102,13 +102,15 @@ type compileCtx struct {
 	varAddr map[logic.Var]Addr
 	delayed []compound
 	instrs  []Instruction
+	clause  *Clause
 }
 
-func newCompileCtx(numArgs int) *compileCtx {
+func newCompileCtx(clause *Clause, numArgs int) *compileCtx {
 	return &compileCtx{
 		topReg:  RegAddr(numArgs),
 		seen:    make(map[logic.Var]struct{}),
 		varAddr: make(map[logic.Var]Addr),
+		clause:  clause,
 	}
 }
 
@@ -299,6 +301,9 @@ func (ctx *compileCtx) setComplexArg(arg logic.Term) Instruction {
 // ---- term addr
 
 func (ctx *compileCtx) ensureVar(x logic.Var) {
+	if x == logic.AnonymousVar {
+		return
+	}
 	if _, ok := ctx.seen[x]; ok {
 		return
 	}
@@ -369,6 +374,57 @@ func compileQuery(query []logic.Term) (*Clause, error) {
 	return c, nil
 }
 
+func toGoal(term logic.Term) *logic.Comp {
+	switch t := term.(type) {
+	case *logic.Comp:
+		return t
+	case logic.Atom:
+		return logic.NewComp(t.Name)
+	case logic.Var:
+		return logic.NewComp("call", t)
+	default:
+		panic(fmt.Sprintf("Unhandled goal type %T (%v)", term, term))
+	}
+}
+
+func (ctx *compileCtx) flattenIf(terms []logic.Term) []*logic.Comp {
+	var body []*logic.Comp
+	labelID := 1
+	for len(terms) > 0 {
+		goal := terms[0].(*logic.Comp)
+		terms = terms[1:]
+		switch goal.Indicator() {
+		default:
+			body = append(body, goal)
+		case dsl.Indicator("->", 3):
+			cond, then_, else_ := goal.Args[0], goal.Args[1], goal.Args[2]
+			thenID, elseID, endID := labelID, labelID+1, labelID+2
+			labelID += 3
+			// Ensure that variables referenced in any branch are initialized.
+			ctx.instrs = nil
+			for _, x := range logic.Vars(goal) {
+				ctx.ensureVar(x)
+			}
+			ctx.clause.Code = append(ctx.clause.Code, ctx.instrs...)
+			// Inline cond, then and else branches, adding control instructions to move around.
+			goals := []logic.Term{
+				comp("asm", comp("try", comp("instr", ptr(ctx.clause), int_(-thenID)))),
+				comp("asm", comp("trust", comp("instr", ptr(ctx.clause), int_(-elseID)))),
+				comp("asm", comp("label", int_(thenID))),
+				toGoal(cond),
+				comp("asm", atom("cut")),
+				toGoal(then_),
+				comp("asm", comp("jump", comp("instr", ptr(ctx.clause), int_(-endID)))),
+				comp("asm", comp("label", int_(elseID))),
+				toGoal(else_),
+				comp("asm", comp("label", int_(endID))),
+			}
+			terms = append(goals, terms...)
+		}
+	}
+	return body
+}
+
 func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction {
 	ctx.instrs = nil
 	switch term.Indicator() {
@@ -408,7 +464,7 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
 	functor := toFunctor(clause.Head.(*logic.Comp).Indicator())
 	c := &Clause{Functor: functor}
-	ctx := newCompileCtx(numArgs(clause))
+	ctx := newCompileCtx(c, numArgs(clause))
 	// Designate address for each var (either in a register or on the stack)
 	currStack := 0
 	for _, x := range clause.Vars() {
@@ -432,8 +488,9 @@ func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
 		}
 	}
 	// Compile clause body
-	for i, term := range clause.Body {
-		c.Code = append(c.Code, ctx.compileBodyTerm(i, term.(*logic.Comp))...)
+	body := ctx.flattenIf(clause.Body)
+	for i, term := range body {
+		c.Code = append(c.Code, ctx.compileBodyTerm(i, term)...)
 	}
 	// Add "proceed" instruction for facts and when a body doesn't end with a call.
 	if requiresProceed(c.Code) {
