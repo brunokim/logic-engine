@@ -139,8 +139,7 @@ func builtinUnicodePredicate(pred unicodePredicate) *Clause {
 	return clause
 }
 
-// Succeeds if first arg is a rune from table; if first arg is a ref, replaces
-// itself with iterator.
+// Succeeds if first arg is a rune from table.
 func makeUnicodePredicate(pred unicodePredicate, clause *Clause) func(*Machine, []Addr) error {
 	return func(m *Machine, args []Addr) error {
 		cell := deref(m.get(args[0]))
@@ -154,39 +153,9 @@ func makeUnicodePredicate(pred unicodePredicate, clause *Clause) func(*Machine, 
 				return fmt.Errorf("%v: %s: %c", pred.functor, pred.msg, r)
 			}
 			return nil
-		case *Ref:
-			iterator := makeUnicodeIterator(pred, clause)
-			clause.Code = []Instruction{
-				builtin{Name: pred.functor.Name + "_ref", Func: iterator, Args: args},
-				proceed{},
-			}
-			return iterator(m, args)
 		default:
 			return fmt.Errorf("%v: not an atom: %v", pred.functor, cell)
 		}
-	}
-}
-
-// The unicode iterator emits all runes from table via backtracking.
-func makeUnicodeIterator(pred unicodePredicate, clause *Clause) func(*Machine, []Addr) error {
-	allRunes := runes.All(pred.table)
-	var pos int
-	return func(m *Machine, args []Addr) error {
-		if pos == 0 {
-			// try_me_else
-			m.ChoicePoint = m.newChoicePoint(InstrAddr{clause, 0})
-		} else if pos < len(allRunes)-1 {
-			// retry_me_else
-			m.restoreFromChoicePoint()
-		} else {
-			// trust_me
-			m.restoreFromChoicePoint()
-			m.ChoicePoint = m.ChoicePoint.Prev
-		}
-		x := deref(m.get(args[0]))
-		m.bind(x, WAtom(string(allRunes[pos])))
-		pos++
-		return nil
 	}
 }
 
