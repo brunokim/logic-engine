@@ -485,6 +485,16 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 		pred := typeCheckPredicates[term.Functor]
 		ctx.instrs = append(ctx.instrs, builtinTypeCheckInstruction(pred, x))
 		return ctx.instrs
+	case dsl.Indicator("get_attr", 2):
+		x := ctx.termAddr(term.Args[0])
+		attr := ctx.termAddr(term.Args[1])
+		ctx.instrs = append(ctx.instrs, getAttr{x, attr})
+		return ctx.instrs
+	case dsl.Indicator("put_attr", 2):
+		x := ctx.termAddr(term.Args[0])
+		attr := ctx.termAddr(term.Args[1])
+		ctx.instrs = append(ctx.instrs, putAttr{x, attr})
+		return ctx.instrs
 	default:
 		// Regular goal: put term args into registers X0-Xn and issue a call to f/n.
 		for i, arg := range term.Args {
