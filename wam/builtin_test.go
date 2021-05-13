@@ -119,3 +119,38 @@ func TestUnifiable(t *testing.T) {
 		t.Errorf("(-want,+got)\n%s", diff)
 	}
 }
+
+func TestTypeCheck(t *testing.T) {
+	m := wam.NewMachine()
+	m.DebugFilename = "debugtest/builtin-type-check.jsonl"
+	solution, err := m.RunQuery(
+		//
+		comp("=", var_("Atom"), atom("a")),
+		comp("atom", atom("a")),
+		comp("atom", var_("Atom")),
+		//
+		comp("=", var_("Int"), int_(10)),
+		comp("int", int_(20)),
+		comp("int", var_("Int")),
+		//
+		comp("=", var_("Ptr"), ptr(m)),
+		comp("ptr", ptr(&struct{}{})),
+		comp("ptr", var_("Ptr")),
+		//
+		comp("=", var_("List"), list(int_(42))),
+		comp("list", ilist(var_("H"), var_("T"))),
+		comp("list", var_("List")),
+		//
+		comp("=", var_("Assoc"), assoc(atom("a"), int_(1))),
+		comp("assoc", assoc(int_(1), atom("a"))),
+		comp("assoc", var_("Assoc")),
+		//
+		comp("=", var_("Dict"), dict(atom("x"), var_("X"))),
+		comp("dict", dict(atom("y"), var_("Y"))),
+		comp("dict", var_("Dict")),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log(solution)
+}

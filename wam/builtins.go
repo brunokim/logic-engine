@@ -1,6 +1,7 @@
 package wam
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"unicode"
@@ -24,6 +25,9 @@ func init() {
 	}
 	for _, pred := range comparisonPredicates {
 		builtins = append(builtins, builtinComparisonPredicate(pred))
+	}
+	for _, pred := range typeCheckPredicates {
+		builtins = append(builtins, builtinTypeCheckPredicate(pred))
 	}
 }
 
@@ -234,4 +238,73 @@ func builtinUnifiable(m *Machine, args []Addr) error {
 	}
 	m.bind(unifier, list)
 	return nil
+}
+
+// ---- type checks
+
+type typeCheckPredicate struct {
+	name string
+	err  error
+}
+
+var typeCheckPredicates = map[string]typeCheckPredicate{
+	"atom":  {"atom", errors.New("not an atom")},
+	"int":   {"int", errors.New("not an int")},
+	"ptr":   {"ptr", errors.New("not a ptr")},
+	"var":   {"var", errors.New("not a var")},
+	"list":  {"list", errors.New("not a list")},
+	"assoc": {"assoc", errors.New("not an assoc")},
+	"dict":  {"dict", errors.New("not a dict")},
+}
+
+func builtinTypeCheckPredicate(pred typeCheckPredicate) *Clause {
+	return &Clause{
+		Functor:      Functor{pred.name, 1},
+		NumRegisters: 1,
+		Code: []Instruction{
+			builtinTypeCheckInstruction(pred, RegAddr(0)),
+			proceed{},
+		},
+	}
+}
+
+func builtinTypeCheckInstruction(pred typeCheckPredicate, x Addr) builtin {
+	return builtin{
+		Name: pred.name,
+		Args: []Addr{x},
+		Func: makeTypeCheckPredicate(pred),
+	}
+}
+
+func makeTypeCheckPredicate(pred typeCheckPredicate) func(m *Machine, args []Addr) error {
+	return func(m *Machine, args []Addr) error {
+		if typeCheck(m, args[0]) == pred.name {
+			return nil
+		}
+		return pred.err
+	}
+}
+
+func typeCheck(m *Machine, addr Addr) string {
+	cell := deref(m.get(addr))
+	switch c := cell.(type) {
+	case WAtom:
+		return "atom"
+	case WInt:
+		return "int"
+	case WPtr:
+		return "ptr"
+	case *Ref:
+		return "var"
+	case *Pair:
+		switch c.Tag {
+		case ListPair:
+			return "list"
+		case AssocPair:
+			return "assoc"
+		case DictPair:
+			return "dict"
+		}
+	}
+	panic(fmt.Sprintf("Unhandled cell type %T (%v)", cell, cell))
 }

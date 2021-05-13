@@ -451,6 +451,16 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 		y := ctx.termAddr(term.Args[1])
 		pred := comparisonPredicates[term.Functor]
 		ctx.instrs = append(ctx.instrs, builtinComparisonInstruction(pred, x, y))
+	case dsl.Indicator("atom", 1),
+		dsl.Indicator("int", 1),
+		dsl.Indicator("ptr", 1),
+		dsl.Indicator("var", 1),
+		dsl.Indicator("list", 1),
+		dsl.Indicator("assoc", 1),
+		dsl.Indicator("dict", 1):
+		x := ctx.termAddr(term.Args[0])
+		pred := typeCheckPredicates[term.Functor]
+		ctx.instrs = append(ctx.instrs, builtinTypeCheckInstruction(pred, x))
 	default:
 		// Regular goal: put term args into registers X0-Xn and issue a call to f/n.
 		for i, arg := range term.Args {
