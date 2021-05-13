@@ -158,3 +158,85 @@ func rollDict(assocs []*Pair, parent Cell) Cell {
 	}
 	return d
 }
+
+func instructionPointers(instr Instruction) []InstrAddr {
+	switch instr := instr.(type) {
+	case tryMeElse:
+		return []InstrAddr{instr.Alternative}
+	case retryMeElse:
+		return []InstrAddr{instr.Alternative}
+	case try:
+		return []InstrAddr{instr.Continuation}
+	case retry:
+		return []InstrAddr{instr.Continuation}
+	case trust:
+		return []InstrAddr{instr.Continuation}
+	case jump:
+		return []InstrAddr{instr.Continuation}
+	case switchOnTerm:
+		return []InstrAddr{
+			instr.IfVar,
+			instr.IfConstant,
+			instr.IfStruct,
+			instr.IfList,
+			instr.IfAssoc,
+			instr.IfDict,
+		}
+	case switchOnConstant:
+		addrs := make([]InstrAddr, len(instr.Continuation))
+		i := 0
+		for _, instrAddr := range instr.Continuation {
+			addrs[i] = instrAddr
+			i++
+		}
+		return addrs
+	case switchOnStruct:
+		addrs := make([]InstrAddr, len(instr.Continuation))
+		i := 0
+		for _, instrAddr := range instr.Continuation {
+			addrs[i] = instrAddr
+			i++
+		}
+		return addrs
+	}
+	return nil
+}
+
+func replaceInstructionPointer(instr Instruction, f func(InstrAddr) InstrAddr) Instruction {
+	switch instr := instr.(type) {
+	case tryMeElse:
+		return tryMeElse{f(instr.Alternative)}
+	case retryMeElse:
+		return retryMeElse{f(instr.Alternative)}
+	case try:
+		return try{f(instr.Continuation)}
+	case retry:
+		return retry{f(instr.Continuation)}
+	case trust:
+		return trust{f(instr.Continuation)}
+	case jump:
+		return jump{f(instr.Continuation)}
+	case switchOnTerm:
+		return switchOnTerm{
+			IfVar:      f(instr.IfVar),
+			IfConstant: f(instr.IfConstant),
+			IfStruct:   f(instr.IfStruct),
+			IfList:     f(instr.IfList),
+			IfAssoc:    f(instr.IfAssoc),
+			IfDict:     f(instr.IfDict),
+		}
+	case switchOnConstant:
+		m := make(map[Constant]InstrAddr)
+		for c, instrAddr := range instr.Continuation {
+			m[c] = f(instrAddr)
+		}
+		return switchOnConstant{m}
+	case switchOnStruct:
+		m := make(map[Functor]InstrAddr)
+		for functor, instrAddr := range instr.Continuation {
+			m[functor] = f(instrAddr)
+		}
+		return switchOnStruct{m}
+	}
+	return instr
+}
