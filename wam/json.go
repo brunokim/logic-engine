@@ -190,62 +190,12 @@ func (enc *machineEncoder) instrAddr(ins InstrAddr) interface{} {
 	}
 }
 
-func clausePositions(stack []*Clause) map[*Clause]int {
+func clausePositions(clauses []*Clause) map[*Clause]int {
 	idxs := make(map[*Clause]int)
-	id := 0
-	for len(stack) > 0 {
-		var clause *Clause
-		clause, stack = stack[0], stack[1:]
-		if _, ok := idxs[clause]; ok || clause == nil {
-			continue
-		}
-		idxs[clause] = id
-		id++
-		for _, instr := range clause.Code {
-			stack = append(clausePtrs(instr), stack...)
-		}
+	for i, clause := range reachableClauses(clauses) {
+		idxs[clause] = i
 	}
 	return idxs
-}
-
-func clausePtrs(instr Instruction) []*Clause {
-	switch instr := instr.(type) {
-	case tryMeElse:
-		return []*Clause{instr.Alternative.Clause}
-	case retryMeElse:
-		return []*Clause{instr.Alternative.Clause}
-	case try:
-		return []*Clause{instr.Continuation.Clause}
-	case retry:
-		return []*Clause{instr.Continuation.Clause}
-	case trust:
-		return []*Clause{instr.Continuation.Clause}
-	case switchOnTerm:
-		return []*Clause{
-			instr.IfVar.Clause,
-			instr.IfConstant.Clause,
-			instr.IfList.Clause,
-			instr.IfAssoc.Clause,
-			instr.IfDict.Clause,
-			instr.IfStruct.Clause}
-	case switchOnConstant:
-		clauses := make([]*Clause, len(instr.Continuation))
-		i := 0
-		for _, instrAddr := range instr.Continuation {
-			clauses[i] = instrAddr.Clause
-			i++
-		}
-		return clauses
-	case switchOnStruct:
-		clauses := make([]*Clause, len(instr.Continuation))
-		i := 0
-		for _, instrAddr := range instr.Continuation {
-			clauses[i] = instrAddr.Clause
-			i++
-		}
-		return clauses
-	}
-	return nil
 }
 
 func choicePositions(choicePoint *ChoicePoint) map[*ChoicePoint]int {

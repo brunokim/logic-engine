@@ -618,6 +618,96 @@ func optimizeLastCall(code []Instruction) []Instruction {
 	return code
 }
 
+// ASSUMPTION: labels are only used for jumping around within a clause.
+// ASSUMPTION: labels are only used with try/retry/trust/jump/switch instructions.
+func optimizeLabels(code []Instruction) []Instruction {
+	var buf []Instruction
+	labelPos := make(map[int]int)
+	pending := make(map[int]struct{})
+	addPending := func(instrAddr InstrAddr) {
+		if instrAddr.Pos >= 0 {
+			return
+		}
+		pending[len(buf)] = struct{}{}
+	}
+	labelToPos := func(instrAddr InstrAddr) InstrAddr {
+		if instrAddr.Pos >= 0 {
+			return instrAddr
+		}
+		labelID := -instrAddr.Pos
+		pos, ok := labelPos[labelID]
+		if !ok {
+			panic(fmt.Sprintf("Unknown label %d", labelID))
+		}
+		return InstrAddr{instrAddr.Clause, pos}
+	}
+	for _, instr := range code {
+		switch instr := instr.(type) {
+		case label:
+			labelPos[instr.ID] = len(buf)
+			continue
+		case try:
+			addPending(instr.Continuation)
+		case retry:
+			addPending(instr.Continuation)
+		case trust:
+			addPending(instr.Continuation)
+		case jump:
+			addPending(instr.Continuation)
+		case switchOnTerm:
+			addPending(instr.IfVar)
+			addPending(instr.IfConstant)
+			addPending(instr.IfStruct)
+			addPending(instr.IfList)
+			addPending(instr.IfAssoc)
+			addPending(instr.IfDict)
+		case switchOnConstant:
+			for _, instrAddr := range instr.Continuation {
+				addPending(instrAddr)
+			}
+		case switchOnStruct:
+			for _, instrAddr := range instr.Continuation {
+				addPending(instrAddr)
+			}
+		}
+		buf = append(buf, instr)
+	}
+	for i, instr := range buf {
+		switch instr := instr.(type) {
+		case try:
+			buf[i] = try{labelToPos(instr.Continuation)}
+		case retry:
+			buf[i] = retry{labelToPos(instr.Continuation)}
+		case trust:
+			buf[i] = trust{labelToPos(instr.Continuation)}
+		case jump:
+			buf[i] = jump{labelToPos(instr.Continuation)}
+		case switchOnTerm:
+			buf[i] = switchOnTerm{
+				IfVar:      labelToPos(instr.IfVar),
+				IfConstant: labelToPos(instr.IfConstant),
+				IfStruct:   labelToPos(instr.IfStruct),
+				IfList:     labelToPos(instr.IfList),
+				IfAssoc:    labelToPos(instr.IfAssoc),
+				IfDict:     labelToPos(instr.IfDict),
+			}
+		case switchOnConstant:
+			m := make(map[Constant]InstrAddr)
+			for c, instrAddr := range instr.Continuation {
+				m[c] = labelToPos(instrAddr)
+			}
+			buf[i] = switchOnConstant{m}
+		case switchOnStruct:
+			m := make(map[Functor]InstrAddr)
+			for f, instrAddr := range instr.Continuation {
+				m[f] = labelToPos(instrAddr)
+			}
+			buf[i] = switchOnStruct{m}
+		}
+	}
+	return buf
+}
+
 // ---- indexing
 
 // Create level-1 index of clauses, based on their first arg.
@@ -829,9 +919,85 @@ func addChoiceLinks(clauses []*Clause) {
 	}
 }
 
+func reachableClauses(clauses []*Clause) []*Clause {
+	// Copy items in reverse order to stack
+	stack := make([]*Clause, len(clauses))
+	for i, clause := range clauses {
+		stack[len(clauses)-i-1] = clause
+	}
+	// Utility functions
+	seen := make(map[*Clause]struct{})
+	push := func(instrAddr InstrAddr) {
+		clause := instrAddr.Clause
+		if _, ok := seen[clause]; !ok {
+			stack = append(stack, clause)
+		}
+	}
+	//
+	var order []*Clause
+	for len(stack) > 0 {
+		n := len(stack)
+		clause := stack[n-1]
+		stack = stack[:n-1]
+		if _, ok := seen[clause]; ok || clause == nil {
+			continue
+		}
+		order = append(order, clause)
+		seen[clause] = struct{}{}
+		for _, instr := range clause.Code {
+			switch instr := instr.(type) {
+			case tryMeElse:
+				push(instr.Alternative)
+			case retryMeElse:
+				push(instr.Alternative)
+			case try:
+				push(instr.Continuation)
+			case retry:
+				push(instr.Continuation)
+			case trust:
+				push(instr.Continuation)
+			case jump:
+				push(instr.Continuation)
+			case switchOnTerm:
+				push(instr.IfVar)
+				push(instr.IfConstant)
+				push(instr.IfStruct)
+				push(instr.IfList)
+				push(instr.IfAssoc)
+				push(instr.IfDict)
+			case switchOnConstant:
+				for _, instrAddr := range instr.Continuation {
+					push(instrAddr)
+				}
+			case switchOnStruct:
+				for _, instrAddr := range instr.Continuation {
+					push(instrAddr)
+				}
+			}
+		}
+	}
+	return order
+}
+
+// Option to control compilation.
+type CompileOption interface {
+	isCompileOption()
+}
+
+// Keep labels in control instructions, instead of replacing them for their actual
+// position in code.
+type KeepLabels struct{}
+
+func (KeepLabels) isCompileOption() {}
+
 // CompileClauses returns a list of compiled clauses. Each corresponds with
 // a functor f/n, and all sub-clauses that implement the same functor.
-func CompileClauses(clauses []*logic.Clause) ([]*Clause, error) {
+func CompileClauses(clauses []*logic.Clause, options ...CompileOption) ([]*Clause, error) {
+	opts := make(map[CompileOption]struct{})
+	for _, opt := range options {
+		opts[opt] = struct{}{}
+	}
+	// Group clauses by functor and compile each group.
 	m := make(map[logic.Indicator][]*logic.Clause)
 	var order []logic.Indicator
 	for _, clause := range clauses {
@@ -849,6 +1015,12 @@ func CompileClauses(clauses []*logic.Clause) ([]*Clause, error) {
 	for _, ind := range order {
 		cs2 := m[ind]
 		cs = append(cs, compileClausesWithSameFunctor(cs2))
+	}
+	// Remove labels from clause bodies.
+	if _, ok := opts[KeepLabels{}]; !ok {
+		for _, clause := range reachableClauses(cs) {
+			clause.Code = optimizeLabels(clause.Code)
+		}
 	}
 	return cs, nil
 }

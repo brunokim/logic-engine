@@ -466,7 +466,7 @@ func TestCompileClauses(t *testing.T) {
 	}
 	// Need to ignore self-referential fields because go-cmp can't handle them.
 	for _, test := range tests {
-		got, err := wam.CompileClauses(test.clauses)
+		got, err := wam.CompileClauses(test.clauses, wam.KeepLabels{})
 		if err != nil {
 			t.Fatalf("want nil, got %v", err)
 		}
