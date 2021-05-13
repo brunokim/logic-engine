@@ -454,6 +454,8 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 			return []Instruction{neckCut{}}
 		}
 		return []Instruction{cut{}}
+	case dsl.Indicator("true", 0):
+		return []Instruction{}
 	case dsl.Indicator("fail", 0), dsl.Indicator("false", 0):
 		return []Instruction{fail{}}
 	case dsl.Indicator("asm", 1):
