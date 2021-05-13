@@ -467,3 +467,33 @@ run as part of a `check_attribute` from considering the existing unification fra
     [                {}     [C1, C2]   Z    V3]
     [                {}         [C2]   Z    V3]
     [                {}           []   Z    V3]  % Z = V3
+
+## Builtin bindings
+
+I've implemented just a few builtin functions, among them the most complex being
+`unicode(-Ch, +Category)`, which iterates over all unicode codepoints in a category;
+and `unifiable(+X, +Y, -Unifier)`, that returns the necessary bindings to make `X=Y`
+succeed, modulo attributes.
+
+Both of these predicates require binding a Ref to a value -- `Ch` and `Unifier`,
+respectively. If we ignore attributes, then it's a minor operation, that only requires
+changing the Ref cell and trailing it within the WAM. However, if these variables
+are attributed we need to do much more, by pushing a new UnificationFrame, setting
+the instruction pointer to `$check_attribute` or `$join_attribute`, and changing the
+machine's mode.
+
+The builtin function signature (`func(m *Machine, args []Addr) error`) receives a pointer
+to the machine, so it's feasible to manipulate it to execute the whole operation.
+However, so far I've adopted the rule of thumb that major operations should become
+instructions, leaving builtins to simple wrappers, either of instructions or Golang
+operations.
+
+This was the rationale for having `put_attr`, `get_attr`, and `jump` as instructions,
+even though they are conceptually simple in terms of manipulation.
+
+I can either 1) promote these binding operations to instructions; or 2) allow builtins
+to bind and manipulate the whole machine, and find another justification for the distinction
+between builtins and instructions. (A third option is to *abolish* any distinction, and
+treat instructions as builtins with well-known names. This doesn't seem good because
+instructions have diverse parameters, while builtins mostly work with what's in the
+registers/stack memory.)
