@@ -156,12 +156,10 @@ func TestCompile(t *testing.T) {
 				comp("get_variable", var_("Y0"), var_("X1")),
 				comp("get_variable", var_("X4"), var_("X2")),
 				// body
-				comp("put_value", var_("X3"), var_("X0")),
-				comp("call_meta", var_("X0"), list()),
+				comp("call_meta", var_("X3"), list()),
 				comp("cut"),
-				comp("put_value", var_("Y0"), var_("X0")),
 				comp("deallocate"),
-				comp("execute_meta", var_("X0"), list())),
+				comp("execute_meta", var_("Y0"), list())),
 		},
 		{
 			dsl.Clause(comp("term", var_("Term"), var_("L1"), var_("L2")),

@@ -445,6 +445,15 @@ func (ctx *compileCtx) flattenControl(terms []logic.Term) []*logic.Comp {
 
 func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction {
 	ctx.instrs = nil
+	if term.Functor == "call" {
+		callee := ctx.termAddr(term.Args[0])
+		params := make([]Addr, len(term.Args)-1)
+		for i, param := range term.Args[1:] {
+			params[i] = ctx.termAddr(param)
+		}
+		ctx.instrs = append(ctx.instrs, callMeta{Addr: callee, Params: params})
+		return ctx.instrs
+	}
 	switch term.Indicator() {
 	case dsl.Indicator("!", 0):
 		if pos == 0 {
@@ -540,8 +549,9 @@ func requiresProceed(code []Instruction) bool {
 		return true
 	}
 	_, isLastCall := code[n-1].(call)
+	_, isLastCallMeta := code[n-1].(callMeta)
 	_, isLastProceed := code[n-1].(proceed)
-	return !(isLastCall || isLastProceed)
+	return !(isLastCall || isLastCallMeta || isLastProceed)
 }
 
 func requiresEnv(code []Instruction) bool {
@@ -569,18 +579,6 @@ func optimizeInstructions(code []Instruction) []Instruction {
 		n := len(buf)
 		if n < 1 {
 			buf = append(buf, instr)
-			continue
-		}
-		// Inline callMeta instruction
-		if instr, ok := instr.(call); ok && instr.Functor.Name == "call" {
-			callMeta := callMeta{
-				Addr:   RegAddr(0),
-				Params: make([]Addr, instr.Functor.Arity-1),
-			}
-			for i := 0; i < instr.Functor.Arity-1; i++ {
-				callMeta.Params[i] = RegAddr(i + 1)
-			}
-			buf = append(buf, callMeta)
 			continue
 		}
 		// Otherwise, simply append instruction to buffer.

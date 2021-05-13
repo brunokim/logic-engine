@@ -89,15 +89,35 @@ var (
 		// Compiled calls to call/n are inlined into the instruction call_meta.
 		// These functions are used when referenced by (meta-)meta-calls, and
 		// are limited to 8 args.
-		makeCall(0),
-		makeCall(1),
-		makeCall(2),
-		makeCall(3),
-		makeCall(4),
-		makeCall(5),
-		makeCall(6),
-		makeCall(7),
-		makeCall(8),
+		// They are not self-referential, since the body occurrence of
+		// call(A, B, ...) is inlined to a call_meta instruction.
+		dsl.Clause(
+			comp("call", var_("Fn")),
+			comp("call", var_("Fn"))),
+		dsl.Clause(
+			comp("call", var_("Fn"), var_("A")),
+			comp("call", var_("Fn"), var_("A"))),
+		dsl.Clause(
+			comp("call", var_("Fn"), var_("A"), var_("B")),
+			comp("call", var_("Fn"), var_("A"), var_("B"))),
+		dsl.Clause(
+			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C")),
+			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"))),
+		dsl.Clause(
+			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D")),
+			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"))),
+		dsl.Clause(
+			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E")),
+			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E"))),
+		dsl.Clause(
+			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E"), var_("F")),
+			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E"), var_("F"))),
+		dsl.Clause(
+			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E"), var_("F"), var_("G")),
+			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E"), var_("F"), var_("G"))),
+		dsl.Clause(
+			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E"), var_("F"), var_("G"), var_("H")),
+			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E"), var_("F"), var_("G"), var_("H"))),
 
 		// Unifiable
 		dsl.Clause(comp("unifiable", var_("X"), var_("Y"), var_("Unifier")),
@@ -119,24 +139,6 @@ var (
 		dsl.Clause(comp("unicode_space", var_("Ch")), comp("unicode_category", var_("Ch"), atom("space"))),
 	}
 )
-
-// ---- call predicates
-
-// call(Functor, A1, A2,..., An) :-
-//   asm(call("call/n+1")),
-//   asm(proceed(run)).
-func makeCall(numArgs int) *logic.Clause {
-	vars := make([]logic.Term, numArgs+1)
-	vars[0] = var_("Functor")
-	for i := 1; i <= numArgs; i++ {
-		vars[i] = var_(fmt.Sprintf("A%d", i))
-	}
-	functor := fmt.Sprintf("call/%d", numArgs+1)
-	clause := dsl.Clause(comp("call", vars...),
-		comp("asm", comp("call", atom(functor))),
-		comp("asm", comp("proceed", atom("run"))))
-	return clause
-}
 
 // ---- unicode predicates
 
