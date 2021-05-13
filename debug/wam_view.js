@@ -371,7 +371,7 @@ export class Wam {
         }
         for (let i = 0; i < clause.Code.length; i++) {
             let instr = clause.Code[i]
-            let row = this.instructionRow(instr)
+            let row = this.instructionRow(i, instr)
             if (highlighted.has(i)) {
                 row.addClass(ptrStyle);
             }
@@ -392,9 +392,11 @@ export class Wam {
         return `${clause.Functor}#${ins.ClausePos}[${ins.Ref}]`
     }
 
-    instructionRow(instr) {
+    instructionRow(i, instr) {
         let row = $("<tr>");
-        row.append($("<td>").text(instructionName(instr)))
+        row
+            .append($("<td>").text(i))
+            .append($("<td>").text(instructionName(instr)))
         for (let arg of this.instructionArgs(instr)) {
             row.append($("<td>").append(arg))
         }
