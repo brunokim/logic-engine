@@ -22,9 +22,6 @@ func init() {
 	builtins = append(builtins,
 		failClause,
 		builtinUnicodeIterPredicate())
-	for _, pred := range unicodePredicates {
-		builtins = append(builtins, builtinUnicodePredicate(pred))
-	}
 	for _, pred := range comparisonPredicates {
 		builtins = append(builtins, builtinComparisonPredicate(pred))
 	}
@@ -109,10 +106,17 @@ var (
 		// Unicode
 		dsl.Clause(comp("unicode_check", var_("Ch"), var_("Category")),
 			comp("asm", comp("builtin", atom("unicode_check"), ptr(builtinUnicodeCheck), var_("X0"), var_("X1")))),
-		dsl.Clause(comp("unicode_digit", var_("Ch")),
+		dsl.Clause(comp("unicode_category", var_("Ch"), var_("Category")),
 			comp("->", comp("var", var_("Ch")),
-				comp("unicode_iter", var_("Ch"), int_(0), atom("digit")),
-				comp("unicode_check", var_("Ch"), atom("digit")))),
+				comp("unicode_iter", var_("Ch"), int_(0), var_("Category")),
+				comp("unicode_check", var_("Ch"), var_("Category")))),
+		dsl.Clause(comp("unicode_digit", var_("Ch")), comp("unicode_category", var_("Ch"), atom("digit"))),
+		dsl.Clause(comp("unicode_letter", var_("Ch")), comp("unicode_category", var_("Ch"), atom("letter"))),
+		dsl.Clause(comp("unicode_lower", var_("Ch")), comp("unicode_category", var_("Ch"), atom("lower"))),
+		dsl.Clause(comp("unicode_upper", var_("Ch")), comp("unicode_category", var_("Ch"), atom("upper"))),
+		dsl.Clause(comp("unicode_symbol", var_("Ch")), comp("unicode_category", var_("Ch"), atom("symbol"))),
+		dsl.Clause(comp("unicode_punct", var_("Ch")), comp("unicode_category", var_("Ch"), atom("punct"))),
+		dsl.Clause(comp("unicode_space", var_("Ch")), comp("unicode_category", var_("Ch"), atom("space"))),
 	}
 )
 
@@ -136,55 +140,14 @@ func makeCall(numArgs int) *logic.Clause {
 
 // ---- unicode predicates
 
-type unicodePredicate struct {
-	functor Functor
-	table   *unicode.RangeTable
-	msg     string
-}
-
-var (
-	unicodePredicates = []unicodePredicate{
-		unicodePredicate{Functor{"unicode_letter", 1}, unicode.Letter, "not a letter"},
-		unicodePredicate{Functor{"unicode_lower", 1}, unicode.Lower, "not a lowercase letter"},
-		unicodePredicate{Functor{"unicode_upper", 1}, unicode.Upper, "not an uppercase letter"},
-		unicodePredicate{Functor{"unicode_symbol", 1}, unicode.Symbol, "not a symbol"},
-		unicodePredicate{Functor{"unicode_punct", 1}, unicode.Punct, "not a punctuation"},
-		unicodePredicate{Functor{"unicode_space", 1}, unicode.White_Space, "not whitespace"},
-	}
-)
-
-func builtinUnicodePredicate(pred unicodePredicate) *Clause {
-	clause := &Clause{Functor: pred.functor, NumRegisters: 1}
-	start := makeUnicodePredicate(pred, clause)
-	clause.Code = []Instruction{
-		builtin{Name: pred.functor.Name, Func: start, Args: []Addr{RegAddr(0)}},
-		proceed{},
-	}
-	return clause
-}
-
-// Succeeds if first arg is a rune from table.
-func makeUnicodePredicate(pred unicodePredicate, clause *Clause) func(*Machine, []Addr) error {
-	return func(m *Machine, args []Addr) error {
-		cell := deref(m.get(args[0]))
-		switch c := cell.(type) {
-		case WAtom:
-			r, ok := runes.Single(string(c))
-			if !ok {
-				return fmt.Errorf("%v: not a single rune: %v", pred.functor, c)
-			}
-			if !unicode.Is(pred.table, r) {
-				return fmt.Errorf("%v: %s: %c", pred.functor, pred.msg, r)
-			}
-			return nil
-		default:
-			return fmt.Errorf("%v: not an atom: %v", pred.functor, cell)
-		}
-	}
-}
-
 var unicodeTable = map[string]*unicode.RangeTable{
-	"digit": unicode.Digit,
+	"digit":  unicode.Digit,
+	"letter": unicode.Letter,
+	"lower":  unicode.Lower,
+	"upper":  unicode.Upper,
+	"symbol": unicode.Symbol,
+	"punct":  unicode.Punct,
+	"space":  unicode.White_Space,
 }
 
 func builtinUnicodeCheck(m *Machine, args []Addr) error {
