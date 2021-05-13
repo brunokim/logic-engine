@@ -387,33 +387,27 @@ func toGoal(term logic.Term) *logic.Comp {
 	}
 }
 
+func toGoals(terms []logic.Term) []logic.Term {
+	goals := make([]logic.Term, len(terms))
+	for i, term := range terms {
+		goals[i] = toGoal(term)
+	}
+	return goals
+}
+
 func (ctx *compileCtx) flattenControl(terms []logic.Term) []*logic.Comp {
 	var body []*logic.Comp
 	labelID := 1
 	for len(terms) > 0 {
 		goal := terms[0].(*logic.Comp)
 		terms = terms[1:]
+		if goal.Functor == "and" {
+			terms = append(toGoals(goal.Args), terms...)
+			continue
+		}
 		switch goal.Indicator() {
 		default:
 			body = append(body, goal)
-		case dsl.Indicator("and", 1):
-			arg := goal.Args[0]
-			if arg == logic.EmptyList {
-				continue
-			}
-			list, ok := arg.(*logic.List)
-			if !ok {
-				// Meta-call like 'and(Goals)', preserve original term.
-				body = append(body, goal)
-				continue
-			}
-			n := len(list.Terms)
-			goals := make([]logic.Term, n+1)
-			for i, term := range list.Terms {
-				goals[i] = toGoal(term)
-			}
-			goals[n] = comp("and", list.Tail)
-			terms = append(goals, terms...)
 		case dsl.Indicator("->", 3):
 			cond, then_, else_ := goal.Args[0], goal.Args[1], goal.Args[2]
 			thenID, elseID, endID := labelID, labelID+1, labelID+2

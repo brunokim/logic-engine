@@ -33,15 +33,12 @@ func TestCheckAttribute(t *testing.T) {
             get_attr(X, range(Min1, Max1)),
             ->(get_attr(Y, range(Min2, Max2)),
                 % Compute the intersection of ranges
-                and([
+                and(
                     ->(@<(Min1, Min2), =(Min, Min2), =(Min, Min1)),
                     ->(@>(Max1, Max2), =(Max, Max2), =(Max, Max1)),
                     @<(Min, Max),
-                ]),
-                and([
-                    =(Min, Min1),
-                    =(Max, Max1),
-                ])),
+                ),
+                and(=(Min, Min1), =(Max, Max1))),
             in_range(Y, Min, Max).
 
         % Check that the value is compatible with the attribute.
@@ -88,15 +85,10 @@ func TestAttributeBacktrack(t *testing.T) {
             get_attr(X, range(Min1, Max1)),
             ->(get_attr(Y, range(Min2, Max2)),
                 % Compute the intersection of ranges
-                and([
-                    ->(@<(Min1, Min2), =(Min, Min2), =(Min, Min1)),
+                and(->(@<(Min1, Min2), =(Min, Min2), =(Min, Min1)),
                     ->(@>(Max1, Max2), =(Max, Max2), =(Max, Max1)),
-                    @<(Min, Max),
-                ]),
-                and([
-                    =(Min, Min1),
-                    =(Max, Max1),
-                ])),
+                    @<(Min, Max)),
+                and(=(Min, Min1), =(Max, Max1))),
             in_range(Y, Min, Max).
 
         % Check that the value is compatible with the attribute.

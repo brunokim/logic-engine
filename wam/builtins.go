@@ -65,14 +65,12 @@ var (
 		dsl.Clause(comp("\\=", var_("X"), var_("Y")),
 			comp("\\+", comp("=", var_("X"), var_("Y")))),
 
-		// Logical conective 'and'. In Prolog it's represented with the operator ','.
-		//
-		// and([]).
-		// and([Goal|Rest]) :- Goal, and(Rest).
-		dsl.Clause(comp("and", atom("[]"))),
-		dsl.Clause(comp("and", ilist(var_("Goal"), var_("Rest"))),
-			var_("Goal"),
-			comp("and", var_("Rest"))),
+		dsl.Clause(
+			comp("and", var_("A")),
+			var_("A")),
+		dsl.Clause(
+			comp("and", var_("A"), var_("B")),
+			var_("A"), var_("B")),
 
 		// Attributes
 		dsl.Clause(comp("get_attr", var_("X"), var_("Attr")),
