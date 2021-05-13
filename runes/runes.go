@@ -30,7 +30,7 @@ func All(table *unicode.RangeTable) []rune {
 			rs = append(rs, rune(r))
 		}
 	}
-	for _, r32 := range table.R16 {
+	for _, r32 := range table.R32 {
 		for r := r32.Lo; r <= r32.Hi; r += r32.Stride {
 			rs = append(rs, rune(r))
 		}

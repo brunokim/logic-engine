@@ -19,7 +19,9 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	builtins = append(builtins, failClause)
+	builtins = append(builtins,
+		failClause,
+		builtinUnicodeIterPredicate())
 	for _, pred := range unicodePredicates {
 		builtins = append(builtins, builtinUnicodePredicate(pred))
 	}
@@ -37,6 +39,7 @@ var (
 	atom  = dsl.Atom
 	int_  = dsl.Int
 	ptr   = dsl.Ptr
+	list  = dsl.List
 	ilist = dsl.IList
 )
 
@@ -102,6 +105,14 @@ var (
 		// Unifiable
 		dsl.Clause(comp("unifiable", var_("X"), var_("Y"), var_("Unifier")),
 			comp("asm", comp("builtin", atom("unifiable"), ptr(builtinUnifiable), var_("X0"), var_("X1"), var_("X2")))),
+
+		// Unicode
+		dsl.Clause(comp("unicode_check", var_("Ch"), var_("Category")),
+			comp("asm", comp("builtin", atom("unicode_check"), ptr(builtinUnicodeCheck), var_("X0"), var_("X1")))),
+		dsl.Clause(comp("unicode_digit", var_("Ch")),
+			comp("->", comp("var", var_("Ch")),
+				comp("unicode_iter", var_("Ch"), int_(0), atom("digit")),
+				comp("unicode_check", var_("Ch"), atom("digit")))),
 	}
 )
 
@@ -133,7 +144,6 @@ type unicodePredicate struct {
 
 var (
 	unicodePredicates = []unicodePredicate{
-		unicodePredicate{Functor{"unicode_digit", 1}, unicode.Digit, "not a digit"},
 		unicodePredicate{Functor{"unicode_letter", 1}, unicode.Letter, "not a letter"},
 		unicodePredicate{Functor{"unicode_lower", 1}, unicode.Lower, "not a lowercase letter"},
 		unicodePredicate{Functor{"unicode_upper", 1}, unicode.Upper, "not an uppercase letter"},
@@ -171,6 +181,60 @@ func makeUnicodePredicate(pred unicodePredicate, clause *Clause) func(*Machine, 
 			return fmt.Errorf("%v: not an atom: %v", pred.functor, cell)
 		}
 	}
+}
+
+var unicodeTable = map[string]*unicode.RangeTable{
+	"digit": unicode.Digit,
+}
+
+func builtinUnicodeCheck(m *Machine, args []Addr) error {
+	ch := deref(m.get(args[0])).(WAtom)
+	category := deref(m.get(args[1])).(WAtom)
+
+	r, ok := runes.Single(string(ch))
+	if !ok {
+		return errors.New("Ch is not a single rune")
+	}
+	table, ok := unicodeTable[string(category)]
+	if !ok {
+		return fmt.Errorf("Unknown Unicode table: %q", category)
+	}
+	if !unicode.Is(table, r) {
+		return fmt.Errorf("%c is not %s", r, category)
+	}
+	return nil
+}
+
+func builtinUnicodeIter(m *Machine, args []Addr) error {
+	m.restoreFromChoicePoint()
+	ref := deref(m.Reg[0]).(*Ref)
+	pos := deref(m.Reg[1]).(WInt)
+	category := deref(m.Reg[2]).(WAtom)
+	table, ok := unicodeTable[string(category)]
+	if !ok {
+		return fmt.Errorf("Unknown Unicode table: %q", category)
+	}
+	chars := runes.All(table)
+	i := int(pos)
+	if i >= len(chars) {
+		m.ChoicePoint = m.ChoicePoint.Prev
+		return fmt.Errorf("no more chars")
+	}
+	ch := WAtom(string(chars[i]))
+	m.bindRef(ref, ch) // TODO: handle attributed var.
+	i++
+	m.ChoicePoint.Args[1] = WInt(i) // Increment position for next backtrack.
+	return nil
+}
+
+func builtinUnicodeIterPredicate() *Clause {
+	c := &Clause{Functor: Functor{"unicode_iter", 3}, NumRegisters: 3}
+	c.Code = []Instruction{
+		tryMeElse{InstrAddr{c, 1}},
+		builtin{"unicode_iter", nil, builtinUnicodeIter},
+		proceed{},
+	}
+	return c
 }
 
 // ---- comparisons

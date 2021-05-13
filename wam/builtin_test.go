@@ -72,7 +72,7 @@ func TestUnicode(t *testing.T) {
 		}
 		a, ok := x.(logic.Atom)
 		if !ok {
-			t.Fatalf("X is not an atom: %v", a)
+			t.Fatalf("X is not an atom: %v", x)
 		}
 		digits += a.Name
 		solution, err = m.NextSolution()

@@ -403,7 +403,7 @@ export class Wam {
 
     instructionArgs(instr) {
         if (instr.Type == "builtin") {
-            return instr.Args
+            return instr.Args || []
         }
         return [
             this.instructionFirstArg(instr),
