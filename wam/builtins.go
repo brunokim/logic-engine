@@ -32,11 +32,12 @@ func init() {
 }
 
 var (
-	comp = dsl.Comp
-	var_ = dsl.Var
-	atom = dsl.Atom
-	int_ = dsl.Int
-	ptr  = dsl.Ptr
+	comp  = dsl.Comp
+	var_  = dsl.Var
+	atom  = dsl.Atom
+	int_  = dsl.Int
+	ptr   = dsl.Ptr
+	ilist = dsl.IList
 )
 
 var (
@@ -63,6 +64,15 @@ var (
 			comp("->", var_("Goal"), atom("false"), atom("true"))),
 		dsl.Clause(comp("\\=", var_("X"), var_("Y")),
 			comp("\\+", comp("=", var_("X"), var_("Y")))),
+
+		// Logical conective 'and'. In Prolog it's represented with the operator ','.
+		//
+		// and([]).
+		// and([Goal|Rest]) :- Goal, and(Rest).
+		dsl.Clause(comp("and", atom("[]"))),
+		dsl.Clause(comp("and", ilist(var_("Goal"), var_("Rest"))),
+			var_("Goal"),
+			comp("and", var_("Rest"))),
 
 		// Attributes
 		dsl.Clause(comp("get_attr", var_("X"), var_("Attr")),
