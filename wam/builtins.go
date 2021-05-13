@@ -168,6 +168,8 @@ func builtinUnicodeCheck(m *Machine, args []Addr) error {
 	return nil
 }
 
+var unicodeCharsCache = map[*unicode.RangeTable][]rune{}
+
 func builtinUnicodeIter(m *Machine, args []Addr) error {
 	m.restoreFromChoicePoint()
 	ref := deref(m.Reg[0]).(*Ref)
@@ -177,7 +179,11 @@ func builtinUnicodeIter(m *Machine, args []Addr) error {
 	if !ok {
 		return fmt.Errorf("Unknown Unicode table: %q", category)
 	}
-	chars := runes.All(table)
+	chars, ok := unicodeCharsCache[table]
+	if !ok {
+		chars = runes.All(table)
+		unicodeCharsCache[table] = chars
+	}
 	i := int(pos)
 	if i >= len(chars) {
 		m.ChoicePoint = m.ChoicePoint.Prev
