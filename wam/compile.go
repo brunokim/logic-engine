@@ -468,6 +468,7 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 		x := ctx.termAddr(term.Args[0])
 		y := ctx.termAddr(term.Args[1])
 		ctx.instrs = append(ctx.instrs, inlineUnify{x, y})
+		return ctx.instrs
 	case dsl.Indicator("@<", 2),
 		dsl.Indicator("@=<", 2),
 		dsl.Indicator("@>=", 2),
@@ -478,6 +479,7 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 		y := ctx.termAddr(term.Args[1])
 		pred := comparisonPredicates[term.Functor]
 		ctx.instrs = append(ctx.instrs, builtinComparisonInstruction(pred, x, y))
+		return ctx.instrs
 	case dsl.Indicator("atom", 1),
 		dsl.Indicator("int", 1),
 		dsl.Indicator("ptr", 1),
@@ -488,14 +490,15 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 		x := ctx.termAddr(term.Args[0])
 		pred := typeCheckPredicates[term.Functor]
 		ctx.instrs = append(ctx.instrs, builtinTypeCheckInstruction(pred, x))
+		return ctx.instrs
 	default:
 		// Regular goal: put term args into registers X0-Xn and issue a call to f/n.
 		for i, arg := range term.Args {
 			ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, RegAddr(i))...)
 		}
 		ctx.instrs = append(ctx.instrs, call{toFunctor(term.Indicator())})
+		return ctx.instrs
 	}
-	return ctx.instrs
 }
 
 func compile(clause *logic.Clause, permVars map[logic.Var]struct{}) *Clause {
