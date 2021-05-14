@@ -26,7 +26,6 @@ import (
 // Term is a representation of a logic term.
 type Term interface {
 	fmt.Stringer
-	short() string
 	vars(seen map[Var]struct{}, xs []Var) []Var
 	hasVar() bool
 }
@@ -448,15 +447,14 @@ func (t *Clause) Vars() []Var {
 
 // ---- hasVar()
 
-func (t Atom) hasVar() bool    { return false }
-func (t Int) hasVar() bool     { return false }
-func (t Ptr) hasVar() bool     { return false }
-func (t Var) hasVar() bool     { return true }
-func (t *Comp) hasVar() bool   { return t.hasVar_ }
-func (t *List) hasVar() bool   { return t.hasVar_ }
-func (t *Assoc) hasVar() bool  { return t.hasVar_ }
-func (t *Dict) hasVar() bool   { return t.hasVar_ }
-func (c *Clause) hasVar() bool { return c.hasVar_ }
+func (t Atom) hasVar() bool   { return false }
+func (t Int) hasVar() bool    { return false }
+func (t Ptr) hasVar() bool    { return false }
+func (t Var) hasVar() bool    { return true }
+func (t *Comp) hasVar() bool  { return t.hasVar_ }
+func (t *List) hasVar() bool  { return t.hasVar_ }
+func (t *Assoc) hasVar() bool { return t.hasVar_ }
+func (t *Dict) hasVar() bool  { return t.hasVar_ }
 
 // ---- Comparisons
 
@@ -770,33 +768,4 @@ func (c *Clause) String() string {
 		body[i] = comp.String()
 	}
 	return fmt.Sprintf("%s :-\n  %s.", head, strings.Join(body, ",\n  "))
-}
-
-// ---- short()
-
-func (t Atom) short() string { return t.String() }
-func (t Int) short() string  { return t.String() }
-func (t Ptr) short() string  { return t.String() }
-func (t Var) short() string  { return t.String() }
-
-func (t *Comp) short() string {
-	return fmt.Sprintf("%s/%d", t.Functor, len(t.Args))
-}
-
-func (t *List) short() string {
-	if t.Tail == EmptyList {
-		return fmt.Sprintf("[,%d]", len(t.Terms))
-	}
-	return fmt.Sprintf("[,%d|%s]", len(t.Terms), t.Tail.short())
-}
-
-func (t *Assoc) short() string {
-	return fmt.Sprintf("%s:%s", t.Key.short(), t.Val.short())
-}
-
-func (t *Dict) short() string {
-	if t.Parent == EmptyDict {
-		return fmt.Sprintf("{,%d}", len(t.Assocs))
-	}
-	return fmt.Sprintf("{,%d|%s}", len(t.Assocs), t.Parent.short())
 }
