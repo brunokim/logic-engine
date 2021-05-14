@@ -43,20 +43,20 @@ func (m *Machine) AddClause(clause *Clause) {
 
 // ---- conversion
 
-type goals []*logic.Comp
+type flatClause []*logic.Comp
 
-func asGoals(clause *logic.Clause) goals {
-	gs := make(goals, len(clause.Body)+1)
+func flatten(clause *logic.Clause) flatClause {
+	goals := make(flatClause, len(clause.Body)+1)
 	switch head := clause.Head.(type) {
 	case logic.Atom:
-		gs[0] = logic.NewComp(head.Name)
+		goals[0] = logic.NewComp(head.Name)
 	case *logic.Comp:
-		gs[0] = head
+		goals[0] = head
 	default:
 		panic(fmt.Sprintf("Unhandled clause head term type: %T (%v)", clause.Head, clause.Head))
 	}
-	copy(gs[1:], toGoals(clause.Body))
-	return gs
+	copy(goals[1:], toGoals(clause.Body))
+	return goals
 }
 
 func toGoal(term logic.Term) *logic.Comp {
@@ -72,18 +72,18 @@ func toGoal(term logic.Term) *logic.Comp {
 	}
 }
 
-func toGoals(terms []logic.Term) goals {
-	gs := make(goals, len(terms))
+func toGoals(terms []logic.Term) flatClause {
+	goals := make(flatClause, len(terms))
 	for i, term := range terms {
-		gs[i] = toGoal(term)
+		goals[i] = toGoal(term)
 	}
-	return gs
+	return goals
 }
 
-func goalVars(gs goals) []logic.Var {
+func goalVars(goals flatClause) []logic.Var {
 	var xs []logic.Var
 	m := make(map[logic.Var]struct{})
-	for _, goal := range gs {
+	for _, goal := range goals {
 		for _, x := range logic.Vars(goal) {
 			if _, ok := m[x]; ok {
 				continue
@@ -107,7 +107,7 @@ func goalVars(gs goals) []logic.Var {
 // TODO: ignore cuts (and other builtin calls) that we know to preserve
 // registers. For example, in "f(X) :- !, a(X)." X should not be a
 // permanent variable.
-func permanentVars(clause goals) map[logic.Var]struct{} {
+func permanentVars(clause flatClause) map[logic.Var]struct{} {
 	if len(clause) < 2 {
 		return map[logic.Var]struct{}{}
 	}
@@ -135,7 +135,7 @@ func permanentVars(clause goals) map[logic.Var]struct{} {
 	return perm
 }
 
-func numArgs(clause goals) int {
+func numArgs(clause flatClause) int {
 	max := 0
 	for _, term := range clause {
 		n := len(term.Args)
@@ -153,20 +153,20 @@ type compound struct {
 
 // compileCtx wraps all the state necessary to compile a single clause.
 type compileCtx struct {
+	clause  *Clause
 	topReg  RegAddr
 	seen    map[logic.Var]struct{}
 	varAddr map[logic.Var]Addr
 	delayed []compound
 	instrs  []Instruction
-	clause  *Clause
 }
 
 func newCompileCtx(clause *Clause, numArgs int) *compileCtx {
 	return &compileCtx{
+		clause:  clause,
 		topReg:  RegAddr(numArgs),
 		seen:    make(map[logic.Var]struct{}),
 		varAddr: make(map[logic.Var]Addr),
-		clause:  clause,
 	}
 }
 
@@ -390,17 +390,17 @@ func (ctx *compileCtx) termAddr(term logic.Term) Addr {
 // ---- compiling terms
 
 func Compile(clause *logic.Clause) *Clause {
-	return compile(asGoals(clause))
+	return compile(flatten(clause))
 }
 
-func compile(clause goals) *Clause {
+func compile(clause flatClause) *Clause {
 	c := compile0(clause, permanentVars(clause))
 	c.Code = optimizeLastCall(optimizeInstructions(c.Code))
 	return c
 }
 
 func compileQuery(query []logic.Term) *Clause {
-	dummy := make(goals, len(query)+1)
+	dummy := make(flatClause, len(query)+1)
 	dummy[0] = logic.NewComp("dummy")
 	for i, term := range query {
 		dummy[i+1] = toGoal(term)
@@ -430,10 +430,10 @@ func compileQuery(query []logic.Term) *Clause {
 	return c
 }
 
-func (ctx *compileCtx) flattenControl(terms0 goals) goals {
-	terms := make(goals, len(terms0))
+func (ctx *compileCtx) flattenControl(terms0 flatClause) flatClause {
+	terms := make(flatClause, len(terms0))
 	copy(terms, terms0)
-	var body goals
+	var body flatClause
 	labelID := 1
 	for len(terms) > 0 {
 		goal := terms[0]
@@ -456,7 +456,7 @@ func (ctx *compileCtx) flattenControl(terms0 goals) goals {
 			}
 			ctx.clause.Code = append(ctx.clause.Code, ctx.instrs...)
 			// Inline cond, then and else branches, adding control instructions to move around.
-			gs := goals{
+			goals := flatClause{
 				comp("asm", comp("try", comp("instr", ptr(ctx.clause), int_(-thenID)))),
 				comp("asm", comp("trust", comp("instr", ptr(ctx.clause), int_(-elseID)))),
 				comp("asm", comp("label", int_(thenID))),
@@ -468,7 +468,7 @@ func (ctx *compileCtx) flattenControl(terms0 goals) goals {
 				toGoal(else_),
 				comp("asm", comp("label", int_(endID))),
 			}
-			terms = append(gs, terms...)
+			terms = append(goals, terms...)
 		}
 	}
 	return body
@@ -544,7 +544,7 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 	}
 }
 
-func compile0(clause goals, permVars map[logic.Var]struct{}) *Clause {
+func compile0(clause flatClause, permVars map[logic.Var]struct{}) *Clause {
 	functor := toFunctor(clause[0].Indicator())
 	c := &Clause{Functor: functor}
 	ctx := newCompileCtx(c, numArgs(clause))
@@ -703,32 +703,32 @@ func optimizeLabels(code []Instruction) []Instruction {
 // ---- indexing
 
 // Create level-1 index of clauses, based on their first arg.
-func compileClausesWithSameFunctor(ind logic.Indicator, clauses []goals) *Clause {
+func compileClauseGroup(ind logic.Indicator, clauses []flatClause) *Clause {
 	if len(clauses) == 1 {
 		return compile(clauses[0])
 	}
 	if ind.Arity == 0 {
 		// No first arg, impossible to index.
-		return compileSequence(clauses)
+		return compileSequenceNoIndex(clauses)
 	}
-	subSeqs, anyNonVar := splitSubsequences(clauses)
+	seqs, anyNonVar := splitOnVarFirstArg(clauses)
 	if !anyNonVar {
 		// All first arg are vars, impossible to index.
-		return compileSequence(clauses)
+		return compileSequenceNoIndex(clauses)
 	}
 	var numReg int
-	codes := make([]*Clause, len(subSeqs))
-	for i, subSeq := range subSeqs {
-		codes[i] = compileSubSequence(ind, subSeq)
-		if codes[i].NumRegisters > numReg {
-			numReg = codes[i].NumRegisters
+	compiledClauses := make([]*Clause, len(seqs))
+	for i, seq := range seqs {
+		compiledClauses[i] = compileSubSequence(ind, seq)
+		if compiledClauses[i].NumRegisters > numReg {
+			numReg = compiledClauses[i].NumRegisters
 		}
 	}
-	addChoiceLinks(codes)
+	addChoiceLinks(compiledClauses)
 	return &Clause{
 		Functor:      toFunctor(ind),
 		NumRegisters: numReg,
-		Code:         codes[0].Code,
+		Code:         compiledClauses[0].Code,
 	}
 }
 
@@ -739,7 +739,7 @@ func compileClausesWithSameFunctor(ind logic.Indicator, clauses []goals) *Clause
 //
 // Clauses with same first arg are also placed in a linked-list of
 // try-retry-trust instructions.
-func compileSubSequence(ind logic.Indicator, clauses []goals) *Clause {
+func compileSubSequence(ind logic.Indicator, clauses []flatClause) *Clause {
 	var numReg int
 	codes := make([]*Clause, len(clauses))
 	for i, clause := range clauses {
@@ -861,9 +861,9 @@ func compileSubSequence(ind logic.Indicator, clauses []goals) *Clause {
 //    f(U, V).    |--- fourth subsequence
 //    f(X, p(X)).  |-- fifth subsequence
 //
-func splitSubsequences(clauses []goals) ([][]goals, bool) {
-	var buf []goals
-	var subSeqs [][]goals
+func splitOnVarFirstArg(clauses []flatClause) ([][]flatClause, bool) {
+	var buf []flatClause
+	var subSeqs [][]flatClause
 	var anyNonVar bool
 	for _, clause := range clauses {
 		arg := clause[0].Args[0]
@@ -872,7 +872,7 @@ func splitSubsequences(clauses []goals) ([][]goals, bool) {
 				subSeqs = append(subSeqs, buf)
 				buf = nil
 			}
-			subSeqs = append(subSeqs, []goals{clause})
+			subSeqs = append(subSeqs, []flatClause{clause})
 		} else {
 			anyNonVar = true
 			buf = append(buf, clause)
@@ -884,7 +884,7 @@ func splitSubsequences(clauses []goals) ([][]goals, bool) {
 	return subSeqs, anyNonVar
 }
 
-func compileSequence(clauses []goals) *Clause {
+func compileSequenceNoIndex(clauses []flatClause) *Clause {
 	// Compile each clause in isolation.
 	codes := make([]*Clause, len(clauses))
 	for i, clause := range clauses {
@@ -960,20 +960,20 @@ func CompileClauses(clauses []*logic.Clause, options ...CompileOption) ([]*Claus
 		opts[opt] = struct{}{}
 	}
 	// Group clauses by functor and compile each group.
-	m := make(map[logic.Indicator][]goals)
+	m := make(map[logic.Indicator][]flatClause)
 	var order []logic.Indicator
 	for _, clause := range clauses {
-		gs := asGoals(clause)
-		ind := gs[0].Indicator()
+		goals := flatten(clause)
+		ind := goals[0].Indicator()
 		if _, ok := m[ind]; !ok {
 			order = append(order, ind)
 		}
-		m[ind] = append(m[ind], gs)
+		m[ind] = append(m[ind], goals)
 	}
 	var cs []*Clause
 	for _, ind := range order {
 		cs2 := m[ind]
-		cs = append(cs, compileClausesWithSameFunctor(ind, cs2))
+		cs = append(cs, compileClauseGroup(ind, cs2))
 	}
 	// Remove labels from clause bodies.
 	if _, ok := opts[KeepLabels{}]; !ok {
