@@ -28,10 +28,7 @@ func (m *Machine) RunQuery(query ...logic.Term) (map[logic.Var]logic.Term, error
 			m.xs = append(m.xs, x)
 		}
 	}
-	c, err := compileQuery(query)
-	if err != nil {
-		return nil, err
-	}
+	c := compileQuery(query)
 	m.AddClause(c)
 	return m.runOnce()
 }
