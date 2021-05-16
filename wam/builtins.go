@@ -1,12 +1,12 @@
 package wam
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"unicode"
 
 	"github.com/brunokim/logic-engine/dsl"
+	"github.com/brunokim/logic-engine/errors"
 	"github.com/brunokim/logic-engine/logic"
 	"github.com/brunokim/logic-engine/runes"
 )
@@ -160,10 +160,10 @@ func builtinUnicodeCheck(m *Machine, args []Addr) (InstrAddr, error) {
 	}
 	table, ok := unicodeTable[string(category)]
 	if !ok {
-		return m.backtrack(fmt.Errorf("Unknown Unicode table: %q", category))
+		return m.backtrack(errors.New("Unknown Unicode table: %q", category))
 	}
 	if !unicode.Is(table, r) {
-		return m.backtrack(fmt.Errorf("%c is not %s", r, category))
+		return m.backtrack(errors.New("%c is not %s", r, category))
 	}
 	return m.forward()
 }
@@ -177,7 +177,7 @@ func builtinUnicodeIter(m *Machine, args []Addr) (InstrAddr, error) {
 	category := deref(m.Reg[2]).(WAtom)
 	table, ok := unicodeTable[string(category)]
 	if !ok {
-		return m.backtrack(fmt.Errorf("Unknown Unicode table: %q", category))
+		return m.backtrack(errors.New("Unknown Unicode table: %q", category))
 	}
 	chars, ok := unicodeCharsCache[table]
 	if !ok {
@@ -187,7 +187,7 @@ func builtinUnicodeIter(m *Machine, args []Addr) (InstrAddr, error) {
 	i := int(pos)
 	if i >= len(chars) {
 		m.ChoicePoint = m.ChoicePoint.Prev
-		return m.backtrack(fmt.Errorf("no more chars"))
+		return m.backtrack(errors.New("no more chars"))
 	}
 	ch := WAtom(string(chars[i]))
 	i++
@@ -246,7 +246,7 @@ func makeComparisonPredicate(pred comparisonPredicate) func(*Machine, []Addr) (I
 		if o := compareCells(x1, x2); o == pred.accepts1 || o == pred.accepts2 {
 			return m.forward()
 		}
-		return m.backtrack(fmt.Errorf("%v: %v %s %v is false", pred.functor, x1, pred.functor.Name, x2))
+		return m.backtrack(errors.New("%v: %v %s %v is false", pred.functor, x1, pred.functor.Name, x2))
 	}
 }
 

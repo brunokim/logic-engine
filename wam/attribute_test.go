@@ -1,7 +1,7 @@
 package wam_test
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -16,7 +16,7 @@ func firstSolution(solutions <-chan solver.Solution, cancel func()) (solver.Solu
 		return solution, nil
 	case <-time.After(50 * time.Millisecond):
 		cancel()
-		return nil, fmt.Errorf("timeout exceeded")
+		return nil, errors.New("timeout exceeded")
 	}
 }
 

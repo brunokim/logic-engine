@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 
+	"github.com/brunokim/logic-engine/errors"
 	"github.com/brunokim/logic-engine/logic"
 )
 
@@ -41,7 +42,7 @@ func (m *Machine) runOnce() (map[logic.Var]logic.Term, error) {
 		return map[logic.Var]logic.Term{}, nil
 	}
 	if m.Env == nil {
-		return nil, fmt.Errorf("nil env at the end of execution")
+		return nil, errors.New("nil env at the end of execution")
 	}
 	return fromCells(m.xs, m.Env.PermanentVars), nil
 }
@@ -65,7 +66,7 @@ func incrementDebugFilename(filename string) string {
 // NextSolution backtracks on the next choice point and execute that
 // alternate path, returning all bindings that satisfy the original query.
 func (m *Machine) NextSolution() (map[logic.Var]logic.Term, error) {
-	instr, err := m.backtrack(fmt.Errorf("no more solutions"))
+	instr, err := m.backtrack(errors.New("no more solutions"))
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +94,7 @@ func (m *Machine) Run() error {
 	if !m.CodePtr.isValid() {
 		query, ok := m.Code[Functor{}]
 		if !ok {
-			return fmt.Errorf("query clause with empty functor (/0) not found")
+			return errors.New("query clause with empty functor (/0) not found")
 		}
 		m.CodePtr = InstrAddr{Clause: query, Pos: 0}
 	}
@@ -119,7 +120,7 @@ func (m *Machine) Run() error {
 		}
 	}
 	if i >= m.IterLimit {
-		return fmt.Errorf("maximum iteration limit reached: %d", i)
+		return errors.New("maximum iteration limit reached: %d", i)
 	}
 	return nil
 }
@@ -127,7 +128,7 @@ func (m *Machine) Run() error {
 func (m *Machine) runCode(i int) (bool, error) {
 	instr := m.CodePtr.instr()
 	if instr == nil {
-		return false, fmt.Errorf("invalid instruction @ clock %d (did you miss a proceed or deallocate at the end of a clause?)", i)
+		return false, errors.New("invalid instruction @ clock %d (did you miss a proceed or deallocate at the end of a clause?)", i)
 	}
 	if _, ok := instr.(halt); ok {
 		// Return normally when reaching halt instruction.
@@ -135,7 +136,7 @@ func (m *Machine) runCode(i int) (bool, error) {
 	}
 	select {
 	case <-m.interrupt:
-		return false, fmt.Errorf("interrupted @ clock %d", i)
+		return false, errors.New("interrupted @ clock %d", i)
 	default:
 	}
 	m.hasBacktracked = false
@@ -409,7 +410,7 @@ func (m *Machine) restoreFromChoicePoint() {
 func (m *Machine) call(functor Functor) (InstrAddr, error) {
 	clause, ok := m.Code[functor]
 	if !ok {
-		return m.backtrack(fmt.Errorf("clause not found: %v", functor))
+		return m.backtrack(errors.New("clause not found: %v", functor))
 	}
 	return InstrAddr{Clause: clause, Pos: 0}, nil
 }
@@ -424,7 +425,7 @@ func (m *Machine) putMeta(addr Addr, params []Addr) (Functor, error) {
 	case WAtom:
 		name, args = string(c), nil
 	default:
-		return Functor{}, fmt.Errorf("not an atom or struct: %v", cell)
+		return Functor{}, errors.New("not an atom or struct: %v", cell)
 	}
 	n1, n2 := len(args), len(params)
 	copy(m.Reg, args)
@@ -518,7 +519,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		// call clause pointed by a ref or struct.
 		functor, err := m.putMeta(instr.Addr, instr.Params)
 		if err != nil {
-			return m.backtrack(fmt.Errorf("call_meta: %v", err))
+			return m.backtrack(errors.New("call_meta: %v", err))
 		}
 		m.Continuation = m.CodePtr.inc()
 		m.CutChoice = m.ChoicePoint
@@ -531,7 +532,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		// Trampoline into other dynamic clause, without changing the continuation.
 		functor, err := m.putMeta(instr.Addr, instr.Params)
 		if err != nil {
-			return m.backtrack(fmt.Errorf("execute_meta: %v", err))
+			return m.backtrack(errors.New("execute_meta: %v", err))
 		}
 		m.CutChoice = m.ChoicePoint
 		return m.call(functor)
@@ -617,7 +618,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		cell := deref(m.Reg[0]).(Constant)
 		cont, ok := instr.Continuation[cell]
 		if !ok {
-			return m.backtrack(fmt.Errorf("constant index not found: %v", cell))
+			return m.backtrack(errors.New("constant index not found: %v", cell))
 		}
 		return cont, nil
 	case switchOnStruct:
@@ -625,7 +626,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		cell := deref(m.Reg[0]).(*Struct)
 		cont, ok := instr.Continuation[cell.Functor()]
 		if !ok {
-			return m.backtrack(fmt.Errorf("functor index not found: %v", cell.Functor()))
+			return m.backtrack(errors.New("functor index not found: %v", cell.Functor()))
 		}
 		return cont, nil
 	case neckCut:
@@ -646,7 +647,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		m.tidyTrail()
 	case fail:
 		// fail unconditionally.
-		return m.backtrack(fmt.Errorf("fail instruction"))
+		return m.backtrack(errors.New("fail instruction"))
 	case builtin:
 		// calls builtin function.
 		return instr.Func(m, instr.Args)
@@ -654,20 +655,20 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		// Associates attribute to a ref.
 		ref, ok := deref(m.get(instr.Addr)).(*Ref)
 		if !ok {
-			return m.backtrack(fmt.Errorf("put_attr: variable is bound"))
+			return m.backtrack(errors.New("put_attr: variable is bound"))
 		}
 		cell := deref(m.get(instr.Attribute))
 		switch c := cell.(type) {
 		case *Struct:
 			m.setAttribute(ref, c.Name, c)
 		default:
-			return m.backtrack(fmt.Errorf("put_attr: invalid attribute"))
+			return m.backtrack(errors.New("put_attr: invalid attribute"))
 		}
 	case getAttr:
 		// Retrieves attribute associated to ref.
 		ref, ok := deref(m.get(instr.Addr)).(*Ref)
 		if !ok {
-			return m.backtrack(fmt.Errorf("get_attr: variable is bound"))
+			return m.backtrack(errors.New("get_attr: variable is bound"))
 		}
 		cell := deref(m.get(instr.Attribute))
 		var attr Cell
@@ -675,10 +676,10 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		case *Struct:
 			attr = m.getAttribute(ref, c.Name)
 			if attr == nil {
-				return m.backtrack(fmt.Errorf("get_attr: attribute not present"))
+				return m.backtrack(errors.New("get_attr: attribute not present"))
 			}
 		default:
-			return m.backtrack(fmt.Errorf("get_attr: invalid attribute"))
+			return m.backtrack(errors.New("get_attr: invalid attribute"))
 		}
 		return m.preUnify(attr, cell)
 	case inlineUnify:

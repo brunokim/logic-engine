@@ -3,6 +3,8 @@ package wam
 import (
 	"fmt"
 	"sort"
+
+	"github.com/brunokim/logic-engine/errors"
 )
 
 func listPair(head, tail Cell) *Pair {
@@ -133,17 +135,17 @@ func assocsDifference(assocs1, assocs2 []*Pair) ([]match, []*Pair, []*Pair) {
 // unrollDict returns all assoc Pairs that compose a dict, and its parent.
 func unrollDict(d *Pair) ([]*Pair, Cell, error) {
 	if d.Tag != DictPair {
-		return nil, nil, fmt.Errorf("unrollDict: not a dict: %v", d)
+		return nil, nil, errors.New("unrollDict: not a dict: %v", d)
 	}
 	elems, parent := unroll(d)
 	var assocs []*Pair
 	for _, elem := range elems {
 		pair, ok := elem.(*Pair)
 		if !(ok && pair.Tag == AssocPair) {
-			return nil, nil, fmt.Errorf("non-assoc content in dict: %v", elem)
+			return nil, nil, errors.New("non-assoc content in dict: %v", elem)
 		}
 		if !isGround(pair.Head) {
-			return nil, nil, fmt.Errorf("non-ground key in dict: %v", pair.Head)
+			return nil, nil, errors.New("non-ground key in dict: %v", pair.Head)
 		}
 		assocs = insertAssoc(assocs, pair)
 	}
