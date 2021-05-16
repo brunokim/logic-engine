@@ -263,7 +263,7 @@ func (m *Machine) readArg(instr Instruction, arg Cell) (InstrAddr, error) {
 	case unifyValue:
 		// Unify already-seen cell, unifying the address with the arg.
 		cell := m.get(instr.Addr)
-		return m.preUnify(cell, arg)
+		return m.tryUnify(cell, arg)
 	case unifyConstant:
 		// Unify already-seen constant, unifying the address with the arg.
 		return m.readConstant(instr.Constant, arg)
@@ -482,7 +482,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		m.set(instr.Addr, m.Reg[instr.ArgAddr])
 	case getValue:
 		// Unify already-seen clause param with register value.
-		return m.preUnify(m.get(instr.Addr), m.get(instr.ArgAddr))
+		return m.tryUnify(m.get(instr.Addr), m.get(instr.ArgAddr))
 	case getConstant:
 		// Expect a constant from register.
 		return m.readConstant(instr.Constant, m.get(instr.ArgAddr))
@@ -681,10 +681,10 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		default:
 			return m.backtrack(errors.New("get_attr: invalid attribute"))
 		}
-		return m.preUnify(attr, cell)
+		return m.tryUnify(attr, cell)
 	case inlineUnify:
 		// Unify two arbitrary addresses.
-		return m.preUnify(m.get(instr.Addr1), m.get(instr.Addr2))
+		return m.tryUnify(m.get(instr.Addr1), m.get(instr.Addr2))
 	default:
 		panic(fmt.Sprintf("execute: unhandled instruction type %T (%v)", instr, instr))
 	}
@@ -749,7 +749,7 @@ func bindingsToSlice(bs map[*Ref]Cell) []Binding {
 	return bindings
 }
 
-func (m *Machine) preUnify(a1, a2 Cell) (InstrAddr, error) {
+func (m *Machine) tryUnify(a1, a2 Cell) (InstrAddr, error) {
 	bindings, hasAttr, err := m.unifyBindings(a1, a2)
 	if err != nil {
 		return m.backtrack(err)

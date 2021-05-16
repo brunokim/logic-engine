@@ -192,7 +192,7 @@ func builtinUnicodeIter(m *Machine, args []Addr) (InstrAddr, error) {
 	ch := WAtom(string(chars[i]))
 	i++
 	m.ChoicePoint.Args[1] = WInt(i) // Increment position for next backtrack.
-	return m.preUnify(ref, ch)
+	return m.tryUnify(ref, ch)
 }
 
 func builtinUnicodeIterPredicate() *Clause {
@@ -257,7 +257,7 @@ func builtinUnifiable(m *Machine, args []Addr) (InstrAddr, error) {
 	bindings, _, err := m.unifyBindings(x, y)
 	if err != nil {
 		// Unification failed, return empty list of bindings.
-		return m.preUnify(unifier, WAtom("[]"))
+		return m.tryUnify(unifier, WAtom("[]"))
 	}
 	// Undo bindings.
 	for x := range bindings {
@@ -277,7 +277,7 @@ func builtinUnifiable(m *Machine, args []Addr) (InstrAddr, error) {
 	for _, assoc := range assocs {
 		list = listPair(assoc, list)
 	}
-	return m.preUnify(unifier, list)
+	return m.tryUnify(unifier, list)
 }
 
 // ---- type checks
