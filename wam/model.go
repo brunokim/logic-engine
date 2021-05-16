@@ -229,6 +229,11 @@ type getAttr struct {
 	Attribute Addr
 }
 
+type delAttr struct {
+	Addr      Addr
+	Attribute Addr
+}
+
 type inlineUnify struct {
 	Addr1, Addr2 Addr
 }
@@ -272,6 +277,7 @@ func (i fail) isInstruction()             {}
 func (i builtin) isInstruction()          {}
 func (i putAttr) isInstruction()          {}
 func (i getAttr) isInstruction()          {}
+func (i delAttr) isInstruction()          {}
 func (i inlineUnify) isInstruction()      {}
 
 func (i putStruct) String() string {
@@ -452,6 +458,10 @@ func (i putAttr) String() string {
 
 func (i getAttr) String() string {
 	return fmt.Sprintf("get_attr %v, %v", i.Addr, i.Attribute)
+}
+
+func (i delAttr) String() string {
+	return fmt.Sprintf("del_attr %v, %v", i.Addr, i.Attribute)
 }
 
 func (i inlineUnify) String() string {
@@ -656,11 +666,12 @@ type ChoicePoint struct {
 	AttrTrail map[*Ref]map[string]Cell
 
 	// Machine vars to restore
-	Args         []Cell
-	LastRefID    int
-	Env          *Env
-	CutChoice    *ChoicePoint
-	Continuation InstrAddr
+	Args             []Cell
+	LastRefID        int
+	Env              *Env
+	CutChoice        *ChoicePoint
+	Continuation     InstrAddr
+	UnificationFrame *UnificationFrame
 }
 
 type UnificationFrame struct {

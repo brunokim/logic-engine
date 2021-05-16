@@ -360,14 +360,15 @@ func makeStructFrom(f Functor) *Struct {
 func (m *Machine) newChoicePoint(alternative InstrAddr) *ChoicePoint {
 	numArgs := m.CodePtr.Clause.Functor.Arity
 	choicePoint := &ChoicePoint{
-		Prev:            m.ChoicePoint,
-		Continuation:    m.Continuation,
-		NextAlternative: alternative,
-		AttrTrail:       make(map[*Ref]map[string]Cell),
-		Args:            make([]Cell, numArgs),
-		LastRefID:       m.LastRefID,
-		Env:             m.Env,
-		CutChoice:       m.CutChoice,
+		Prev:             m.ChoicePoint,
+		Continuation:     m.Continuation,
+		NextAlternative:  alternative,
+		AttrTrail:        make(map[*Ref]map[string]Cell),
+		Args:             make([]Cell, numArgs),
+		LastRefID:        m.LastRefID,
+		Env:              m.Env,
+		CutChoice:        m.CutChoice,
+		UnificationFrame: m.UnificationFrame,
 	}
 	copy(choicePoint.Args, m.Reg)
 	return choicePoint
@@ -393,6 +394,13 @@ func (m *Machine) getAttribute(ref *Ref, name string) Cell {
 	return attrs[name]
 }
 
+func (m *Machine) deleteAttribute(ref *Ref, name string) {
+	delete(m.attributes[ref.id], name)
+	if len(m.attributes[ref.id]) == 0 {
+		delete(m.attributes, ref.id)
+	}
+}
+
 func (m *Machine) deleteAttributes(ref *Ref) {
 	delete(m.attributes, ref.id)
 }
@@ -404,6 +412,7 @@ func (m *Machine) restoreFromChoicePoint() {
 	m.resetMode()
 	m.Env = m.ChoicePoint.Env
 	m.Continuation = m.ChoicePoint.Continuation
+	m.UnificationFrame = m.ChoicePoint.UnificationFrame
 	m.unwindTrail()
 }
 
@@ -682,6 +691,21 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 			return m.backtrack(errors.New("get_attr: invalid attribute"))
 		}
 		return m.tryUnify(attr, cell)
+	case delAttr:
+		// Deletes attribute associated to ref.
+		ref, ok := deref(m.get(instr.Addr)).(*Ref)
+		if !ok {
+			return m.backtrack(errors.New("del_attr: variable is bound"))
+		}
+		cell := deref(m.get(instr.Attribute))
+		switch c := cell.(type) {
+		case *Struct:
+			m.deleteAttribute(ref, c.Name)
+		case WAtom:
+			m.deleteAttribute(ref, string(c))
+		default:
+			return m.backtrack(errors.New("del_attr: invalid attribute"))
+		}
 	case inlineUnify:
 		// Unify two arbitrary addresses.
 		return m.tryUnify(m.get(instr.Addr1), m.get(instr.Addr2))

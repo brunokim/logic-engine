@@ -77,6 +77,8 @@ var (
 			comp("asm", comp("get_attr", var_("X0"), var_("X1")))),
 		dsl.Clause(comp("put_attr", var_("X"), var_("Attr")),
 			comp("asm", comp("put_attr", var_("X0"), var_("X1")))),
+		dsl.Clause(comp("del_attr", var_("X"), var_("Attr")),
+			comp("asm", comp("del_attr", var_("X0"), var_("X1")))),
 		dsl.Clause(comp("$join_attribute", var_("AttrName"), var_("X"), var_("Y")),
 			comp("asm", comp("call", atom("join_attribute/3"))),
 			comp("asm", comp("proceed", atom("unify")))),

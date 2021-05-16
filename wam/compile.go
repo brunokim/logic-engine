@@ -534,6 +534,11 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 		attr := ctx.termAddr(term.Args[1])
 		ctx.instrs = append(ctx.instrs, putAttr{x, attr})
 		return ctx.instrs
+	case dsl.Indicator("del_attr", 2):
+		x := ctx.termAddr(term.Args[0])
+		attr := ctx.termAddr(term.Args[1])
+		ctx.instrs = append(ctx.instrs, delAttr{x, attr})
+		return ctx.instrs
 	default:
 		// Regular goal: put term args into registers X0-Xn and issue a call to f/n.
 		for i, arg := range term.Args {

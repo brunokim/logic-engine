@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/brunokim/logic-engine/solver"
+	"github.com/brunokim/logic-engine/test_helpers"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -112,6 +113,43 @@ func TestAttributeBacktrack(t *testing.T) {
 		solver.Solution{var_("X"): int_(4)},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("(-want,+got):\n%s", diff)
+		t.Log(s.Err)
+	}
+}
+
+func TestDeleteAttribute(t *testing.T) {
+	s, err := solver.New(`
+        join_attribute(only, X, Y) :-
+            get_attr(X, only(V1)),
+            ->(get_attr(Y, only(V2)),
+                =(V1, V2),
+                true),
+            put_attr(Y, only(V1)).
+
+        check_attribute(only(V1), V2) :-
+            =(V1, V2).
+    `)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.SetDebug("debugtest/attribute-delete.jsonl")
+	s.SetIterLimit(100)
+
+	got, err := firstSolution(s.Query(`
+        put_attr(X, only(1)),
+        put_attr(Y, only(2)),
+        \=(X, Y),
+        del_attr(Y, only),
+        =(X, Y),
+        \=(X, 2),
+        =(X, 1),
+    `))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := solver.Solution{var_("X"): int_(1), var_("Y"): var_("X")}
+	if diff := cmp.Diff(want, got, test_helpers.IgnoreUnexported); diff != "" {
 		t.Errorf("(-want,+got):\n%s", diff)
 		t.Log(s.Err)
 	}

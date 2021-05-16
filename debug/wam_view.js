@@ -434,6 +434,7 @@ export class Wam {
         case "executeMeta":
         case "putAttr":
         case "getAttr":
+        case "delAttr":
             return instr.Addr
         case "unifyVoid":
         case "allocate":
@@ -489,6 +490,7 @@ export class Wam {
             return olist(instr.Params)
         case "putAttr":
         case "getAttr":
+        case "delAttr":
             return instr.Attribute
         case "inlineUnify":
             return instr.Addr2

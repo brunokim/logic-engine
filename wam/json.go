@@ -272,7 +272,7 @@ func (enc *machineEncoder) instructionField(v interface{}) interface{} {
 			im[key] = enc.instrAddr(instrAddr)
 		}
 		return im
-	case func(*Machine, []Addr) error:
+	case func(*Machine, []Addr) (InstrAddr, error):
 		return funcName(v)
 	case map[int]map[string]Cell:
 		im := make(map[string]interface{})
