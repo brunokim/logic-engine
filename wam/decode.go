@@ -141,9 +141,9 @@ func decodeFunctorInstrMap(t logic.Term) map[Functor]InstrAddr {
 	return m
 }
 
-func decodeMachineFunc(t logic.Term) func(*Machine, []Addr) error {
+func decodeMachineFunc(t logic.Term) func(*Machine, []Addr) (InstrAddr, error) {
 	ptr := t.(logic.Ptr)
-	return ptr.Value.(func(*Machine, []Addr) error)
+	return ptr.Value.(func(*Machine, []Addr) (InstrAddr, error))
 }
 
 // DecodeInstruction builds an instruction from its representation as a logic term.

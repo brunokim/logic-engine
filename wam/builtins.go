@@ -150,34 +150,34 @@ var unicodeTable = map[string]*unicode.RangeTable{
 	"space":  unicode.White_Space,
 }
 
-func builtinUnicodeCheck(m *Machine, args []Addr) error {
+func builtinUnicodeCheck(m *Machine, args []Addr) (InstrAddr, error) {
 	ch := deref(m.get(args[0])).(WAtom)
 	category := deref(m.get(args[1])).(WAtom)
 
 	r, ok := runes.Single(string(ch))
 	if !ok {
-		return errors.New("Ch is not a single rune")
+		return m.backtrack(errors.New("Ch is not a single rune"))
 	}
 	table, ok := unicodeTable[string(category)]
 	if !ok {
-		return fmt.Errorf("Unknown Unicode table: %q", category)
+		return m.backtrack(fmt.Errorf("Unknown Unicode table: %q", category))
 	}
 	if !unicode.Is(table, r) {
-		return fmt.Errorf("%c is not %s", r, category)
+		return m.backtrack(fmt.Errorf("%c is not %s", r, category))
 	}
-	return nil
+	return m.forward()
 }
 
 var unicodeCharsCache = map[*unicode.RangeTable][]rune{}
 
-func builtinUnicodeIter(m *Machine, args []Addr) error {
+func builtinUnicodeIter(m *Machine, args []Addr) (InstrAddr, error) {
 	m.restoreFromChoicePoint()
 	ref := deref(m.Reg[0]).(*Ref)
 	pos := deref(m.Reg[1]).(WInt)
 	category := deref(m.Reg[2]).(WAtom)
 	table, ok := unicodeTable[string(category)]
 	if !ok {
-		return fmt.Errorf("Unknown Unicode table: %q", category)
+		return m.backtrack(fmt.Errorf("Unknown Unicode table: %q", category))
 	}
 	chars, ok := unicodeCharsCache[table]
 	if !ok {
@@ -187,13 +187,12 @@ func builtinUnicodeIter(m *Machine, args []Addr) error {
 	i := int(pos)
 	if i >= len(chars) {
 		m.ChoicePoint = m.ChoicePoint.Prev
-		return fmt.Errorf("no more chars")
+		return m.backtrack(fmt.Errorf("no more chars"))
 	}
 	ch := WAtom(string(chars[i]))
-	m.bindRef(ref, ch) // TODO: handle attributed var.
 	i++
 	m.ChoicePoint.Args[1] = WInt(i) // Increment position for next backtrack.
-	return nil
+	return m.preUnify(ref, ch)
 }
 
 func builtinUnicodeIterPredicate() *Clause {
@@ -241,25 +240,24 @@ func builtinComparisonPredicate(pred comparisonPredicate) *Clause {
 	}
 }
 
-func makeComparisonPredicate(pred comparisonPredicate) func(*Machine, []Addr) error {
-	return func(m *Machine, args []Addr) error {
+func makeComparisonPredicate(pred comparisonPredicate) func(*Machine, []Addr) (InstrAddr, error) {
+	return func(m *Machine, args []Addr) (InstrAddr, error) {
 		x1, x2 := deref(m.get(args[0])), deref(m.get(args[1]))
 		if o := compareCells(x1, x2); o == pred.accepts1 || o == pred.accepts2 {
-			return nil
+			return m.forward()
 		}
-		return fmt.Errorf("%v: %v %s %v is false", pred.functor, x1, pred.functor.Name, x2)
+		return m.backtrack(fmt.Errorf("%v: %v %s %v is false", pred.functor, x1, pred.functor.Name, x2))
 	}
 }
 
 // ---- dif
 
-func builtinUnifiable(m *Machine, args []Addr) error {
+func builtinUnifiable(m *Machine, args []Addr) (InstrAddr, error) {
 	x, y, unifier := m.get(args[0]), m.get(args[1]), m.get(args[2])
 	bindings, _, err := m.unifyBindings(x, y)
 	if err != nil {
 		// Unification failed, return empty list of bindings.
-		m.bind(unifier, WAtom("[]"))
-		return nil
+		return m.preUnify(unifier, WAtom("[]"))
 	}
 	// Undo bindings.
 	for x := range bindings {
@@ -279,8 +277,7 @@ func builtinUnifiable(m *Machine, args []Addr) error {
 	for _, assoc := range assocs {
 		list = listPair(assoc, list)
 	}
-	m.bind(unifier, list)
-	return nil
+	return m.preUnify(unifier, list)
 }
 
 // ---- type checks
@@ -319,12 +316,12 @@ func builtinTypeCheckInstruction(pred typeCheckPredicate, x Addr) builtin {
 	}
 }
 
-func makeTypeCheckPredicate(pred typeCheckPredicate) func(m *Machine, args []Addr) error {
-	return func(m *Machine, args []Addr) error {
+func makeTypeCheckPredicate(pred typeCheckPredicate) func(m *Machine, args []Addr) (InstrAddr, error) {
+	return func(m *Machine, args []Addr) (InstrAddr, error) {
 		if typeCheck(m, args[0]) == pred.name {
-			return nil
+			return m.forward()
 		}
-		return pred.err
+		return m.backtrack(pred.err)
 	}
 }
 

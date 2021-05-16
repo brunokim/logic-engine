@@ -719,7 +719,7 @@ func compileClauseGroup(ind logic.Indicator, clauses []flatClause) *Clause {
 	var numReg int
 	compiledClauses := make([]*Clause, len(seqs))
 	for i, seq := range seqs {
-		compiledClauses[i] = compileSubSequence(ind, seq)
+		compiledClauses[i] = compileSequence(ind, seq)
 		if compiledClauses[i].NumRegisters > numReg {
 			numReg = compiledClauses[i].NumRegisters
 		}
@@ -739,7 +739,7 @@ func compileClauseGroup(ind logic.Indicator, clauses []flatClause) *Clause {
 //
 // Clauses with same first arg are also placed in a linked-list of
 // try-retry-trust instructions.
-func compileSubSequence(ind logic.Indicator, clauses []flatClause) *Clause {
+func compileSequence(ind logic.Indicator, clauses []flatClause) *Clause {
 	var numReg int
 	codes := make([]*Clause, len(clauses))
 	for i, clause := range clauses {

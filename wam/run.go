@@ -649,9 +649,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		return m.backtrack(fmt.Errorf("fail instruction"))
 	case builtin:
 		// calls builtin function.
-		if err := instr.Func(m, instr.Args); err != nil {
-			return m.backtrack(err)
-		}
+		return instr.Func(m, instr.Args)
 	case putAttr:
 		// Associates attribute to a ref.
 		ref, ok := deref(m.get(instr.Addr)).(*Ref)

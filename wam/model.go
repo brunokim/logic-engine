@@ -216,7 +216,7 @@ type fail struct{}
 type builtin struct {
 	Name string
 	Args []Addr
-	Func func(*Machine, []Addr) error
+	Func func(*Machine, []Addr) (InstrAddr, error)
 }
 
 type putAttr struct {
