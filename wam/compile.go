@@ -445,6 +445,27 @@ func (ctx *compileCtx) flattenControl(terms0 flatClause) flatClause {
 		switch goal.Indicator() {
 		default:
 			body = append(body, goal)
+		case dsl.Indicator("\\+", 1):
+			target := goal.Args[0]
+			targetID, endID := labelID, labelID+1
+			labelID += 2
+			// Ensure that variables referenced within Target are initialized.
+			ctx.instrs = nil
+			for _, x := range logic.Vars(goal) {
+				ctx.ensureVar(x)
+			}
+			ctx.clause.Code = append(ctx.clause.Code, ctx.instrs...)
+			// Inline \+(Target) :- ->(Target, false, true).
+			goals := flatClause{
+				comp("asm", comp("try", comp("instr", ptr(ctx.clause), int_(-targetID)))),
+				comp("asm", comp("trust", comp("instr", ptr(ctx.clause), int_(-endID)))),
+				comp("asm", comp("label", int_(targetID))),
+				toGoal(target),
+				comp("asm", atom("cut")),
+				comp("asm", atom("fail")),
+				comp("asm", comp("label", int_(endID))),
+			}
+			terms = append(goals, terms...)
 		case dsl.Indicator("->", 3):
 			cond, then_, else_ := goal.Args[0], goal.Args[1], goal.Args[2]
 			thenID, elseID, endID := labelID, labelID+1, labelID+2
