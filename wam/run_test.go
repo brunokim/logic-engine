@@ -889,31 +889,6 @@ func TestCallMeta(t *testing.T) {
 	}
 }
 
-func TestMetaMetaCall(t *testing.T) {
-	m := wam.NewMachine()
-	m.IterLimit = 30
-	m.DebugFilename = "debugtest/meta-meta-call.jsonl"
-
-	// p(a).
-	// ?- call(call(p, X))
-	clauses, err := wam.CompileClauses([]*logic.Clause{
-		dsl.Clause(comp("p", atom("a"))),
-	})
-	if err != nil {
-		t.Fatalf("CompileClauses: %v", err)
-	}
-	for _, clause := range clauses {
-		m.AddClause(clause)
-	}
-	bindings, err := m.RunQuery(comp("call", comp("call", atom("p"), var_("X"))))
-	if err != nil {
-		t.Fatalf("expected nil, got err: %v", err)
-	}
-	if v := bindings[var_("X")]; v != atom("a") {
-		t.Errorf("X = %v (want %v)", v, atom("a"))
-	}
-}
-
 func TestIf(t *testing.T) {
 	m := wam.NewMachine()
 	m.IterLimit = 200

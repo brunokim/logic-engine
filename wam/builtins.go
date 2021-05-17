@@ -43,42 +43,11 @@ var (
 var (
 	failClause = &Clause{Functor{"fail", 0}, 0, []Instruction{fail{}}}
 	preamble   = []*logic.Clause{
-		// =(X, X).
-		dsl.Clause(comp("=", var_("X"), var_("X"))),
-
-		// true.
-		// false :- fail.
-		dsl.Clause(atom("true")),
-		dsl.Clause(atom("false"), atom("fail")),
-
-		// ->(Cond, Then,    _) :- Cond, !, Then.
-		// ->(   _,    _, Else) :- Else.
-		dsl.Clause(comp("->", var_("Cond"), var_("Then"), var_("_")),
-			var_("Cond"), atom("!"), var_("Then")),
-		dsl.Clause(comp("->", var_("_"), var_("_"), var_("Else")),
-			var_("Else")),
-
-		// \+(Goal) :- ->(Goal, false, true).
-		// \=(X, Y) :- \+(=(X, Y)).
-		dsl.Clause(comp("\\+", var_("Goal")),
-			comp("->", var_("Goal"), atom("false"), atom("true"))),
+		// This function can't be moved to base.pl because it's used by the parser.
 		dsl.Clause(comp("\\=", var_("X"), var_("Y")),
 			comp("\\+", comp("=", var_("X"), var_("Y")))),
 
-		dsl.Clause(
-			comp("and", var_("A")),
-			var_("A")),
-		dsl.Clause(
-			comp("and", var_("A"), var_("B")),
-			var_("A"), var_("B")),
-
-		// Attributes
-		dsl.Clause(comp("get_attr", var_("X"), var_("Attr")),
-			comp("asm", comp("get_attr", var_("X0"), var_("X1")))),
-		dsl.Clause(comp("put_attr", var_("X"), var_("Attr")),
-			comp("asm", comp("put_attr", var_("X0"), var_("X1")))),
-		dsl.Clause(comp("del_attr", var_("X"), var_("Attr")),
-			comp("asm", comp("del_attr", var_("X0"), var_("X1")))),
+		// Basic attribute checker machinery.
 		dsl.Clause(comp("$join_attribute", var_("AttrName"), var_("X"), var_("Y")),
 			comp("asm", comp("call", atom("join_attribute/3"))),
 			comp("asm", comp("proceed", atom("unify")))),
@@ -86,44 +55,11 @@ var (
 			comp("asm", comp("call", atom("check_attribute/2"))),
 			comp("asm", comp("proceed", atom("unify")))),
 
-		// Compiled calls to call/n are inlined into the instruction call_meta.
-		// These functions are used when referenced by (meta-)meta-calls, and
-		// are limited to 8 args.
-		// They are not self-referential, since the body occurrence of
-		// call(A, B, ...) is inlined to a call_meta instruction.
-		dsl.Clause(
-			comp("call", var_("Fn")),
-			comp("call", var_("Fn"))),
-		dsl.Clause(
-			comp("call", var_("Fn"), var_("A")),
-			comp("call", var_("Fn"), var_("A"))),
-		dsl.Clause(
-			comp("call", var_("Fn"), var_("A"), var_("B")),
-			comp("call", var_("Fn"), var_("A"), var_("B"))),
-		dsl.Clause(
-			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C")),
-			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"))),
-		dsl.Clause(
-			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D")),
-			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"))),
-		dsl.Clause(
-			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E")),
-			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E"))),
-		dsl.Clause(
-			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E"), var_("F")),
-			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E"), var_("F"))),
-		dsl.Clause(
-			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E"), var_("F"), var_("G")),
-			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E"), var_("F"), var_("G"))),
-		dsl.Clause(
-			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E"), var_("F"), var_("G"), var_("H")),
-			comp("call", var_("Fn"), var_("A"), var_("B"), var_("C"), var_("D"), var_("E"), var_("F"), var_("G"), var_("H"))),
-
-		// Unifiable
+		// Unifiable builtin.
 		dsl.Clause(comp("unifiable", var_("X"), var_("Y"), var_("Unifier")),
 			comp("asm", comp("builtin", atom("unifiable"), ptr(builtinUnifiable), var_("X0"), var_("X1"), var_("X2")))),
 
-		// Unicode
+		// Unicode builtins.
 		dsl.Clause(comp("unicode_check", var_("Ch"), var_("Category")),
 			comp("asm", comp("builtin", atom("unicode_check"), ptr(builtinUnicodeCheck), var_("X0"), var_("X1")))),
 		dsl.Clause(comp("unicode_category", var_("Ch"), var_("Category")),
