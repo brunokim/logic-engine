@@ -3,7 +3,9 @@
 package solver
 
 import (
+	"embed"
 	"fmt"
+	"io/fs"
 	"sort"
 	"strings"
 
@@ -11,6 +13,38 @@ import (
 	"github.com/brunokim/logic-engine/parser"
 	"github.com/brunokim/logic-engine/wam"
 )
+
+//go:embed lib
+var f embed.FS
+
+var libCompiled []*wam.Clause
+
+func init() {
+	var clauses []*logic.Clause
+	err := fs.WalkDir(f, ".", func(path string, d fs.DirEntry, err error) error {
+		if d.IsDir() {
+			return nil
+		}
+		bs, err := f.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		cs, err := parser.ParseClauses(string(bs))
+		if err != nil {
+			return err
+		}
+		clauses = append(clauses, cs...)
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
+	compiled, err := wam.CompileClauses(clauses)
+	if err != nil {
+		panic(err)
+	}
+	libCompiled = compiled
+}
 
 // Solver provides an asynchronous interface for enumerating the solutions
 // of a logic query.
@@ -61,6 +95,9 @@ func NewSolverFromClauses(clauses []*logic.Clause) (*Solver, error) {
 	solver := new(Solver)
 	solver.m = wam.NewMachine()
 	for _, clause := range compiled {
+		solver.m.AddClause(clause)
+	}
+	for _, clause := range libCompiled {
 		solver.m.AddClause(clause)
 	}
 	return solver, nil

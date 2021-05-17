@@ -11,6 +11,7 @@ import (
 	"github.com/brunokim/logic-engine/test_helpers"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
 var (
@@ -20,6 +21,9 @@ var (
 	int_    = dsl.Int
 	var_    = dsl.Var
 	comp    = dsl.Comp
+	list    = dsl.List
+	ilist   = dsl.IList
+	svar    = dsl.SVar
 )
 
 func TestSolve(t *testing.T) {
@@ -99,5 +103,48 @@ func TestSolve_Cancel(t *testing.T) {
 		t.Errorf("expected interrupted error, got: %v", s.Err)
 	} else {
 		t.Log(s.Err)
+	}
+}
+
+func TestSolve_Lib(t *testing.T) {
+	tests := []struct {
+		query string
+		want  []solver.Solution
+	}{
+		{"append([], [1, 2], L)", []solver.Solution{{var_("L"): list(int_(1), int_(2))}}},
+		{"append([1], [2|T], L)", []solver.Solution{{var_("L"): ilist(int_(1), int_(2), var_("T")), var_("T"): svar("_X", 1)}}},
+		{
+			"append(X, Y, [1, 2, 3])",
+			[]solver.Solution{
+				{var_("X"): list(), var_("Y"): list(int_(1), int_(2), int_(3))},
+				{var_("X"): list(int_(1)), var_("Y"): list(int_(2), int_(3))},
+				{var_("X"): list(int_(1), int_(2)), var_("Y"): list(int_(3))},
+				{var_("X"): list(int_(1), int_(2), int_(3)), var_("Y"): list()},
+			},
+		},
+		{"member(1, [3, 2, 1])", []solver.Solution{{}}},
+		{"member(2, [3, 2, 2])", []solver.Solution{{}, {}}},
+		{"member(4, [3, 2, 1])", []solver.Solution{}},
+		{
+			"member(f(X), [f(a), g(b), h(c), f(d)])",
+			[]solver.Solution{
+				{var_("X"): atom("a")},
+				{var_("X"): atom("d")},
+			},
+		},
+	}
+	for _, test := range tests {
+		s, err := solver.New("")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []solver.Solution
+		solutions, _ := s.Query(test.query)
+		for solution := range solutions {
+			got = append(got, solution)
+		}
+		if diff := cmp.Diff(test.want, got, cmpopts.EquateEmpty(), test_helpers.IgnoreUnexported); diff != "" {
+			t.Errorf("%q: (-want, +got)\n%s", test.query, diff)
+		}
 	}
 }
