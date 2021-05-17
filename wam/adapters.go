@@ -47,6 +47,21 @@ func fromCells(xs []logic.Var, cells []Cell) map[logic.Var]logic.Term {
 	for _, cell := range cells {
 		ctx.fromCell(cell)
 	}
+	// Filter variables bound only to generated vars (i.e., those not
+	// present in query.
+	xset := make(map[logic.Var]bool)
+	for _, x := range xs {
+		xset[x] = true
+	}
+	var toDelete []logic.Var
+	for x, term := range ctx.bindings {
+		if y, ok := term.(logic.Var); ok && !xset[y] {
+			toDelete = append(toDelete, x)
+		}
+	}
+	for _, x := range toDelete {
+		delete(ctx.bindings, x)
+	}
 	return ctx.bindings
 }
 

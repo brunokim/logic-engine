@@ -194,8 +194,8 @@ func builtinUnifiable(m *Machine, args []Addr) (InstrAddr, error) {
 	x, y, unifier := m.get(args[0]), m.get(args[1]), m.get(args[2])
 	bindings, _, err := m.unifyBindings(x, y)
 	if err != nil {
-		// Unification failed, return empty list of bindings.
-		return m.tryUnify(unifier, WAtom("[]"))
+		// Unification failed.
+		return m.backtrack(err)
 	}
 	// Undo bindings.
 	for x := range bindings {

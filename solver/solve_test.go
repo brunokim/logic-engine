@@ -23,7 +23,6 @@ var (
 	comp    = dsl.Comp
 	list    = dsl.List
 	ilist   = dsl.IList
-	svar    = dsl.SVar
 )
 
 func TestSolve(t *testing.T) {
@@ -112,7 +111,7 @@ func TestSolve_Lib(t *testing.T) {
 		want  []solver.Solution
 	}{
 		{"append([], [1, 2], L)", []solver.Solution{{var_("L"): list(int_(1), int_(2))}}},
-		{"append([1], [2|T], L)", []solver.Solution{{var_("L"): ilist(int_(1), int_(2), var_("T")), var_("T"): svar("_X", 1)}}},
+		{"append([1], [2|T], L)", []solver.Solution{{var_("L"): ilist(int_(1), int_(2), var_("T"))}}},
 		{
 			"append(X, Y, [1, 2, 3])",
 			[]solver.Solution{

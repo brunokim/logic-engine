@@ -1,6 +1,7 @@
 package wam_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/brunokim/logic-engine/dsl"
@@ -100,23 +101,60 @@ func TestComparison(t *testing.T) {
 }
 
 func TestUnifiable(t *testing.T) {
-	m := wam.NewMachine()
-	m.DebugFilename = "debugtest/builtin-unifiable.jsonl"
-	solution, err := m.RunQuery(
-		comp("unifiable",
-			comp("f", var_("X"), comp("g", atom("b")), comp("h", var_("Y"))),
-			comp("f", comp("h", comp("g", var_("Z"))), var_("Y"), var_("X")),
-			var_("Unifier")))
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		query   []logic.Term
+		want    logic.Term
+		wantErr bool
+	}{
+		{
+			[]logic.Term{
+				comp("unifiable",
+					comp("f", var_("X"), comp("g", atom("b")), comp("h", var_("Y"))),
+					comp("f", comp("h", comp("g", var_("Z"))), var_("Y"), var_("X")),
+					var_("Unifier")),
+			},
+			list(
+				assoc(var_("Y"), comp("g", atom("b"))),
+				assoc(var_("X"), comp("h", comp("g", var_("Z")))),
+				assoc(var_("Z"), atom("b"))),
+			false,
+		},
+		{
+			[]logic.Term{comp("unifiable", var_("X"), var_("Y"), var_("Unifier"))},
+			list(assoc(var_("Y"), var_("X"))),
+			false,
+		},
+		{
+			[]logic.Term{comp("unifiable", atom("a"), atom("b"), var_("Unifier"))},
+			nil,
+			true,
+		},
+		{
+			[]logic.Term{
+				comp("=", var_("X"), var_("Y")),
+				comp("unifiable", comp("f", var_("X")), comp("f", var_("Y")), var_("Unifier")),
+			},
+			list(),
+			false,
+		},
 	}
-	got := solution[var_("Unifier")]
-	want := list(
-		assoc(var_("Y"), comp("g", atom("b"))),
-		assoc(var_("X"), comp("h", comp("g", var_("Z")))),
-		assoc(var_("Z"), atom("b")))
-	if diff := cmp.Diff(want, got, test_helpers.IgnoreUnexported); diff != "" {
-		t.Errorf("(-want,+got)\n%s", diff)
+	for i, test := range tests {
+		m := wam.NewMachine()
+		m.DebugFilename = fmt.Sprintf("debugtest/builtin-unifiable-%d.jsonl", i)
+		solution, err := m.RunQuery(test.query...)
+		if err != nil && !test.wantErr {
+			t.Fatal(err)
+		}
+		if test.wantErr {
+			if len(solution) > 0 {
+				t.Errorf("%v: want err, got solution: %v", test.query, solution)
+			}
+			continue
+		}
+		got := solution[var_("Unifier")]
+		if diff := cmp.Diff(test.want, got, test_helpers.IgnoreUnexported); diff != "" {
+			t.Errorf("%v: (-want,+got)\n%s", test.query, diff)
+		}
 	}
 }
 
