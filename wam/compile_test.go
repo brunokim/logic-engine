@@ -5,6 +5,7 @@ import (
 
 	"github.com/brunokim/logic-engine/dsl"
 	"github.com/brunokim/logic-engine/logic"
+	"github.com/brunokim/logic-engine/test_helpers"
 	"github.com/brunokim/logic-engine/wam"
 
 	"github.com/google/go-cmp/cmp"
@@ -468,5 +469,60 @@ func TestCompileClauses(t *testing.T) {
 		if diff := cmp.Diff(test.want, got, cmpopts.IgnoreFields(instr{}, "Clause")); diff != "" {
 			t.Errorf("%v: (-want, +got)%s", test.clauses, diff)
 		}
+	}
+}
+
+func TestCompilePackage(t *testing.T) {
+	pkg1 := wam.NewPackage("pkg1")
+	f1 := wam.Functor{"f", 1}
+	f2 := wam.Functor{"f", 2}
+	pkg1.Exported[f1] = &wam.Clause{Pkg: pkg1, Functor: f1}
+	pkg1.Internal[f2] = &wam.Clause{Pkg: pkg1, Functor: f2}
+
+	pkg2 := wam.NewPackage("pkg2")
+	g1 := wam.Functor{"g", 1}
+	pkg2.Imported[f1] = pkg1.Exported[f1]
+	pkg2.Exported[g1] = &wam.Clause{Pkg: pkg2, Functor: g1}
+
+	m := wam.NewMachine()
+	m.AddPackage(pkg1)
+	m.AddPackage(pkg2)
+	err := m.CompilePackage("pkg3", []*logic.Clause{
+		dsl.Clause(comp("package", atom("pkg3"),
+			list(atom("pkg1"), atom("pkg2")),
+			list(atom("f/1"), atom("g/2")))),
+		dsl.Clause(comp("f", atom("a"))),
+		dsl.Clause(comp("g", var_("A"), var_("B")),
+			comp("g", var_("A"), var_("B"), int_(3))),
+		dsl.Clause(comp("g", int_(1), int_(2), var_("_"))),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkg3 := m.Packages["pkg3"]
+	g2 := wam.Functor{"g", 2}
+	g3 := wam.Functor{"g", 3}
+	want := &wam.Package{
+		Name: "pkg3",
+		Exported: map[wam.Functor]*wam.Clause{
+			f1: &wam.Clause{Pkg: pkg3, Functor: f1},
+			g2: &wam.Clause{Pkg: pkg3, Functor: g2},
+		},
+		Imported: map[wam.Functor]*wam.Clause{
+			f1: &wam.Clause{Pkg: pkg1, Functor: f1},
+			g1: &wam.Clause{Pkg: pkg2, Functor: g1},
+		},
+		Internal: map[wam.Functor]*wam.Clause{
+			g3: &wam.Clause{Pkg: pkg3, Functor: g3},
+		},
+	}
+	opts := cmp.Options{
+		test_helpers.IgnoreUnexported,
+		// TODO: somehow test that Pkg field is as expected. cmp does not support
+		// recursive references.
+		cmpopts.IgnoreFields(wam.Clause{}, "Pkg", "NumRegisters", "Code"),
+	}
+	if diff := cmp.Diff(want, pkg3, opts...); diff != "" {
+		t.Errorf("(-want, +got):\n%s", diff)
 	}
 }

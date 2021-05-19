@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/brunokim/logic-engine/dsl"
+	"github.com/brunokim/logic-engine/errors"
 	"github.com/brunokim/logic-engine/logic"
 )
 
@@ -13,17 +14,24 @@ var functorRE = regexp.MustCompile(`^(.+)/(\d+)$`)
 
 func decodeFunctor(t logic.Term) Functor {
 	a := t.(logic.Atom)
-	s := a.Name
+	fn, err := ParseFunctor(a.Name)
+	if err != nil {
+		panic(err)
+	}
+	return fn
+}
+
+func ParseFunctor(s string) (Functor, error) {
 	matches := functorRE.FindStringSubmatch(s)
 	if len(matches) != 3 {
-		panic(fmt.Sprintf("%q doesn't match a functor pattern", s))
+		return Functor{}, errors.New("%q doesn't match a functor pattern", s)
 	}
 	name, arityStr := matches[1], matches[2]
 	arity, err := strconv.Atoi(arityStr)
 	if err != nil {
-		panic(fmt.Sprintf("invalid arity for functor %q: %v", s, err))
+		return Functor{}, errors.New("invalid arity for functor %q: %v", s, err)
 	}
-	return Functor{name, arity}
+	return Functor{name, arity}, nil
 }
 
 func decodeAddr(t logic.Term) Addr {

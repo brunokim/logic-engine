@@ -69,9 +69,6 @@ Imported packages are looked up in `<name>.pl` files in the library directory.
 All exported predicates from imported packages are placed in the current package, with
 no renaming.
    
-    // Global variable
-    var Packages = map[string]*Package{}
-
     type Package struct {
         Name string
         Imported map[Functor]*Clause
@@ -82,9 +79,25 @@ no renaming.
     type Clause struct {
         Package *Package
         Functor Functor
-        NumRegisters int
-        Code []Instruction
+        ...
+    }
+
+    type Machine struct {
+        Packages map[string]*Package
+        ...
     }
 
 Call clause lookup is performed first in Internal, then in Exported, then in Imported.
 This allows a package to shadow an imported predicate.
+
+    pkg := &Package{
+        Name: "list",
+        Exported: map[Functor]*Clause{
+            "append/3": &Clause{...},
+        },
+    }
+    m := wam.NewMachine()
+    m.Packages["list"] = pkg
+    m.RunQuery(
+        comp("import", atom("list")),
+        comp("append", atom("[]"), list(int_(1)), var_("L")))

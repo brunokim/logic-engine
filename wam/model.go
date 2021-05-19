@@ -21,6 +21,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/brunokim/logic-engine/errors"
 	"github.com/brunokim/logic-engine/logic"
 )
 
@@ -493,6 +494,24 @@ type InstrAddr struct {
 	Pos    int
 }
 
+// NewPackage creates an empty named package.
+func NewPackage(name string) *Package {
+	pkg := new(Package)
+	pkg.Name = name
+	pkg.Imported = make(map[Functor]*Clause)
+	pkg.Exported = make(map[Functor]*Clause)
+	pkg.Internal = make(map[Functor]*Clause)
+	return pkg
+}
+
+func addClause(index map[Functor]*Clause, clause *Clause) error {
+	if _, ok := index[clause.Functor]; ok {
+		return errors.New("overwriting clause %v", clause.Functor)
+	}
+	index[clause.Functor] = clause
+	return nil
+}
+
 func (ia InstrAddr) isValid() bool {
 	if ia.Clause == nil {
 		return false
@@ -735,6 +754,9 @@ type Binding struct {
 type Machine struct {
 	//
 	Mode ExecutionMode
+
+	// Compiled packages, indexed by package name.
+	Packages map[string]*Package
 
 	// Instruction list. A query is represented by an empty functor.
 	Code map[Functor]*Clause

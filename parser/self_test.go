@@ -9,6 +9,8 @@ import (
 )
 
 var text = `
+    package(parser, [], ['parse/2', 'parse_kb/2', 'parse_query/2']).
+
     % Parse term
     parse(Chars, Tree) :-
         ws(Chars, Ch1),
