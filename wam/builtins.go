@@ -11,18 +11,21 @@ import (
 	"github.com/brunokim/logic-engine/runes"
 )
 
-var builtins []*Clause
+var builtinsPkg = NewPackage("builtin")
 
 func init() {
-	builtins = CompileClauses(preamble)
-	builtins = append(builtins,
-		failClause,
-		builtinUnicodeIterPredicate())
+	builtins := CompileClauses(preamble)
+	for _, clause := range builtins {
+		clause.Pkg = builtinsPkg
+		addClause(builtinsPkg.Exported, clause)
+	}
+	addClause(builtinsPkg.Exported, failClause)
+	addClause(builtinsPkg.Internal, builtinUnicodeIterPredicate())
 	for _, pred := range comparisonPredicates {
-		builtins = append(builtins, builtinComparisonPredicate(pred))
+		addClause(builtinsPkg.Exported, builtinComparisonPredicate(pred))
 	}
 	for _, pred := range typeCheckPredicates {
-		builtins = append(builtins, builtinTypeCheckPredicate(pred))
+		addClause(builtinsPkg.Exported, builtinTypeCheckPredicate(pred))
 	}
 }
 
@@ -37,19 +40,11 @@ var (
 )
 
 var (
-	failClause = &Clause{nil, Functor{"fail", 0}, 0, []Instruction{fail{}}}
+	failClause = &Clause{builtinsPkg, Functor{"fail", 0}, 0, []Instruction{fail{}}}
 	preamble   = []*logic.Clause{
 		// This function can't be moved to base.pl because it's used by the parser.
 		dsl.Clause(comp("\\=", var_("X"), var_("Y")),
 			comp("\\+", comp("=", var_("X"), var_("Y")))),
-
-		// Basic attribute checker machinery.
-		dsl.Clause(comp("$join_attribute", var_("AttrName"), var_("X"), var_("Y")),
-			comp("asm", comp("call", atom("join_attribute/3"))),
-			comp("asm", comp("proceed", atom("unify")))),
-		dsl.Clause(comp("$check_attribute", var_("Attr"), var_("Value")),
-			comp("asm", comp("call", atom("check_attribute/2"))),
-			comp("asm", comp("proceed", atom("unify")))),
 
 		// Unifiable builtin.
 		dsl.Clause(comp("unifiable", var_("X"), var_("Y"), var_("Unifier")),
@@ -130,7 +125,7 @@ func builtinUnicodeIter(m *Machine, args []Addr) (InstrAddr, error) {
 }
 
 func builtinUnicodeIterPredicate() *Clause {
-	c := &Clause{Functor: Functor{"unicode_iter", 3}, NumRegisters: 3}
+	c := &Clause{Pkg: builtinsPkg, Functor: Functor{"unicode_iter", 3}, NumRegisters: 3}
 	c.Code = []Instruction{
 		tryMeElse{InstrAddr{c, 1}},
 		builtin{"unicode_iter", nil, builtinUnicodeIter},
@@ -165,6 +160,7 @@ func builtinComparisonInstruction(pred comparisonPredicate, x, y Addr) builtin {
 
 func builtinComparisonPredicate(pred comparisonPredicate) *Clause {
 	return &Clause{
+		Pkg:          builtinsPkg,
 		Functor:      pred.functor,
 		NumRegisters: 2,
 		Code: []Instruction{
@@ -233,6 +229,7 @@ var typeCheckPredicates = map[string]typeCheckPredicate{
 
 func builtinTypeCheckPredicate(pred typeCheckPredicate) *Clause {
 	return &Clause{
+		Pkg:          builtinsPkg,
 		Functor:      Functor{pred.name, 1},
 		NumRegisters: 1,
 		Code: []Instruction{

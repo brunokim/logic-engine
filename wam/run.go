@@ -417,7 +417,13 @@ func (m *Machine) restoreFromChoicePoint() {
 }
 
 func (m *Machine) call(functor Functor) (InstrAddr, error) {
-	clause, ok := m.Code[functor]
+	var clause *Clause
+	var ok bool
+	if m.CodePtr.Clause.Pkg != nil {
+		clause, ok = m.CodePtr.Clause.Pkg.Get(functor)
+	} else {
+		clause, ok = m.Code[functor]
+	}
 	if !ok {
 		return m.backtrack(errors.New("clause not found: %v", functor))
 	}

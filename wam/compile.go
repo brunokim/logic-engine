@@ -12,7 +12,7 @@ import (
 func NewMachine() *Machine {
 	m := new(Machine)
 	m.Code = make(map[Functor]*Clause)
-	for _, builtin := range builtins {
+	for _, builtin := range builtinsPkg.Exported {
 		m.AddClause(builtin)
 	}
 	m.Packages = make(map[string]*Package)

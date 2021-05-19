@@ -512,6 +512,19 @@ func addClause(index map[Functor]*Clause, clause *Clause) error {
 	return nil
 }
 
+func (pkg *Package) Get(functor Functor) (*Clause, bool) {
+	clause, ok := pkg.Internal[functor]
+	if ok {
+		return clause, true
+	}
+	clause, ok = pkg.Exported[functor]
+	if ok {
+		return clause, true
+	}
+	clause, ok = pkg.Imported[functor]
+	return clause, ok
+}
+
 func (ia InstrAddr) isValid() bool {
 	if ia.Clause == nil {
 		return false
