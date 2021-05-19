@@ -28,6 +28,10 @@ var (
 	// Don't use it directly; call Machine.Reset() to create a copy.
 	Machine *wam.Machine
 	grammar = []*logic.Clause{
+		// Package declaration
+		clause(comp("package", atom("parser"),
+			list(),
+			list(atom("parse/2"), atom("parse_kb/2"), atom("parse_query/2")))),
 		// Parse term
 		clause(comp("parse", var_("Chars"), var_("Tree")),
 			comp("ws", var_("Chars"), var_("Ch1")),
@@ -232,10 +236,7 @@ var (
 )
 
 func init() {
-	clauses, err := wam.CompileClauses(grammar)
-	if err != nil {
-		panic(fmt.Sprintf("parser.init: CompileClauses: %v", err))
-	}
+	clauses := wam.CompileClauses(grammar)
 	Machine = wam.NewMachine()
 	for _, clause := range clauses {
 		Machine.AddClause(clause)

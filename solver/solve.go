@@ -39,11 +39,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	compiled, err := wam.CompileClauses(clauses)
-	if err != nil {
-		panic(err)
-	}
-	libCompiled = compiled
+	libCompiled = wam.CompileClauses(clauses)
 }
 
 // Solver provides an asynchronous interface for enumerating the solutions
@@ -88,10 +84,7 @@ func New(text string) (*Solver, error) {
 
 // NewFromClauses is like New, with already parsed clauses.
 func NewSolverFromClauses(clauses []*logic.Clause) (*Solver, error) {
-	compiled, err := wam.CompileClauses(clauses)
-	if err != nil {
-		return nil, err
-	}
+	compiled := wam.CompileClauses(clauses)
 	solver := new(Solver)
 	solver.m = wam.NewMachine()
 	for _, clause := range compiled {

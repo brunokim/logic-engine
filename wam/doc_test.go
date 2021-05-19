@@ -26,7 +26,7 @@ func Example() {
 			Comp("parent", Var("P2"), Var("C")),
 			Comp("\\=", Var("P1"), Var("P2"))),
 	}
-	wamClauses, _ := wam.CompileClauses(logicClauses)
+	wamClauses := wam.CompileClauses(logicClauses)
 	for _, clause := range wamClauses {
 		m.AddClause(clause)
 	}

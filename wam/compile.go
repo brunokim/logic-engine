@@ -980,7 +980,7 @@ func (KeepLabels) isCompileOption() {}
 
 // CompileClauses returns a list of compiled clauses. Each corresponds with
 // a functor f/n, and all sub-clauses that implement the same functor.
-func CompileClauses(clauses []*logic.Clause, options ...CompileOption) ([]*Clause, error) {
+func CompileClauses(clauses []*logic.Clause, options ...CompileOption) []*Clause {
 	opts := make(map[CompileOption]struct{})
 	for _, opt := range options {
 		opts[opt] = struct{}{}
@@ -1007,5 +1007,5 @@ func CompileClauses(clauses []*logic.Clause, options ...CompileOption) ([]*Claus
 			clause.Code = optimizeLabels(clause.Code)
 		}
 	}
-	return cs, nil
+	return cs
 }

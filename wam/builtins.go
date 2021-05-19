@@ -14,11 +14,7 @@ import (
 var builtins []*Clause
 
 func init() {
-	var err error
-	builtins, err = CompileClauses(preamble)
-	if err != nil {
-		panic(err)
-	}
+	builtins = CompileClauses(preamble)
 	builtins = append(builtins,
 		failClause,
 		builtinUnicodeIterPredicate())

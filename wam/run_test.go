@@ -870,13 +870,10 @@ func TestCallMeta(t *testing.T) {
 	// p(a).
 	// q(b).
 	// ?- call(p(), X)
-	clauses, err := wam.CompileClauses([]*logic.Clause{
+	clauses := wam.CompileClauses([]*logic.Clause{
 		dsl.Clause(comp("p", atom("a"))),
 		dsl.Clause(comp("q", atom("b"))),
 	})
-	if err != nil {
-		t.Fatalf("CompileClauses: %v", err)
-	}
 	for _, clause := range clauses {
 		m.AddClause(clause)
 	}
@@ -897,7 +894,7 @@ func TestIf(t *testing.T) {
 	// true.
 	// member(X, [H|T]) :- ->(=(X, H), true, member(X, T)).
 	// ?- member(b, [a, c, b]), member(z, [a, c, b]).
-	clauses, err := wam.CompileClauses([]*logic.Clause{
+	clauses := wam.CompileClauses([]*logic.Clause{
 		dsl.Clause(atom("true")),
 		dsl.Clause(comp("member", var_("X"), ilist(var_("H"), var_("T"))),
 			comp("->",
@@ -905,13 +902,10 @@ func TestIf(t *testing.T) {
 				atom("true"),
 				comp("member", var_("X"), var_("T")))),
 	})
-	if err != nil {
-		t.Fatalf("CompileClauses: %v", err)
-	}
 	for _, clause := range clauses {
 		m.AddClause(clause)
 	}
-	_, err = m.RunQuery(
+	_, err := m.RunQuery(
 		comp("member", atom("b"), list(atom("a"), atom("c"), atom("b"))),
 		comp("member", atom("z"), list(atom("a"), atom("c"), atom("b"))))
 	if err == nil {
@@ -926,20 +920,18 @@ func TestNextSolution(t *testing.T) {
 
 	// add(0, S, S).
 	// add(s(A), B, s(S)) :- add(A, B, S).
-	clauses, err := wam.CompileClauses([]*logic.Clause{
+	clauses := wam.CompileClauses([]*logic.Clause{
 		dsl.Clause(comp("add", int_(0), var_("S"), var_("S"))),
 		dsl.Clause(comp("add", comp("s", var_("A")), var_("B"), comp("s", var_("S"))),
 			comp("add", var_("A"), var_("B"), var_("S"))),
 	})
-	if err != nil {
-		t.Fatalf("CompileClauses: %v", err)
-	}
 	for _, clause := range clauses {
 		m.AddClause(clause)
 	}
 
 	// ?- add(X, Y, s(s(s(0)))).
 	var solutions [4]map[logic.Var]logic.Term
+	var err error
 	solutions[0], err = m.RunQuery(
 		comp("add", var_("X"), var_("Y"), comp("s", comp("s", comp("s", int_(0))))))
 	if err != nil {
@@ -983,15 +975,12 @@ func TestReset(t *testing.T) {
 	// parent(diana, william).
 	// parent(charles, harry).
 	// parent(diana, harry).
-	clauses, err := wam.CompileClauses([]*logic.Clause{
+	clauses := wam.CompileClauses([]*logic.Clause{
 		dsl.Clause(comp("parent", atom("charles"), atom("william"))),
 		dsl.Clause(comp("parent", atom("diana"), atom("william"))),
 		dsl.Clause(comp("parent", atom("charles"), atom("harry"))),
 		dsl.Clause(comp("parent", atom("diana"), atom("harry"))),
 	})
-	if err != nil {
-		t.Fatalf("CompileClauses: %v", err)
-	}
 	for _, clause := range clauses {
 		m.AddClause(clause)
 	}
