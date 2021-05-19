@@ -470,8 +470,17 @@ func (i inlineUnify) String() string {
 
 // ---- Clauses and code
 
+// Package represents a single source file compiled.
+type Package struct {
+	Name     string
+	Imported map[Functor]*Clause
+	Exported map[Functor]*Clause
+	Internal map[Functor]*Clause
+}
+
 // Clause represents a single compiled clause.
 type Clause struct {
+	Pkg          *Package
 	Functor      Functor
 	NumRegisters int
 	Code         []Instruction

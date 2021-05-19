@@ -41,7 +41,7 @@ var (
 )
 
 var (
-	failClause = &Clause{Functor{"fail", 0}, 0, []Instruction{fail{}}}
+	failClause = &Clause{nil, Functor{"fail", 0}, 0, []Instruction{fail{}}}
 	preamble   = []*logic.Clause{
 		// This function can't be moved to base.pl because it's used by the parser.
 		dsl.Clause(comp("\\=", var_("X"), var_("Y")),
