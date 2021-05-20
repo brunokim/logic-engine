@@ -423,6 +423,8 @@ export class Wam {
                 return instr.Functor
             }
             return instr.Pkg
+        case "importPkg":
+            return instr.Pkg
         case "putConstant":
         case "getConstant":
         case "unifyConstant":

@@ -140,7 +140,7 @@ func TestSolve_Lib(t *testing.T) {
 			t.Fatal(err)
 		}
 		var got []solver.Solution
-		solutions, _ := s.Query(test.query)
+		solutions, _ := s.Query("import(lists), " + test.query)
 		for solution := range solutions {
 			got = append(got, solution)
 		}

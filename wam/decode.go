@@ -256,6 +256,8 @@ func DecodeInstruction(term logic.Term) Instruction {
 		return cut{}
 	case dsl.Indicator("fail", 0):
 		return fail{}
+	case dsl.Indicator("import", 1):
+		return importPkg{decodeString(c.Args[0])}
 	case dsl.Indicator("put_attr", 2):
 		return putAttr{decodeAddr(c.Args[0]), decodeAddr(c.Args[1])}
 	case dsl.Indicator("get_attr", 2):

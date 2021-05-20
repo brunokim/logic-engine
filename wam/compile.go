@@ -563,6 +563,9 @@ func (ctx *compileCtx) compileBodyTerm(pos int, g goal) []Instruction {
 		return []Instruction{fail{}}
 	case dsl.Indicator("asm", 1):
 		return []Instruction{DecodeInstruction(term.Args[0])}
+	case dsl.Indicator("import", 1):
+		pkg := term.Args[0].(logic.Atom)
+		return []Instruction{importPkg{pkg.Name}}
 	case dsl.Indicator("=", 2):
 		x := ctx.termAddr(term.Args[0])
 		y := ctx.termAddr(term.Args[1])
@@ -989,7 +992,7 @@ func addChoiceLinks(clauses []*Clause) {
 	}
 }
 
-func reachableClauses(clauses []*Clause) []*Clause {
+func reachableClauses(clauses ...*Clause) []*Clause {
 	// Copy items in reverse order to stack
 	stack := make([]*Clause, len(clauses))
 	for i, clause := range clauses {
@@ -1055,7 +1058,7 @@ func CompileClauses(clauses []*logic.Clause, options ...CompileOption) []*Clause
 	}
 	// Remove labels from clause bodies.
 	if _, ok := opts[KeepLabels{}]; !ok {
-		for _, clause := range reachableClauses(cs) {
+		for _, clause := range reachableClauses(cs...) {
 			clause.Code = optimizeLabels(clause.Code)
 		}
 	}
@@ -1073,8 +1076,10 @@ func CompilePackage(clauses []*logic.Clause, options ...CompileOption) (*Package
 		pkg := NewPackage("")
 		compiled := CompileClauses(clauses, options...)
 		for _, clause := range compiled {
-			clause.Pkg = pkg
 			addClause(pkg.Exported, clause)
+			for _, c := range reachableClauses(clause) {
+				c.Pkg = pkg
+			}
 		}
 		return pkg, nil
 	}
@@ -1120,7 +1125,6 @@ func CompilePackage(clauses []*logic.Clause, options ...CompileOption) (*Package
 	}
 	compiled := CompileClauses(clauses[1:], options...)
 	for _, clause := range compiled {
-		clause.Pkg = pkg
 		if _, ok := exportedFunctors[clause.Functor]; ok {
 			if err := addClause(pkg.Exported, clause); err != nil {
 				return nil, errors.New("exported: %v", err)
@@ -1130,6 +1134,9 @@ func CompilePackage(clauses []*logic.Clause, options ...CompileOption) (*Package
 			if err := addClause(pkg.Internal, clause); err != nil {
 				return nil, errors.New("internal: %v", err)
 			}
+		}
+		for _, c := range reachableClauses(clause) {
+			c.Pkg = pkg
 		}
 	}
 	if len(exportedFunctors) > 0 {

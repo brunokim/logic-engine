@@ -192,7 +192,7 @@ func (enc *machineEncoder) instrAddr(ins InstrAddr) interface{} {
 
 func clausePositions(clauses []*Clause) map[*Clause]int {
 	idxs := make(map[*Clause]int)
-	for i, clause := range reachableClauses(clauses) {
+	for i, clause := range reachableClauses(clauses...) {
 		idxs[clause] = i
 	}
 	return idxs

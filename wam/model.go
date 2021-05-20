@@ -222,6 +222,10 @@ type builtin struct {
 	Func func(*Machine, []Addr) (InstrAddr, error)
 }
 
+type importPkg struct {
+	Pkg string
+}
+
 type putAttr struct {
 	Addr      Addr
 	Attribute Addr
@@ -278,6 +282,7 @@ func (i neckCut) isInstruction()          {}
 func (i cut) isInstruction()              {}
 func (i fail) isInstruction()             {}
 func (i builtin) isInstruction()          {}
+func (i importPkg) isInstruction()        {}
 func (i putAttr) isInstruction()          {}
 func (i getAttr) isInstruction()          {}
 func (i delAttr) isInstruction()          {}
@@ -459,6 +464,10 @@ func (i builtin) String() string {
 		addrs[i] = arg.String()
 	}
 	return fmt.Sprintf("%s %s", i.Name, addrs)
+}
+
+func (i importPkg) String() string {
+	return fmt.Sprintf("import_pkg %s", i.Pkg)
 }
 
 func (i putAttr) String() string {

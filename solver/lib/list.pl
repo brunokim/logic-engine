@@ -1,3 +1,7 @@
+package(lists, [], [
+    'member/2', 'append/3', 'append/2', 'same_length/2',
+]).
+
 % member(?Elem, ?List)
 % Succeeds if Elem is a member of List.
 member(E, [H|T]) :-

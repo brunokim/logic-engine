@@ -728,6 +728,13 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 	case builtin:
 		// calls builtin function.
 		return instr.Func(m, instr.Args)
+	case importPkg:
+		// Import the package into the current clause.
+		if m.CodePtr.Clause.Pkg == nil {
+			m.CodePtr.Clause.Pkg = NewPackage("")
+		}
+		pkg := m.CodePtr.Clause.Pkg
+		pkg.ImportedPkgs = append(pkg.ImportedPkgs, instr.Pkg)
 	case putAttr:
 		// Associates attribute to a ref.
 		ref, ok := deref(m.get(instr.Addr)).(*Ref)
