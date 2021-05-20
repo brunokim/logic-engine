@@ -416,10 +416,17 @@ func (m *Machine) restoreFromChoicePoint() {
 	m.unwindTrail()
 }
 
-func (m *Machine) call(functor Functor) (InstrAddr, error) {
+func (m *Machine) call(pkgName string, functor Functor) (InstrAddr, error) {
 	var clause *Clause
 	var ok bool
-	if m.CodePtr.Clause.Pkg != nil {
+	if pkgName != "" {
+		var pkg *Package
+		pkg, ok = m.Packages[pkgName]
+		if !ok {
+			return m.backtrack(errors.New("package not found: %v", pkgName))
+		}
+		clause, ok = pkg.Get(functor)
+	} else if m.CodePtr.Clause.Pkg != nil {
 		clause, ok = m.CodePtr.Clause.Pkg.Get(functor)
 	} else {
 		clause, ok = m.Code[functor]
@@ -430,24 +437,34 @@ func (m *Machine) call(functor Functor) (InstrAddr, error) {
 	return InstrAddr{Clause: clause, Pos: 0}, nil
 }
 
-func (m *Machine) putMeta(addr Addr, params []Addr) (Functor, error) {
+func (m *Machine) putMeta(addr Addr, params []Addr) (string, Functor, error) {
 	cell := deref(m.get(addr))
-	var name string
+	var pkg, name string
 	var args []Cell
 	switch c := cell.(type) {
 	case *Struct:
-		name, args = c.Name, c.Args
+		pkg, name, args = "", c.Name, c.Args
 	case WAtom:
-		name, args = string(c), nil
+		pkg, name, args = "", string(c), nil
+	case *Pair:
+		if c.Tag != AssocPair {
+			return "", Functor{}, errors.New("invalid meta call: %v", cell)
+		}
+		pkgAtom, pkgOk := c.Head.(WAtom)
+		nameAtom, nameOk := c.Tail.(WAtom)
+		if !(pkgOk && nameOk) {
+			return "", Functor{}, errors.New("invalid meta call: %v", cell)
+		}
+		pkg, name = string(pkgAtom), string(nameAtom)
 	default:
-		return Functor{}, errors.New("not an atom or struct: %v", cell)
+		return "", Functor{}, errors.New("invalid meta call: %v", cell)
 	}
 	n1, n2 := len(args), len(params)
 	copy(m.Reg, args)
 	for i, param := range params {
 		m.Reg[n1+i] = deref(m.get(param))
 	}
-	return Functor{Name: name, Arity: n1 + n2}, nil
+	return pkg, Functor{Name: name, Arity: n1 + n2}, nil
 }
 
 func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
@@ -529,28 +546,28 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		// Save instruction pointer, and set it to clause location.
 		m.Continuation = m.CodePtr.inc()
 		m.CutChoice = m.ChoicePoint
-		return m.call(instr.Functor)
+		return m.call(instr.Pkg, instr.Functor)
 	case callMeta:
 		// call clause pointed by a ref or struct.
-		functor, err := m.putMeta(instr.Addr, instr.Params)
+		pkg, functor, err := m.putMeta(instr.Addr, instr.Params)
 		if err != nil {
 			return m.backtrack(errors.New("call_meta: %v", err))
 		}
 		m.Continuation = m.CodePtr.inc()
 		m.CutChoice = m.ChoicePoint
-		return m.call(functor)
+		return m.call(pkg, functor)
 	case execute:
 		// Trampoline into other clause, without changing the continuation.
 		m.CutChoice = m.ChoicePoint
-		return m.call(instr.Functor)
+		return m.call(instr.Pkg, instr.Functor)
 	case executeMeta:
 		// Trampoline into other dynamic clause, without changing the continuation.
-		functor, err := m.putMeta(instr.Addr, instr.Params)
+		pkg, functor, err := m.putMeta(instr.Addr, instr.Params)
 		if err != nil {
 			return m.backtrack(errors.New("execute_meta: %v", err))
 		}
 		m.CutChoice = m.ChoicePoint
-		return m.call(functor)
+		return m.call(pkg, functor)
 	case proceed:
 		// Jump to the continuation.
 		m.Mode = instr.Mode
@@ -1038,7 +1055,7 @@ func (m *Machine) verifyAttributes() {
 	}
 	m.Continuation = m.CodePtr
 	m.CutChoice = m.ChoicePoint
-	instrAddr, err := m.call(functor)
+	instrAddr, err := m.call("", functor)
 	if err != nil {
 		// Should never happen.
 		panic(err)

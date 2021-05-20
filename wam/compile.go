@@ -575,7 +575,7 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 		for i, arg := range term.Args {
 			ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, RegAddr(i))...)
 		}
-		ctx.instrs = append(ctx.instrs, call{toFunctor(term.Indicator())})
+		ctx.instrs = append(ctx.instrs, call{Functor: toFunctor(term.Indicator())})
 		return ctx.instrs
 	}
 }
@@ -684,7 +684,7 @@ func optimizeLastCall(code []Instruction) []Instruction {
 		n := len(code)
 		call, isCall := code[n-1].(call)
 		if isCall {
-			code[n-1] = execute{call.Functor}
+			code[n-1] = execute{Functor: call.Functor}
 		}
 	}
 	// If code ends with callMeta, change it for executeMeta
@@ -1029,17 +1029,31 @@ func (m *Machine) CompilePackage(name string, clauses []*logic.Clause, options .
 	if !(ok && head.Indicator() == dsl.Indicator("package", 3) && len(pkgClause.Body) == 0) {
 		return errors.New("invalid first clause: want package/3 fact, got %v", pkgClause)
 	}
-	pkgName, pkgNameOk := head.Args[0].(logic.Atom)
-	imported, importedOk := head.Args[1].(*logic.List)
-	exported, exportedOk := head.Args[2].(*logic.List)
-	if !(pkgNameOk && importedOk && exportedOk) {
-		return errors.New("expecting package(atom, list, list), got %v", head)
+	pkgName, ok := head.Args[0].(logic.Atom)
+	if !ok {
+		return errors.New("package arg #1 is not atom")
 	}
 	if pkgName.Name != name {
 		return errors.New("expecting package name %q, got %q", name, pkgName.Name)
 	}
+	var imported []logic.Term
+	if head.Args[1] != logic.EmptyList {
+		list, ok := head.Args[1].(*logic.List)
+		if !ok {
+			return errors.New("package arg #2 is not list")
+		}
+		imported = list.Terms
+	}
+	var exported []logic.Term
+	if head.Args[2] != logic.EmptyList {
+		list, ok := head.Args[2].(*logic.List)
+		if !ok {
+			return errors.New("package arg #3 is not list")
+		}
+		exported = list.Terms
+	}
 	pkg := NewPackage(name)
-	for i, importedPkg := range imported.Terms {
+	for i, importedPkg := range imported {
 		pkgName, ok := importedPkg.(logic.Atom)
 		if !ok {
 			return errors.New("imported #%d: expecting atom package name, got %v", i+1, importedPkg)
@@ -1055,7 +1069,7 @@ func (m *Machine) CompilePackage(name string, clauses []*logic.Clause, options .
 		}
 	}
 	exportedFunctors := make(map[Functor]struct{})
-	for i, exportedFn := range exported.Terms {
+	for i, exportedFn := range exported {
 		fnAtom, ok := exportedFn.(logic.Atom)
 		if !ok {
 			return errors.New("exported #%d: expecting atom functor name, got %v", i+1, exportedFn)
@@ -1079,6 +1093,5 @@ func (m *Machine) CompilePackage(name string, clauses []*logic.Clause, options .
 			}
 		}
 	}
-	m.AddPackage(pkg)
-	return nil
+	return m.AddPackage(pkg)
 }

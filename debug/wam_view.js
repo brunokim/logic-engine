@@ -419,7 +419,10 @@ export class Wam {
         case "getStruct":
         case "call":
         case "execute":
-            return instr.Functor
+            if (instr.Pkg == "") {
+                return instr.Functor
+            }
+            return instr.Pkg
         case "putConstant":
         case "getConstant":
         case "unifyConstant":
@@ -494,6 +497,12 @@ export class Wam {
             return instr.Attribute
         case "inlineUnify":
             return instr.Addr2
+        case "call":
+        case "execute":
+            if (instr.Pkg != "") {
+                return instr.Functor
+            }
+            return null
         }
         return null
     }

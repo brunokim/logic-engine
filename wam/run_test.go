@@ -1122,3 +1122,39 @@ func TestUnifyDicts(t *testing.T) {
 		}
 	}
 }
+
+func TestCallPkg(t *testing.T) {
+	m := wam.NewMachine()
+	m.DebugFilename = "debugtest/call-pkg.jsonl"
+	err := m.CompilePackage("pkg1", []*logic.Clause{
+		dsl.Clause(comp("package", atom("pkg1"), list(), list(atom("public/1")))),
+		dsl.Clause(comp("public", atom("a"))),
+		dsl.Clause(comp("private", atom("b"))),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// test(X, Y) :-
+	//   pkg1:public(X),
+	//   pkg1:private(Y).
+	m.AddClause(wam.DecodeClause(indicator("test", 2),
+		comp("allocate", int_(1)),
+		comp("get_variable", var_("X2"), var_("X0")),
+		comp("get_variable", var_("Y0"), var_("X1")),
+		comp("put_value", var_("X2"), var_("X0")),
+		comp("call", atom("pkg1"), atom("public/1")),
+		comp("put_value", var_("Y0"), var_("X0")),
+		atom("deallocate"),
+		comp("execute", atom("pkg1"), atom("private/1"))))
+	got, err := m.RunQuery(comp("test", var_("X"), var_("Y")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[logic.Var]logic.Term{
+		var_("X"): atom("a"),
+		var_("Y"): atom("b"),
+	}
+	if diff := cmp.Diff(want, got, test_helpers.IgnoreUnexported); diff != "" {
+		t.Errorf("(-want, +got)\n%s", diff)
+	}
+}

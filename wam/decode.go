@@ -202,11 +202,15 @@ func DecodeInstruction(term logic.Term) Instruction {
 	case dsl.Indicator("unify_void", 0):
 		return unifyVoid{}
 	case dsl.Indicator("call", 1):
-		return call{decodeFunctor(c.Args[0])}
+		return call{Functor: decodeFunctor(c.Args[0])}
+	case dsl.Indicator("call", 2):
+		return call{Pkg: decodeString(c.Args[0]), Functor: decodeFunctor(c.Args[1])}
 	case dsl.Indicator("call_meta", 2):
 		return callMeta{decodeAddr(c.Args[0]), decodeAddrList(c.Args[1])}
 	case dsl.Indicator("execute", 1):
-		return execute{decodeFunctor(c.Args[0])}
+		return execute{Functor: decodeFunctor(c.Args[0])}
+	case dsl.Indicator("execute", 2):
+		return execute{Pkg: decodeString(c.Args[0]), Functor: decodeFunctor(c.Args[1])}
 	case dsl.Indicator("execute_meta", 2):
 		return executeMeta{decodeAddr(c.Args[0]), decodeAddrList(c.Args[1])}
 	case dsl.Indicator("proceed", 1):
