@@ -2,7 +2,6 @@ package wam
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/brunokim/logic-engine/dsl"
 	"github.com/brunokim/logic-engine/errors"
@@ -54,15 +53,19 @@ func (m *Machine) AddClause(clause *Clause) {
 
 // ---- conversion
 
-type flatClause []*logic.Comp
+type goal struct {
+	pkg  string
+	comp *logic.Comp
+}
+type flatClause []goal
 
 func flatten(clause *logic.Clause) flatClause {
 	goals := make(flatClause, len(clause.Body)+1)
 	switch head := clause.Head.(type) {
 	case logic.Atom:
-		goals[0] = logic.NewComp(head.Name)
+		goals[0] = goal{"", logic.NewComp(head.Name)}
 	case *logic.Comp:
-		goals[0] = head
+		goals[0] = goal{"", head}
 	default:
 		panic(fmt.Sprintf("Unhandled clause head term type: %T (%v)", clause.Head, clause.Head))
 	}
@@ -70,22 +73,22 @@ func flatten(clause *logic.Clause) flatClause {
 	return goals
 }
 
-func toGoal(term logic.Term) *logic.Comp {
+func toGoal(term logic.Term) goal {
 	switch t := term.(type) {
 	case *logic.Comp:
-		return t
+		return goal{"", t}
 	case logic.Atom:
-		return logic.NewComp(t.Name)
+		return goal{"", logic.NewComp(t.Name)}
 	case logic.Var:
-		return logic.NewComp("call", t)
+		return goal{"", logic.NewComp("call", t)}
 	case *logic.Assoc:
-		// TODO: adding the package to the goal's name is a hack.
 		pkg, ok := t.Key.(logic.Atom)
 		if !ok {
 			break
 		}
-		goal := toGoal(t.Val)
-		return logic.NewComp(pkg.Name+":"+goal.Functor, goal.Args...)
+		g := toGoal(t.Val)
+		g.pkg = pkg.Name
+		return g
 	}
 	panic(fmt.Sprintf("Unhandled goal type %T (%v)", term, term))
 }
@@ -102,7 +105,7 @@ func goalVars(goals flatClause) []logic.Var {
 	var xs []logic.Var
 	m := make(map[logic.Var]struct{})
 	for _, goal := range goals {
-		for _, x := range logic.Vars(goal) {
+		for _, x := range logic.Vars(goal.comp) {
 			if _, ok := m[x]; ok {
 				continue
 			}
@@ -132,16 +135,16 @@ func permanentVars(clause flatClause) map[logic.Var]struct{} {
 	seen := make(map[logic.Var]struct{})
 	perm := make(map[logic.Var]struct{})
 	// Vars in head are considered to be part of the first body term.
-	for _, x := range logic.Vars(clause[0]) {
+	for _, x := range logic.Vars(clause[0].comp) {
 		seen[x] = struct{}{}
 	}
-	for _, x := range logic.Vars(clause[1]) {
+	for _, x := range logic.Vars(clause[1].comp) {
 		seen[x] = struct{}{}
 	}
 	// Walk through other clause terms; vars that appear in more than
 	// one term are permanent.
 	for _, c := range clause[2:] {
-		for _, x := range logic.Vars(c) {
+		for _, x := range logic.Vars(c.comp) {
 			if _, ok := seen[x]; ok {
 				perm[x] = struct{}{}
 			} else {
@@ -156,7 +159,7 @@ func permanentVars(clause flatClause) map[logic.Var]struct{} {
 func numArgs(clause flatClause) int {
 	max := 0
 	for _, term := range clause {
-		n := len(term.Args)
+		n := len(term.comp.Args)
 		if n > max {
 			max = n
 		}
@@ -419,7 +422,7 @@ func compile(clause flatClause) *Clause {
 
 func compileQuery(query []logic.Term) *Clause {
 	dummy := make(flatClause, len(query)+1)
-	dummy[0] = logic.NewComp("dummy")
+	dummy[0] = goal{"", logic.NewComp("dummy")}
 	for i, term := range query {
 		dummy[i+1] = toGoal(term)
 	}
@@ -448,64 +451,72 @@ func compileQuery(query []logic.Term) *Clause {
 	return c
 }
 
+func asmGoal(t logic.Term) goal {
+	return goal{"", comp("asm", t)}
+}
+
 func (ctx *compileCtx) flattenControl(terms0 flatClause) flatClause {
 	terms := make(flatClause, len(terms0))
 	copy(terms, terms0)
 	var body flatClause
 	labelID := 1
 	for len(terms) > 0 {
-		goal := terms[0]
+		g := terms[0]
 		terms = terms[1:]
-		if goal.Functor == "and" {
-			terms = append(toGoals(goal.Args), terms...)
+		if g.pkg != "" {
+			body = append(body, g)
 			continue
 		}
-		switch goal.Indicator() {
+		if g.comp.Functor == "and" {
+			terms = append(toGoals(g.comp.Args), terms...)
+			continue
+		}
+		switch g.comp.Indicator() {
 		default:
-			body = append(body, goal)
+			body = append(body, g)
 		case dsl.Indicator("\\+", 1):
-			target := goal.Args[0]
+			target := g.comp.Args[0]
 			targetID, endID := labelID, labelID+1
 			labelID += 2
 			// Ensure that variables referenced within Target are initialized.
 			ctx.instrs = nil
-			for _, x := range logic.Vars(goal) {
+			for _, x := range logic.Vars(g.comp) {
 				ctx.ensureVar(x)
 			}
 			ctx.clause.Code = append(ctx.clause.Code, ctx.instrs...)
 			// Inline \+(Target) :- ->(Target, false, true).
 			goals := flatClause{
-				comp("asm", comp("try", comp("instr", ptr(ctx.clause), int_(-targetID)))),
-				comp("asm", comp("trust", comp("instr", ptr(ctx.clause), int_(-endID)))),
-				comp("asm", comp("label", int_(targetID))),
+				asmGoal(comp("try", comp("instr", ptr(ctx.clause), int_(-targetID)))),
+				asmGoal(comp("trust", comp("instr", ptr(ctx.clause), int_(-endID)))),
+				asmGoal(comp("label", int_(targetID))),
 				toGoal(target),
-				comp("asm", atom("cut")),
-				comp("asm", atom("fail")),
-				comp("asm", comp("label", int_(endID))),
+				asmGoal(atom("cut")),
+				asmGoal(atom("fail")),
+				asmGoal(comp("label", int_(endID))),
 			}
 			terms = append(goals, terms...)
 		case dsl.Indicator("->", 3):
-			cond, then_, else_ := goal.Args[0], goal.Args[1], goal.Args[2]
+			cond, then_, else_ := g.comp.Args[0], g.comp.Args[1], g.comp.Args[2]
 			thenID, elseID, endID := labelID, labelID+1, labelID+2
 			labelID += 3
 			// Ensure that variables referenced in any branch are initialized.
 			ctx.instrs = nil
-			for _, x := range logic.Vars(goal) {
+			for _, x := range logic.Vars(g.comp) {
 				ctx.ensureVar(x)
 			}
 			ctx.clause.Code = append(ctx.clause.Code, ctx.instrs...)
 			// Inline cond, then and else branches, adding control instructions to move around.
 			goals := flatClause{
-				comp("asm", comp("try", comp("instr", ptr(ctx.clause), int_(-thenID)))),
-				comp("asm", comp("trust", comp("instr", ptr(ctx.clause), int_(-elseID)))),
-				comp("asm", comp("label", int_(thenID))),
+				asmGoal(comp("try", comp("instr", ptr(ctx.clause), int_(-thenID)))),
+				asmGoal(comp("trust", comp("instr", ptr(ctx.clause), int_(-elseID)))),
+				asmGoal(comp("label", int_(thenID))),
 				toGoal(cond),
-				comp("asm", atom("cut")),
+				asmGoal(atom("cut")),
 				toGoal(then_),
-				comp("asm", comp("jump", comp("instr", ptr(ctx.clause), int_(-endID)))),
-				comp("asm", comp("label", int_(elseID))),
+				asmGoal(comp("jump", comp("instr", ptr(ctx.clause), int_(-endID)))),
+				asmGoal(comp("label", int_(elseID))),
 				toGoal(else_),
-				comp("asm", comp("label", int_(endID))),
+				asmGoal(comp("label", int_(endID))),
 			}
 			terms = append(goals, terms...)
 		}
@@ -513,8 +524,12 @@ func (ctx *compileCtx) flattenControl(terms0 flatClause) flatClause {
 	return body
 }
 
-func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction {
+func (ctx *compileCtx) compileBodyTerm(pos int, g goal) []Instruction {
 	ctx.instrs = nil
+	if g.pkg != "" {
+		return ctx.compileDefaultTerm(g)
+	}
+	term := g.comp
 	if term.Functor == "call" {
 		callee := ctx.termAddr(term.Args[0])
 		params := make([]Addr, len(term.Args)-1)
@@ -579,23 +594,24 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 		ctx.instrs = append(ctx.instrs, delAttr{x, attr})
 		return ctx.instrs
 	default:
-		// Regular goal: put term args into registers X0-Xn and issue a call to f/n.
-		for i, arg := range term.Args {
-			ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, RegAddr(i))...)
-		}
-		var pkg string
-		if parts := strings.SplitN(term.Functor, ":", 2); len(parts) == 2 {
-			var functor string
-			pkg, functor = parts[0], parts[1]
-			term = logic.NewComp(functor, term.Args...)
-		}
-		ctx.instrs = append(ctx.instrs, call{Pkg: pkg, Functor: toFunctor(term.Indicator())})
-		return ctx.instrs
+		return ctx.compileDefaultTerm(g)
 	}
 }
 
+func (ctx *compileCtx) compileDefaultTerm(g goal) []Instruction {
+	// Put term args into registers X0-Xn and issue a call to f/n.
+	for i, arg := range g.comp.Args {
+		ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, RegAddr(i))...)
+	}
+	ctx.instrs = append(ctx.instrs, call{
+		Pkg:     g.pkg,
+		Functor: toFunctor(g.comp.Indicator()),
+	})
+	return ctx.instrs
+}
+
 func compile0(clause flatClause, permVars map[logic.Var]struct{}) *Clause {
-	functor := toFunctor(clause[0].Indicator())
+	functor := toFunctor(clause[0].comp.Indicator())
 	c := &Clause{Functor: functor}
 	ctx := newCompileCtx(c, numArgs(clause))
 	// Designate address for each var (either in a register or on the stack)
@@ -610,7 +626,7 @@ func compile0(clause flatClause, permVars map[logic.Var]struct{}) *Clause {
 		}
 	}
 	// Compile clause head
-	for i, term := range clause[0].Args {
+	for i, term := range clause[0].comp.Args {
 		c.Code = append(c.Code, ctx.getTerm(term, RegAddr(i))...)
 	}
 	for len(ctx.delayed) > 0 {
@@ -808,7 +824,7 @@ func compileSequence(ind logic.Indicator, clauses []flatClause) *Clause {
 	structIndex := make(map[Functor][]InstrAddr)
 	var listIndex, assocIndex, dictIndex []InstrAddr
 	for i, clause := range clauses {
-		arg := clause[0].Args[0]
+		arg := clause[0].comp.Args[0]
 		switch a := arg.(type) {
 		case logic.Atom:
 			constIndex[toConstant(a)] = append(constIndex[toConstant(a)], InstrAddr{codes[i], 1})
@@ -916,7 +932,7 @@ func splitOnVarFirstArg(clauses []flatClause) ([][]flatClause, bool) {
 	var subSeqs [][]flatClause
 	var anyNonVar bool
 	for _, clause := range clauses {
-		arg := clause[0].Args[0]
+		arg := clause[0].comp.Args[0]
 		if _, ok := arg.(logic.Var); ok {
 			if buf != nil {
 				subSeqs = append(subSeqs, buf)
@@ -1014,7 +1030,7 @@ func CompileClauses(clauses []*logic.Clause, options ...CompileOption) []*Clause
 	var order []logic.Indicator
 	for _, clause := range clauses {
 		goals := flatten(clause)
-		ind := goals[0].Indicator()
+		ind := goals[0].comp.Indicator()
 		if _, ok := m[ind]; !ok {
 			order = append(order, ind)
 		}
