@@ -11,7 +11,7 @@ import (
 	"github.com/brunokim/logic-engine/runes"
 )
 
-var builtinsPkg = NewPackage("builtin")
+var builtinsPkg = NewPackage("") // global namespace
 
 func init() {
 	builtins := CompileClauses(preamble)

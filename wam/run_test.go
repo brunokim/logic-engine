@@ -1124,9 +1124,7 @@ func TestUnifyDicts(t *testing.T) {
 }
 
 func TestCallPkg(t *testing.T) {
-	m := wam.NewMachine()
-	m.DebugFilename = "debugtest/call-pkg.jsonl"
-	err := m.CompilePackage("pkg1", []*logic.Clause{
+	pkg1, err := wam.CompilePackage([]*logic.Clause{
 		dsl.Clause(comp("package", atom("pkg1"), list(), list(atom("public/1")))),
 		dsl.Clause(comp("public", atom("a"))),
 		dsl.Clause(comp("private", atom("b"))),
@@ -1134,6 +1132,9 @@ func TestCallPkg(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	m := wam.NewMachine()
+	m.DebugFilename = "debugtest/call-pkg.jsonl"
+	m.AddPackage(pkg1)
 	// test(X, Y) :-
 	//   pkg1:public(X),
 	//   pkg1:private(Y).

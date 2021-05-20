@@ -16,6 +16,8 @@ func NewMachine() *Machine {
 		m.AddClause(builtin)
 	}
 	m.Packages = make(map[string]*Package)
+	m.Packages[""] = NewPackage("") // global namespace
+	m.AddPackage(builtinsPkg)
 	m.attributes = make(map[int]map[string]Cell)
 	m.interrupt = make(chan struct{})
 	return m
@@ -25,6 +27,7 @@ func NewMachine() *Machine {
 func (m *Machine) Reset() *Machine {
 	cloned := new(Machine)
 	cloned.Code = m.Code
+	cloned.Packages = m.Packages
 	cloned.Reg = make([]Cell, len(m.Reg))
 	cloned.DebugFilename = m.DebugFilename
 	cloned.IterLimit = m.IterLimit
@@ -34,6 +37,15 @@ func (m *Machine) Reset() *Machine {
 }
 
 func (m *Machine) AddPackage(pkg *Package) error {
+	if pkg.Name == "" {
+		globalPkg := m.Packages[""]
+		for _, clause := range pkg.Exported {
+			if err := addClause(globalPkg.Exported, clause); err != nil {
+				return errors.New("global: %v", err)
+			}
+		}
+		return nil
+	}
 	if _, ok := m.Packages[pkg.Name]; ok {
 		return errors.New("overwriting package %q", pkg.Name)
 	}
@@ -1050,27 +1062,31 @@ func CompileClauses(clauses []*logic.Clause, options ...CompileOption) []*Clause
 	return cs
 }
 
-func (m *Machine) CompilePackage(name string, clauses []*logic.Clause, options ...CompileOption) error {
+func CompilePackage(clauses []*logic.Clause, options ...CompileOption) (*Package, error) {
 	if len(clauses) == 0 {
-		return nil
+		return NewPackage(""), nil
 	}
 	pkgClause := clauses[0]
 	head, ok := pkgClause.Head.(*logic.Comp)
 	if !(ok && head.Indicator() == dsl.Indicator("package", 3) && len(pkgClause.Body) == 0) {
-		return errors.New("invalid first clause: want package/3 fact, got %v", pkgClause)
+		// Global package
+		pkg := NewPackage("")
+		compiled := CompileClauses(clauses, options...)
+		for _, clause := range compiled {
+			clause.Pkg = pkg
+			addClause(pkg.Exported, clause)
+		}
+		return pkg, nil
 	}
 	pkgName, ok := head.Args[0].(logic.Atom)
 	if !ok {
-		return errors.New("package arg #1 is not atom")
-	}
-	if pkgName.Name != name {
-		return errors.New("expecting package name %q, got %q", name, pkgName.Name)
+		return nil, errors.New("package arg #1 is not atom")
 	}
 	var imported []logic.Term
 	if head.Args[1] != logic.EmptyList {
 		list, ok := head.Args[1].(*logic.List)
 		if !ok {
-			return errors.New("package arg #2 is not list")
+			return nil, errors.New("package arg #2 is not list")
 		}
 		imported = list.Terms
 	}
@@ -1078,35 +1094,27 @@ func (m *Machine) CompilePackage(name string, clauses []*logic.Clause, options .
 	if head.Args[2] != logic.EmptyList {
 		list, ok := head.Args[2].(*logic.List)
 		if !ok {
-			return errors.New("package arg #3 is not list")
+			return nil, errors.New("package arg #3 is not list")
 		}
 		exported = list.Terms
 	}
-	pkg := NewPackage(name)
+	pkg := NewPackage(pkgName.Name)
 	for i, importedPkg := range imported {
 		pkgName, ok := importedPkg.(logic.Atom)
 		if !ok {
-			return errors.New("imported #%d: expecting atom package name, got %v", i+1, importedPkg)
+			return nil, errors.New("imported #%d: expecting atom package name, got %v", i+1, importedPkg)
 		}
-		imp, ok := m.Packages[pkgName.Name]
-		if !ok {
-			return errors.New("imported #%d: couldn't find package %q", i+1, pkgName.Name)
-		}
-		for _, clause := range imp.Exported {
-			if err := addClause(pkg.Imported, clause); err != nil {
-				return errors.New("imported: %v", err)
-			}
-		}
+		pkg.ImportedPkgs = append(pkg.ImportedPkgs, pkgName.Name)
 	}
 	exportedFunctors := make(map[Functor]struct{})
 	for i, exportedFn := range exported {
 		fnAtom, ok := exportedFn.(logic.Atom)
 		if !ok {
-			return errors.New("exported #%d: expecting atom functor name, got %v", i+1, exportedFn)
+			return nil, errors.New("exported #%d: expecting atom functor name, got %v", i+1, exportedFn)
 		}
 		fn, err := ParseFunctor(fnAtom.Name)
 		if err != nil {
-			return errors.New("exported #%d: %v", i+1, err)
+			return nil, errors.New("exported #%d: %v", i+1, err)
 		}
 		exportedFunctors[fn] = struct{}{}
 	}
@@ -1115,13 +1123,17 @@ func (m *Machine) CompilePackage(name string, clauses []*logic.Clause, options .
 		clause.Pkg = pkg
 		if _, ok := exportedFunctors[clause.Functor]; ok {
 			if err := addClause(pkg.Exported, clause); err != nil {
-				return errors.New("exported: %v", err)
+				return nil, errors.New("exported: %v", err)
 			}
+			delete(exportedFunctors, clause.Functor)
 		} else {
 			if err := addClause(pkg.Internal, clause); err != nil {
-				return errors.New("internal: %v", err)
+				return nil, errors.New("internal: %v", err)
 			}
 		}
 	}
-	return m.AddPackage(pkg)
+	if len(exportedFunctors) > 0 {
+		return nil, errors.New("exported functors are not implemented: %v", exportedFunctors)
+	}
+	return pkg, nil
 }

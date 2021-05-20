@@ -90,7 +90,9 @@ func TestSolve_Cancel(t *testing.T) {
 	}
 	solutions, cancel := s.Query("loop")
 	<-time.After(10 * time.Millisecond)
+	t.Log("canceling...")
 	cancel()
+	t.Log("canceled!")
 	result, ok := <-solutions
 	if result != nil {
 		t.Fatalf("result is not nil: %v", result)
@@ -144,6 +146,7 @@ func TestSolve_Lib(t *testing.T) {
 		}
 		if diff := cmp.Diff(test.want, got, cmpopts.EquateEmpty(), test_helpers.IgnoreUnexported); diff != "" {
 			t.Errorf("%q: (-want, +got)\n%s", test.query, diff)
+			t.Log(s.Err)
 		}
 	}
 }

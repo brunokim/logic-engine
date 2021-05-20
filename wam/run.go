@@ -416,23 +416,61 @@ func (m *Machine) restoreFromChoicePoint() {
 	m.unwindTrail()
 }
 
+func (m *Machine) getClause(pkg *Package, functor Functor) (*Clause, error) {
+	if pkg == nil {
+		clause, ok := m.Code[functor]
+		if ok {
+			return clause, nil
+		}
+		clause, ok = m.Packages[""].Exported[functor]
+		if ok {
+			return clause, nil
+		}
+		return nil, errors.New("clause not found: %v", functor)
+	}
+	clause, ok := pkg.Internal[functor]
+	if ok {
+		return clause, nil
+	}
+	clause, ok = pkg.Exported[functor]
+	if ok {
+		return clause, nil
+	}
+	clause, ok = m.Packages[""].Exported[functor]
+	if ok {
+		return clause, nil
+	}
+	for _, pkgName := range pkg.ImportedPkgs {
+		pkg, ok := m.Packages[pkgName]
+		if !ok {
+			return nil, errors.New("package imported by %q is missing: %s", pkg.Name, pkgName)
+		}
+		clause, ok := pkg.Exported[functor]
+		if ok {
+			return clause, nil
+		}
+	}
+	return nil, errors.New("clause not found: %v", functor)
+}
+
 func (m *Machine) call(pkgName string, functor Functor) (InstrAddr, error) {
-	var clause *Clause
-	var ok bool
-	if pkgName != "" {
-		var pkg *Package
+	var pkg *Package
+	if pkgName == "" {
+		pkg = m.CodePtr.Clause.Pkg
+	} else {
+		var ok bool
 		pkg, ok = m.Packages[pkgName]
 		if !ok {
 			return m.backtrack(errors.New("package not found: %v", pkgName))
 		}
-		clause, ok = pkg.Get(functor)
-	} else if m.CodePtr.Clause.Pkg != nil {
-		clause, ok = m.CodePtr.Clause.Pkg.Get(functor)
-	} else {
-		clause, ok = m.Code[functor]
 	}
-	if !ok {
-		return m.backtrack(errors.New("clause not found: %v", functor))
+	clause, err := m.getClause(pkg, functor)
+	if err != nil {
+		return m.backtrack(err)
+	}
+	if len(m.Reg) < clause.NumRegisters {
+		nils := make([]Cell, clause.NumRegisters-len(m.Reg))
+		m.Reg = append(m.Reg, nils...)
 	}
 	return InstrAddr{Clause: clause, Pos: 0}, nil
 }

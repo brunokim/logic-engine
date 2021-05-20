@@ -481,10 +481,10 @@ func (i inlineUnify) String() string {
 
 // Package represents a single source file compiled.
 type Package struct {
-	Name     string
-	Imported map[Functor]*Clause
-	Exported map[Functor]*Clause
-	Internal map[Functor]*Clause
+	Name         string
+	ImportedPkgs []string
+	Exported     map[Functor]*Clause
+	Internal     map[Functor]*Clause
 }
 
 // Clause represents a single compiled clause.
@@ -506,7 +506,6 @@ type InstrAddr struct {
 func NewPackage(name string) *Package {
 	pkg := new(Package)
 	pkg.Name = name
-	pkg.Imported = make(map[Functor]*Clause)
 	pkg.Exported = make(map[Functor]*Clause)
 	pkg.Internal = make(map[Functor]*Clause)
 	return pkg
@@ -518,19 +517,6 @@ func addClause(index map[Functor]*Clause, clause *Clause) error {
 	}
 	index[clause.Functor] = clause
 	return nil
-}
-
-func (pkg *Package) Get(functor Functor) (*Clause, bool) {
-	clause, ok := pkg.Internal[functor]
-	if ok {
-		return clause, true
-	}
-	clause, ok = pkg.Exported[functor]
-	if ok {
-		return clause, true
-	}
-	clause, ok = pkg.Imported[functor]
-	return clause, ok
 }
 
 func (ia InstrAddr) isValid() bool {

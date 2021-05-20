@@ -488,13 +488,10 @@ func TestCompilePackage(t *testing.T) {
 
 	pkg2 := wam.NewPackage("pkg2")
 	g1 := wam.Functor{"g", 1}
-	pkg2.Imported[f1] = pkg1.Exported[f1]
+	pkg2.ImportedPkgs = []string{"pkg1"}
 	pkg2.Exported[g1] = &wam.Clause{Pkg: pkg2, Functor: g1}
 
-	m := wam.NewMachine()
-	m.AddPackage(pkg1)
-	m.AddPackage(pkg2)
-	err := m.CompilePackage("pkg3", []*logic.Clause{
+	pkg3, err := wam.CompilePackage([]*logic.Clause{
 		dsl.Clause(comp("package", atom("pkg3"),
 			list(atom("pkg1"), atom("pkg2")),
 			list(atom("f/1"), atom("g/2")))),
@@ -506,18 +503,14 @@ func TestCompilePackage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pkg3 := m.Packages["pkg3"]
 	g2 := wam.Functor{"g", 2}
 	g3 := wam.Functor{"g", 3}
 	want := &wam.Package{
-		Name: "pkg3",
+		Name:         "pkg3",
+		ImportedPkgs: []string{"pkg1", "pkg2"},
 		Exported: map[wam.Functor]*wam.Clause{
 			f1: &wam.Clause{Pkg: pkg3, Functor: f1},
 			g2: &wam.Clause{Pkg: pkg3, Functor: g2},
-		},
-		Imported: map[wam.Functor]*wam.Clause{
-			f1: &wam.Clause{Pkg: pkg1, Functor: f1},
-			g1: &wam.Clause{Pkg: pkg2, Functor: g1},
 		},
 		Internal: map[wam.Functor]*wam.Clause{
 			g3: &wam.Clause{Pkg: pkg3, Functor: g3},

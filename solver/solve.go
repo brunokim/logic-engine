@@ -17,10 +17,10 @@ import (
 //go:embed lib
 var f embed.FS
 
-var libCompiled []*wam.Clause
+var libPkgs []*wam.Package
 
 func init() {
-	var clauses []*logic.Clause
+	var pkgs []*wam.Package
 	err := fs.WalkDir(f, ".", func(path string, d fs.DirEntry, err error) error {
 		if d.IsDir() {
 			return nil
@@ -33,13 +33,17 @@ func init() {
 		if err != nil {
 			return err
 		}
-		clauses = append(clauses, cs...)
+		pkg, err := wam.CompilePackage(cs)
+		if err != nil {
+			return err
+		}
+		pkgs = append(pkgs, pkg)
 		return nil
 	})
 	if err != nil {
 		panic(err)
 	}
-	libCompiled = wam.CompileClauses(clauses)
+	libPkgs = pkgs
 }
 
 // Solver provides an asynchronous interface for enumerating the solutions
@@ -84,14 +88,19 @@ func New(text string) (*Solver, error) {
 
 // NewFromClauses is like New, with already parsed clauses.
 func NewSolverFromClauses(clauses []*logic.Clause) (*Solver, error) {
-	compiled := wam.CompileClauses(clauses)
 	solver := new(Solver)
 	solver.m = wam.NewMachine()
-	for _, clause := range compiled {
-		solver.m.AddClause(clause)
+	for _, pkg := range libPkgs {
+		if err := solver.m.AddPackage(pkg); err != nil {
+			return nil, err
+		}
 	}
-	for _, clause := range libCompiled {
-		solver.m.AddClause(clause)
+	pkg, err := wam.CompilePackage(clauses)
+	if err != nil {
+		return nil, err
+	}
+	if err := solver.m.AddPackage(pkg); err != nil {
+		return nil, err
 	}
 	return solver, nil
 }
