@@ -450,12 +450,19 @@ func (m *Machine) putMeta(addr Addr, params []Addr) (string, Functor, error) {
 		if c.Tag != AssocPair {
 			return "", Functor{}, errors.New("invalid meta call: %v", cell)
 		}
-		pkgAtom, pkgOk := c.Head.(WAtom)
-		nameAtom, nameOk := c.Tail.(WAtom)
-		if !(pkgOk && nameOk) {
+		pkgAtom, ok := c.Head.(WAtom)
+		if !ok {
 			return "", Functor{}, errors.New("invalid meta call: %v", cell)
 		}
-		pkg, name = string(pkgAtom), string(nameAtom)
+		pkg = string(pkgAtom)
+		switch c1 := c.Tail.(type) {
+		case *Struct:
+			name, args = c1.Name, c1.Args
+		case WAtom:
+			name, args = string(c1), nil
+		default:
+			return "", Functor{}, errors.New("invalid meta call: %v", c.Tail)
+		}
 	default:
 		return "", Functor{}, errors.New("invalid meta call: %v", cell)
 	}

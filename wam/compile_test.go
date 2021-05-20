@@ -281,6 +281,19 @@ func TestCompile(t *testing.T) {
 				comp("unify_value", var_("X4")),
 				comp("proceed", atom("run"))),
 		},
+		{
+			dsl.Clause(comp("f"),
+				comp("list:append", var_("_"), var_("_")),
+				assoc(atom("list"), comp("length", var_("_")))),
+			wam.DecodeClause(indicator("f", 0),
+				comp("allocate", int_(0)),
+				comp("put_variable", var_("X2"), var_("X0")),
+				comp("put_variable", var_("X3"), var_("X1")),
+				comp("call", atom("list"), atom("append/2")),
+				comp("put_variable", var_("X4"), var_("X0")),
+				atom("deallocate"),
+				comp("execute", atom("list"), atom("length/1"))),
+		},
 	}
 	for _, test := range tests {
 		got := wam.Compile(test.clause)

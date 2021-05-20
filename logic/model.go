@@ -104,7 +104,7 @@ type Dict struct {
 type Clause struct {
 	// Head is the consequent of a clause. May be Atom or Comp.
 	Head Term
-	// Body is the antecedent of a clause. May be Atom, Var or Comp.
+	// Body is the antecedent of a clause. May be Atom, Var, Comp or Assoc.
 	Body    []Term
 	hasVar_ bool
 }

@@ -2,6 +2,7 @@ package wam
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/brunokim/logic-engine/dsl"
 	"github.com/brunokim/logic-engine/errors"
@@ -77,9 +78,16 @@ func toGoal(term logic.Term) *logic.Comp {
 		return logic.NewComp(t.Name)
 	case logic.Var:
 		return logic.NewComp("call", t)
-	default:
-		panic(fmt.Sprintf("Unhandled goal type %T (%v)", term, term))
+	case *logic.Assoc:
+		// TODO: adding the package to the goal's name is a hack.
+		pkg, ok := t.Key.(logic.Atom)
+		if !ok {
+			break
+		}
+		goal := toGoal(t.Val)
+		return logic.NewComp(pkg.Name+":"+goal.Functor, goal.Args...)
 	}
+	panic(fmt.Sprintf("Unhandled goal type %T (%v)", term, term))
 }
 
 func toGoals(terms []logic.Term) flatClause {
@@ -575,7 +583,13 @@ func (ctx *compileCtx) compileBodyTerm(pos int, term *logic.Comp) []Instruction 
 		for i, arg := range term.Args {
 			ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, RegAddr(i))...)
 		}
-		ctx.instrs = append(ctx.instrs, call{Functor: toFunctor(term.Indicator())})
+		var pkg string
+		if parts := strings.SplitN(term.Functor, ":", 2); len(parts) == 2 {
+			var functor string
+			pkg, functor = parts[0], parts[1]
+			term = logic.NewComp(functor, term.Args...)
+		}
+		ctx.instrs = append(ctx.instrs, call{Pkg: pkg, Functor: toFunctor(term.Indicator())})
 		return ctx.instrs
 	}
 }
@@ -684,7 +698,7 @@ func optimizeLastCall(code []Instruction) []Instruction {
 		n := len(code)
 		call, isCall := code[n-1].(call)
 		if isCall {
-			code[n-1] = execute{Functor: call.Functor}
+			code[n-1] = execute{Pkg: call.Pkg, Functor: call.Functor}
 		}
 	}
 	// If code ends with callMeta, change it for executeMeta
