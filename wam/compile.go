@@ -31,6 +31,9 @@ func (m *Machine) Reset() *Machine {
 	return cloned
 }
 
+// AddPackage appends a package to this machine's package list. It errors out if
+// the package name is duplicated. If the package is nameless, all clauses are added
+// to the global namespace.
 func (m *Machine) AddPackage(pkg *Package) error {
 	if pkg.Name == "" {
 		globalPkg := m.Packages[""]
@@ -1018,9 +1021,9 @@ type KeepLabels struct{}
 
 func (KeepLabels) isCompileOption() {}
 
-// CompileClauses returns a list of compiled clauses. Each corresponds with
+// compileClauses returns a list of compiled clauses. Each corresponds with
 // a functor f/n, and all sub-clauses that implement the same functor.
-func CompileClauses(clauses []*logic.Clause, options ...CompileOption) []*Clause {
+func compileClauses(clauses []*logic.Clause, options ...CompileOption) []*Clause {
 	opts := make(map[CompileOption]struct{})
 	for _, opt := range options {
 		opts[opt] = struct{}{}
@@ -1050,6 +1053,13 @@ func CompileClauses(clauses []*logic.Clause, options ...CompileOption) []*Clause
 	return cs
 }
 
+// CompilePackage compiles a list of clauses into a single package.
+//
+// If the first clause is a fact like `package(pkg_name, [pkg1, pkg2], ['f/2', 'g/1']).`,
+// the package returned defines a namespace, with specified exported functions and imported
+// package names.
+//
+// Otherwise, the package is nameless, and all clauses will be added to the global namespace.
 func CompilePackage(clauses []*logic.Clause, options ...CompileOption) (*Package, error) {
 	if len(clauses) == 0 {
 		return NewPackage(""), nil
@@ -1059,7 +1069,7 @@ func CompilePackage(clauses []*logic.Clause, options ...CompileOption) (*Package
 	if !(ok && head.Indicator() == dsl.Indicator("package", 3) && len(pkgClause.Body) == 0) {
 		// Global package
 		pkg := NewPackage("")
-		compiled := CompileClauses(clauses, options...)
+		compiled := compileClauses(clauses, options...)
 		for _, clause := range compiled {
 			addClause(pkg.Exported, clause)
 			for _, c := range reachableClauses(clause) {
@@ -1108,7 +1118,7 @@ func CompilePackage(clauses []*logic.Clause, options ...CompileOption) (*Package
 		}
 		exportedFunctors[fn] = struct{}{}
 	}
-	compiled := CompileClauses(clauses[1:], options...)
+	compiled := compileClauses(clauses[1:], options...)
 	for _, clause := range compiled {
 		if _, ok := exportedFunctors[clause.Functor]; ok {
 			if err := addClause(pkg.Exported, clause); err != nil {

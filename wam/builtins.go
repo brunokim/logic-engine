@@ -14,19 +14,19 @@ import (
 var builtinsPkg = NewPackage("") // global namespace
 
 func init() {
-	builtins := CompileClauses(preamble)
-	for _, clause := range builtins {
-		clause.Pkg = builtinsPkg
-		addClause(builtinsPkg.Exported, clause)
+	pkg, err := CompilePackage(preamble)
+	if err != nil {
+		panic(err)
 	}
-	addClause(builtinsPkg.Exported, failClause)
-	addClause(builtinsPkg.Internal, builtinUnicodeIterPredicate())
+	pkg.AddExported(failClause)
+	pkg.AddInternal(builtinUnicodeIterPredicate())
 	for _, pred := range comparisonPredicates {
-		addClause(builtinsPkg.Exported, builtinComparisonPredicate(pred))
+		pkg.AddExported(builtinComparisonPredicate(pred))
 	}
 	for _, pred := range typeCheckPredicates {
-		addClause(builtinsPkg.Exported, builtinTypeCheckPredicate(pred))
+		pkg.AddExported(builtinTypeCheckPredicate(pred))
 	}
+	builtinsPkg = pkg
 }
 
 var (

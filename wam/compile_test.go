@@ -472,7 +472,15 @@ func TestCompileClauses(t *testing.T) {
 	}
 	// Need to ignore self-referential fields because go-cmp can't handle them.
 	for _, test := range tests {
-		got := wam.CompileClauses(test.clauses, wam.KeepLabels{})
+		pkg, err := wam.CompilePackage(test.clauses, wam.KeepLabels{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []*wam.Clause
+		for _, clause := range pkg.Exported {
+			clause.Pkg = nil
+			got = append(got, clause)
+		}
 		if diff := cmp.Diff(test.want, got, cmpopts.IgnoreFields(instr{}, "Clause")); diff != "" {
 			t.Errorf("%v: (-want, +got)%s", test.clauses, diff)
 		}
