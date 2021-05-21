@@ -426,7 +426,7 @@ var (
 func TestCompileClauses(t *testing.T) {
 	tests := []struct {
 		clauses []*logic.Clause
-		want    []*wam.Clause
+		want    map[wam.Functor]*wam.Clause
 	}{
 		{
 			dsl.Clauses(
@@ -435,7 +435,7 @@ func TestCompileClauses(t *testing.T) {
 				dsl.Clause(comp("vowel", atom("i"))),
 				dsl.Clause(comp("vowel", atom("o"))),
 				dsl.Clause(comp("vowel", atom("u")))),
-			[]*wam.Clause{vowelIndex},
+			map[wam.Functor]*wam.Clause{wam.Functor{"vowel", 1}: vowelIndex},
 		},
 		{
 
@@ -449,7 +449,7 @@ func TestCompileClauses(t *testing.T) {
 				dsl.Clause(comp("f", comp("g", atom("1")))),
 				dsl.Clause(comp("f", list(atom("x")))),
 				dsl.Clause(comp("f", list(atom("y"))))),
-			[]*wam.Clause{fIndex},
+			map[wam.Functor]*wam.Clause{wam.Functor{"f", 1}: fIndex},
 		},
 		{
 			dsl.Clauses(
@@ -467,7 +467,10 @@ func TestCompileClauses(t *testing.T) {
 				dsl.Clause(comp("f", comp("g", atom("1")))),
 				dsl.Clause(comp("f", list(atom("x")))),
 				dsl.Clause(comp("f", list(atom("y"))))),
-			[]*wam.Clause{vowelIndex, fIndex},
+			map[wam.Functor]*wam.Clause{
+				wam.Functor{"vowel", 1}: vowelIndex,
+				wam.Functor{"f", 1}:     fIndex,
+			},
 		},
 	}
 	// Need to ignore self-referential fields because go-cmp can't handle them.
@@ -476,12 +479,12 @@ func TestCompileClauses(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		var got []*wam.Clause
-		for _, clause := range pkg.Exported {
-			clause.Pkg = nil
-			got = append(got, clause)
+		got := pkg.Exported
+		opts := cmp.Options{
+			cmpopts.IgnoreFields(wam.Clause{}, "Pkg"),
+			cmpopts.IgnoreFields(instr{}, "Clause"),
 		}
-		if diff := cmp.Diff(test.want, got, cmpopts.IgnoreFields(instr{}, "Clause")); diff != "" {
+		if diff := cmp.Diff(test.want, got, opts); diff != "" {
 			t.Errorf("%v: (-want, +got)%s", test.clauses, diff)
 		}
 	}
