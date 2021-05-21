@@ -187,6 +187,9 @@ export class Wam {
     }
 
     tempVars(state = this.state()) {
+        if (state.Reg == null) {
+            return []
+        }
         let clause = this.clause(state.CodePtr)
         let numRegisters = clause.NumRegisters
         return state.Reg.slice(0, numRegisters)
@@ -417,6 +420,7 @@ export class Wam {
         switch (instr.Type) {
         case "putStruct":
         case "getStruct":
+            return instr.Functor
         case "call":
         case "execute":
             if (instr.Pkg == "") {

@@ -109,11 +109,14 @@ func newMachineEncoder(m *Machine) *machineEncoder {
 		enc.clausePos = m.encoder.clausePos
 		enc.clauses = m.encoder.clauses
 	} else {
-		clauses := make([]*Clause, len(m.Code))
-		i := 0
-		for _, clause := range m.Code {
-			clauses[i] = clause
-			i++
+		var clauses []*Clause
+		for _, pkg := range m.Packages {
+			for _, c := range pkg.Exported {
+				clauses = append(clauses, c)
+			}
+			for _, c := range pkg.Internal {
+				clauses = append(clauses, c)
+			}
 		}
 		enc.clausePos = clausePositions(clauses)
 		enc.clauses = make([]*Clause, len(enc.clausePos))

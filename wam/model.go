@@ -520,6 +520,14 @@ func NewPackage(name string) *Package {
 	return pkg
 }
 
+func (pkg *Package) AddExported(clause *Clause) error {
+	return addClause(pkg.Exported, clause)
+}
+
+func (pkg *Package) AddInternal(clause *Clause) error {
+	return addClause(pkg.Internal, clause)
+}
+
 func addClause(index map[Functor]*Clause, clause *Clause) error {
 	if _, ok := index[clause.Functor]; ok {
 		return errors.New("overwriting clause %v", clause.Functor)
@@ -773,9 +781,6 @@ type Machine struct {
 
 	// Compiled packages, indexed by package name.
 	Packages map[string]*Package
-
-	// Instruction list. A query is represented by an empty functor.
-	Code map[Functor]*Clause
 
 	// Current instruction index.
 	CodePtr InstrAddr

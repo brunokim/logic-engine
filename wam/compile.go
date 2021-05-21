@@ -11,10 +11,6 @@ import (
 // NewMachine creates a new abstract machine.
 func NewMachine() *Machine {
 	m := new(Machine)
-	m.Code = make(map[Functor]*Clause)
-	for _, builtin := range builtinsPkg.Exported {
-		m.AddClause(builtin)
-	}
 	m.Packages = make(map[string]*Package)
 	m.Packages[""] = NewPackage("") // global namespace
 	m.AddPackage(builtinsPkg)
@@ -26,7 +22,6 @@ func NewMachine() *Machine {
 // Reset creates a new machine with clean state, copying only the compiled clauses.
 func (m *Machine) Reset() *Machine {
 	cloned := new(Machine)
-	cloned.Code = m.Code
 	cloned.Packages = m.Packages
 	cloned.Reg = make([]Cell, len(m.Reg))
 	cloned.DebugFilename = m.DebugFilename
@@ -51,16 +46,6 @@ func (m *Machine) AddPackage(pkg *Package) error {
 	}
 	m.Packages[pkg.Name] = pkg
 	return nil
-}
-
-// AddClause adds a compiled clause to the machine.
-// It overwrites any present clause with the same functor.
-func (m *Machine) AddClause(clause *Clause) {
-	m.Code[clause.Functor] = clause
-	// Grow machine registers to accomodate the clause requirements.
-	for i := len(m.Reg); i < clause.NumRegisters; i++ {
-		m.Reg = append(m.Reg, nil)
-	}
 }
 
 // ---- conversion

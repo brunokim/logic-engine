@@ -47,9 +47,10 @@ func TestRun_BuildQuery(t *testing.T) {
 	var instrs []logic.Term
 	instrs = append(instrs, queryInstrs...)
 	instrs = append(instrs, atom("halt"))
-	query := wam.DecodeClause(indicator("", 0), instrs...)
+	pkg := wam.NewPackage("")
+	pkg.AddExported(wam.DecodeClause(indicator("", 0), instrs...))
 	m := wam.NewMachine()
-	m.AddClause(query)
+	m.AddPackage(pkg)
 	m.IterLimit = 10
 	m.DebugFilename = "debugtest/run-build-query.jsonl"
 	if err := m.Run(); err != nil {
@@ -69,9 +70,10 @@ func TestRun_BuildQueryAndProgram(t *testing.T) {
 	instrs = append(instrs, queryInstrs...)
 	instrs = append(instrs, programInstrs...)
 	instrs = append(instrs, atom("halt"))
-	query := wam.DecodeClause(indicator("", 0), instrs...)
+	pkg := wam.NewPackage("")
+	pkg.AddExported(wam.DecodeClause(indicator("", 0), instrs...))
 	m := wam.NewMachine()
-	m.AddClause(query)
+	m.AddPackage(pkg)
 	m.IterLimit = 30
 	m.DebugFilename = "debugtest/run-build-query-and-program.jsonl"
 	if err := m.Run(); err != nil {
@@ -93,16 +95,16 @@ func TestRun_Call(t *testing.T) {
 	instrs = append(instrs,
 		comp("call", atom("p/3")),
 		atom("halt"))
-	query := wam.DecodeClause(indicator("", 0), instrs...)
+	pkg := wam.NewPackage("")
+	pkg.AddExported(wam.DecodeClause(indicator("", 0), instrs...))
 
 	var prog []logic.Term
 	prog = append(prog, programInstrs...)
 	prog = append(prog, comp("proceed", atom("run")))
-	program := wam.DecodeClause(indicator("p", 3), prog...)
+	pkg.AddExported(wam.DecodeClause(indicator("p", 3), prog...))
 
 	m := wam.NewMachine()
-	m.AddClause(query)
-	m.AddClause(program)
+	m.AddPackage(pkg)
 	m.IterLimit = 40
 	m.DebugFilename = "debugtest/run-call.jsonl"
 
@@ -169,20 +171,23 @@ var (
 )
 
 func TestRun_allocate(t *testing.T) {
-	m := wam.NewMachine()
-	m.AddClause(p2)
-	m.AddClause(q2)
-	m.AddClause(r2)
-	m.AddClause(s1)
-	m.AddClause(t1)
+	pkg := wam.NewPackage("")
+	pkg.AddExported(p2)
+	pkg.AddExported(q2)
+	pkg.AddExported(r2)
+	pkg.AddExported(s1)
+	pkg.AddExported(t1)
 
 	// ?- p(X, Y).
-	m.AddClause(wam.DecodeClause(indicator("", 0),
+	pkg.AddExported(wam.DecodeClause(indicator("", 0),
 		// Save X and Y at regs X3 and X4, that are not used by any other clauses.
 		comp("put_variable", var_("X3"), var_("X0")),
 		comp("put_variable", var_("X4"), var_("X1")),
 		comp("call", atom("p/2")),
 		atom("halt")))
+
+	m := wam.NewMachine()
+	m.AddPackage(pkg)
 	m.IterLimit = 100
 	m.DebugFilename = "debugtest/run-allocate.jsonl"
 
@@ -242,18 +247,20 @@ var (
 )
 
 func TestRun_ChoicePoints(t *testing.T) {
-	m := wam.NewMachine()
-	m.AddClause(colorRed)
-	m.AddClause(bitFalse)
-	m.AddClause(bitColor)
+	pkg := wam.NewPackage("")
+	pkg.AddExported(colorRed)
+	pkg.AddExported(bitFalse)
+	pkg.AddExported(bitColor)
 
 	// ?- bit_color(true, green).
-	m.AddClause(wam.DecodeClause(indicator("", 0),
+	pkg.AddExported(wam.DecodeClause(indicator("", 0),
 		comp("put_constant", atom("true"), var_("X0")),
 		comp("put_constant", atom("green"), var_("X1")),
 		comp("call", atom("bit_color/2")),
 		atom("halt"),
 	))
+	m := wam.NewMachine()
+	m.AddPackage(pkg)
 	m.IterLimit = 30
 	m.DebugFilename = "debugtest/run-choicepoint.jsonl"
 
@@ -318,19 +325,21 @@ var (
 )
 
 func TestRun_Trail(t *testing.T) {
-	m := wam.NewMachine()
-	m.AddClause(a2)
-	m.AddClause(b2)
-	m.AddClause(c2_1)
-	m.AddClause(d1_1)
+	pkg := wam.NewPackage("")
+	pkg.AddExported(a2)
+	pkg.AddExported(b2)
+	pkg.AddExported(c2_1)
+	pkg.AddExported(d1_1)
 
 	// ?- a(X, q1).
-	m.AddClause(wam.DecodeClause(indicator("", 0),
+	pkg.AddExported(wam.DecodeClause(indicator("", 0),
 		// Save X at reg X3, that is not used by any other clauses.
 		comp("put_variable", var_("X3"), var_("X0")),
 		comp("put_constant", atom("q1"), var_("X1")),
 		comp("call", atom("a/2")),
 		atom("halt")))
+	m := wam.NewMachine()
+	m.AddPackage(pkg)
 	m.IterLimit = 50
 	m.DebugFilename = "debugtest/run-trail.jsonl"
 
@@ -346,9 +355,10 @@ func TestRun_Trail(t *testing.T) {
 }
 
 func TestRun_List(t *testing.T) {
-	m := wam.NewMachine()
+	pkg := wam.NewPackage("")
+
 	// build_list((a . (b . []))).
-	m.AddClause(wam.DecodeClause(indicator("build_list", 1),
+	pkg.AddExported(wam.DecodeClause(indicator("build_list", 1),
 		comp("get_pair", atom("list"), var_("X0")),
 		comp("unify_constant", atom("a")),
 		comp("unify_variable", var_("X1")),
@@ -358,12 +368,12 @@ func TestRun_List(t *testing.T) {
 		comp("proceed", atom("run"))))
 
 	// =(X, X).
-	m.AddClause(wam.DecodeClause(indicator("=", 2),
+	pkg.AddExported(wam.DecodeClause(indicator("=", 2),
 		comp("get_value", var_("X0"), var_("X1")),
 		comp("proceed", atom("run"))))
 
 	// ?- build_list((a . T)), =(T, (X . [])).
-	m.AddClause(wam.DecodeClause(indicator("", 0),
+	pkg.AddExported(wam.DecodeClause(indicator("", 0),
 		comp("allocate", int_(2)),
 
 		comp("put_pair", atom("list"), var_("X0")),
@@ -378,6 +388,8 @@ func TestRun_List(t *testing.T) {
 		comp("call", atom("=/2")),
 
 		atom("halt")))
+	m := wam.NewMachine()
+	m.AddPackage(pkg)
 	m.IterLimit = 50
 	m.DebugFilename = "debugtest/run-list.jsonl"
 
@@ -396,9 +408,9 @@ func TestRun_List(t *testing.T) {
 }
 
 func TestRun_Void(t *testing.T) {
-	m := wam.NewMachine()
+	pkg := wam.NewPackage("")
 	// length3((_ . (_ . (_ . [])))).
-	m.AddClause(wam.DecodeClause(indicator("length3", 1),
+	pkg.AddExported(wam.DecodeClause(indicator("length3", 1),
 		comp("get_pair", atom("list"), var_("X0")),
 		atom("unify_void"),
 		comp("unify_variable", var_("X1")),
@@ -411,7 +423,7 @@ func TestRun_Void(t *testing.T) {
 		comp("proceed", atom("run"))))
 
 	// ?- length3((a . (X . (f(_, _, X) . []))))
-	m.AddClause(wam.DecodeClause(indicator("", 0),
+	pkg.AddExported(wam.DecodeClause(indicator("", 0),
 		// f(_, _, X)
 		comp("put_struct", atom("f/3"), var_("X3")),
 		atom("unify_void"),
@@ -435,6 +447,8 @@ func TestRun_Void(t *testing.T) {
 
 		comp("call", atom("length3/1")),
 		atom("halt")))
+	m := wam.NewMachine()
+	m.AddPackage(pkg)
 	m.IterLimit = 50
 	m.DebugFilename = "debugtest/run-void.jsonl"
 
@@ -494,8 +508,8 @@ var (
 )
 
 func TestConcat(t *testing.T) {
-	m := wam.NewMachine()
-	m.AddClause(concat1)
+	pkg := wam.NewPackage("")
+	pkg.AddExported(concat1)
 
 	// ?- concat([a, b, c], [d], L).
 	var instrs []logic.Term
@@ -505,7 +519,10 @@ func TestConcat(t *testing.T) {
 		comp("put_variable", var_("X6"), var_("X2")),
 		comp("call", atom("concat/3")),
 		atom("halt"))
-	m.AddClause(wam.DecodeClause(indicator("", 0), instrs...))
+	pkg.AddExported(wam.DecodeClause(indicator("", 0), instrs...))
+
+	m := wam.NewMachine()
+	m.AddPackage(pkg)
 	m.IterLimit = 75
 	m.DebugFilename = "debugtest/run-concat.jsonl"
 
@@ -521,9 +538,9 @@ func TestConcat(t *testing.T) {
 }
 
 func TestConcat_trytrust(t *testing.T) {
-	m := wam.NewMachine()
-	m.AddClause(concat1)
-	m.AddClause(wam.DecodeClause(indicator("concat_tryelse", 0),
+	pkg := wam.NewPackage("")
+	pkg.AddExported(concat1)
+	pkg.AddExported(wam.DecodeClause(indicator("concat_tryelse", 0),
 		comp("try", comp("instr", ptr(concat1), int_(1))),
 		comp("trust", comp("instr", ptr(concat2), int_(1)))))
 
@@ -535,8 +552,10 @@ func TestConcat_trytrust(t *testing.T) {
 		comp("put_variable", var_("X6"), var_("X2")),
 		comp("call", atom("concat_tryelse/0")),
 		atom("halt"))
-	m.AddClause(wam.DecodeClause(indicator("", 0), instrs...))
+	pkg.AddExported(wam.DecodeClause(indicator("", 0), instrs...))
 
+	m := wam.NewMachine()
+	m.AddPackage(pkg)
 	m.IterLimit = 75
 	m.DebugFilename = "debugtest/run-concat-tryelse.jsonl"
 
@@ -670,11 +689,11 @@ var (
 )
 
 func TestSwitch(t *testing.T) {
-	m := wam.NewMachine()
-	m.AddClause(call_s1)
+	pkg := wam.NewPackage("")
+	pkg.AddExported(call_s1)
 
 	// ?- call(true), call(or(call(a), repeat))
-	m.AddClause(wam.DecodeClause(indicator("", 0),
+	pkg.AddExported(wam.DecodeClause(indicator("", 0),
 		comp("put_constant", atom("true"), var_("X0")),
 		comp("call", atom("call/1")),
 		comp("put_struct", atom("call/1"), var_("X1")),
@@ -685,6 +704,8 @@ func TestSwitch(t *testing.T) {
 		comp("call", atom("call/1")),
 		atom("halt")))
 
+	m := wam.NewMachine()
+	m.AddPackage(pkg)
 	m.IterLimit = 75
 	m.DebugFilename = "debugtest/run-switch.jsonl"
 
@@ -739,12 +760,12 @@ var (
 )
 
 func TestCut(t *testing.T) {
-	m := wam.NewMachine()
-	m.AddClause(member1)
-	m.AddClause(setAdd1)
+	pkg := wam.NewPackage("")
+	pkg.AddExported(member1)
+	pkg.AddExported(setAdd1)
 
 	// ?- member(a, [c, a, b]), set_add([a, b], c, L1), set_add(L1, b, L2).
-	m.AddClause(wam.DecodeClause(indicator("", 0),
+	pkg.AddExported(wam.DecodeClause(indicator("", 0),
 		// [a, b]
 		comp("put_pair", atom("list"), var_("X4")),
 		comp("unify_constant", atom("b")),
@@ -770,6 +791,8 @@ func TestCut(t *testing.T) {
 		comp("call", atom("set_add/3")),
 		atom("halt")))
 
+	m := wam.NewMachine()
+	m.AddPackage(pkg)
 	m.IterLimit = 150
 	m.DebugFilename = "debugtest/cut.jsonl"
 
@@ -821,12 +844,12 @@ var (
 )
 
 func TestNestedCalls(t *testing.T) {
-	m := wam.NewMachine()
-	m.AddClause(tree1)
+	pkg := wam.NewPackage("")
+	pkg.AddExported(tree1)
 
 	// ?- tree(node(a, node(b, nil, node(c, nil, nil)), node(d, nil, nil)), L, []).
 	// L = [b, c, a, d]
-	m.AddClause(wam.DecodeClause(indicator("", 0),
+	pkg.AddExported(wam.DecodeClause(indicator("", 0),
 		comp("put_struct", atom("node/3"), var_("X5")),
 		comp("unify_constant", atom("d")),
 		comp("unify_constant", atom("nil")),
@@ -848,6 +871,8 @@ func TestNestedCalls(t *testing.T) {
 		comp("call", atom("tree/3")),
 		atom("halt")))
 
+	m := wam.NewMachine()
+	m.AddPackage(pkg)
 	m.IterLimit = 150
 	m.DebugFilename = "debugtest/nested-calls.jsonl"
 
@@ -863,20 +888,21 @@ func TestNestedCalls(t *testing.T) {
 }
 
 func TestCallMeta(t *testing.T) {
-	m := wam.NewMachine()
-	m.IterLimit = 30
-	m.DebugFilename = "debugtest/call-meta.jsonl"
-
 	// p(a).
 	// q(b).
 	// ?- call(p(), X)
-	clauses := wam.CompileClauses([]*logic.Clause{
+	pkg, err := wam.CompilePackage([]*logic.Clause{
 		dsl.Clause(comp("p", atom("a"))),
 		dsl.Clause(comp("q", atom("b"))),
 	})
-	for _, clause := range clauses {
-		m.AddClause(clause)
+	if err != nil {
+		t.Fatal(err)
 	}
+
+	m := wam.NewMachine()
+	m.AddPackage(pkg)
+	m.IterLimit = 30
+	m.DebugFilename = "debugtest/call-meta.jsonl"
 	bindings, err := m.RunQuery(comp("call", comp("p"), var_("X")))
 	if err != nil {
 		t.Fatalf("expected nil, got err: %v", err)
@@ -887,14 +913,10 @@ func TestCallMeta(t *testing.T) {
 }
 
 func TestIf(t *testing.T) {
-	m := wam.NewMachine()
-	m.IterLimit = 200
-	m.DebugFilename = "debugtest/if.jsonl"
-
 	// true.
 	// member(X, [H|T]) :- ->(=(X, H), true, member(X, T)).
 	// ?- member(b, [a, c, b]), member(z, [a, c, b]).
-	clauses := wam.CompileClauses([]*logic.Clause{
+	pkg, err := wam.CompilePackage([]*logic.Clause{
 		dsl.Clause(atom("true")),
 		dsl.Clause(comp("member", var_("X"), ilist(var_("H"), var_("T"))),
 			comp("->",
@@ -902,10 +924,15 @@ func TestIf(t *testing.T) {
 				atom("true"),
 				comp("member", var_("X"), var_("T")))),
 	})
-	for _, clause := range clauses {
-		m.AddClause(clause)
+	if err != nil {
+		t.Fatal(err)
 	}
-	_, err := m.RunQuery(
+
+	m := wam.NewMachine()
+	m.AddPackage(pkg)
+	m.IterLimit = 200
+	m.DebugFilename = "debugtest/if.jsonl"
+	_, err = m.RunQuery(
 		comp("member", atom("b"), list(atom("a"), atom("c"), atom("b"))),
 		comp("member", atom("z"), list(atom("a"), atom("c"), atom("b"))))
 	if err == nil {
@@ -914,24 +941,24 @@ func TestIf(t *testing.T) {
 }
 
 func TestNextSolution(t *testing.T) {
-	m := wam.NewMachine()
-	m.IterLimit = 200
-	m.DebugFilename = "debugtest/next-solution.jsonl"
 
 	// add(0, S, S).
 	// add(s(A), B, s(S)) :- add(A, B, S).
-	clauses := wam.CompileClauses([]*logic.Clause{
+	pkg, err := wam.CompilePackage([]*logic.Clause{
 		dsl.Clause(comp("add", int_(0), var_("S"), var_("S"))),
 		dsl.Clause(comp("add", comp("s", var_("A")), var_("B"), comp("s", var_("S"))),
 			comp("add", var_("A"), var_("B"), var_("S"))),
 	})
-	for _, clause := range clauses {
-		m.AddClause(clause)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	// ?- add(X, Y, s(s(s(0)))).
+	m := wam.NewMachine()
+	m.AddPackage(pkg)
+	m.IterLimit = 200
+	m.DebugFilename = "debugtest/next-solution.jsonl"
 	var solutions [4]map[logic.Var]logic.Term
-	var err error
 	solutions[0], err = m.RunQuery(
 		comp("add", var_("X"), var_("Y"), comp("s", comp("s", comp("s", int_(0))))))
 	if err != nil {
@@ -967,25 +994,26 @@ func TestNextSolution(t *testing.T) {
 }
 
 func TestReset(t *testing.T) {
-	m := wam.NewMachine()
-	m.IterLimit = 200
-	m.DebugFilename = "debugtest/reset.jsonl"
-
 	// parent(charles, william).
 	// parent(diana, william).
 	// parent(charles, harry).
 	// parent(diana, harry).
-	clauses := wam.CompileClauses([]*logic.Clause{
+	pkg, err := wam.CompilePackage([]*logic.Clause{
 		dsl.Clause(comp("parent", atom("charles"), atom("william"))),
 		dsl.Clause(comp("parent", atom("diana"), atom("william"))),
 		dsl.Clause(comp("parent", atom("charles"), atom("harry"))),
 		dsl.Clause(comp("parent", atom("diana"), atom("harry"))),
 	})
-	for _, clause := range clauses {
-		m.AddClause(clause)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	// ?- parent(charles, X).
+	m := wam.NewMachine()
+	m.AddPackage(pkg)
+	m.IterLimit = 200
+	m.DebugFilename = "debugtest/reset.jsonl"
+
 	bindings1, err1 := m.RunQuery(comp("parent", atom("charles"), var_("X")))
 	m = m.Reset()
 	bindings2, err2 := m.RunQuery(comp("parent", var_("X"), atom("harry")))
@@ -1138,7 +1166,8 @@ func TestCallPkg(t *testing.T) {
 	// test(X, Y) :-
 	//   pkg1:public(X),
 	//   pkg1:private(Y).
-	m.AddClause(wam.DecodeClause(indicator("test", 2),
+	pkg := wam.NewPackage("")
+	pkg.AddExported(wam.DecodeClause(indicator("test", 2),
 		comp("allocate", int_(1)),
 		comp("get_variable", var_("X2"), var_("X0")),
 		comp("get_variable", var_("Y0"), var_("X1")),
@@ -1147,6 +1176,7 @@ func TestCallPkg(t *testing.T) {
 		comp("put_value", var_("Y0"), var_("X0")),
 		atom("deallocate"),
 		comp("execute", atom("pkg1"), atom("private/1"))))
+	m.AddPackage(pkg)
 	got, err := m.RunQuery(comp("test", var_("X"), var_("Y")))
 	if err != nil {
 		t.Fatal(err)

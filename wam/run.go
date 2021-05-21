@@ -30,7 +30,7 @@ func (m *Machine) RunQuery(query ...logic.Term) (map[logic.Var]logic.Term, error
 		}
 	}
 	c := compileQuery(query)
-	m.AddClause(c)
+	m.Packages[""].Exported[Functor{}] = c
 	return m.runOnce()
 }
 
@@ -83,6 +83,14 @@ func (m *Machine) Interrupt() {
 	m.interrupt <- struct{}{}
 }
 
+func (m *Machine) growRegisters(clause *Clause) {
+	if len(m.Reg) >= clause.NumRegisters {
+		return
+	}
+	nils := make([]Cell, clause.NumRegisters-len(m.Reg))
+	m.Reg = append(m.Reg, nils...)
+}
+
 // Run executes the instructions currently present in the machine.
 //
 // If CodePtr was not set, it will look for a clause with empty functor (/0) to treat as query,
@@ -92,12 +100,13 @@ func (m *Machine) Run() error {
 		m.IterLimit = math.MaxInt32
 	}
 	if !m.CodePtr.isValid() {
-		query, ok := m.Code[Functor{}]
+		query, ok := m.Packages[""].Exported[Functor{}]
 		if !ok {
 			return errors.New("query clause with empty functor (/0) not found")
 		}
 		m.CodePtr = InstrAddr{Clause: query, Pos: 0}
 	}
+	m.growRegisters(m.CodePtr.Clause)
 	var i int
 	f := m.debugInit()
 	defer m.debugClose(f)
@@ -417,36 +426,26 @@ func (m *Machine) restoreFromChoicePoint() {
 }
 
 func (m *Machine) getClause(pkg *Package, functor Functor) (*Clause, error) {
-	if pkg == nil {
-		clause, ok := m.Code[functor]
-		if ok {
+	// Search package's own symbols.
+	if pkg != nil {
+		if clause, ok := pkg.Internal[functor]; ok {
 			return clause, nil
 		}
-		clause, ok = m.Packages[""].Exported[functor]
-		if ok {
+		if clause, ok := pkg.Exported[functor]; ok {
 			return clause, nil
 		}
-		return nil, errors.New("clause not found: %v", functor)
 	}
-	clause, ok := pkg.Internal[functor]
-	if ok {
-		return clause, nil
+	// Search first in global namespace, then in imported packages.
+	importedPkgs := []string{""}
+	if pkg != nil {
+		importedPkgs = append(importedPkgs, pkg.ImportedPkgs...)
 	}
-	clause, ok = pkg.Exported[functor]
-	if ok {
-		return clause, nil
-	}
-	clause, ok = m.Packages[""].Exported[functor]
-	if ok {
-		return clause, nil
-	}
-	for _, pkgName := range pkg.ImportedPkgs {
+	for _, pkgName := range importedPkgs {
 		pkg, ok := m.Packages[pkgName]
 		if !ok {
 			return nil, errors.New("package imported by %q is missing: %s", pkg.Name, pkgName)
 		}
-		clause, ok := pkg.Exported[functor]
-		if ok {
+		if clause, ok := pkg.Exported[functor]; ok {
 			return clause, nil
 		}
 	}
@@ -468,10 +467,7 @@ func (m *Machine) call(pkgName string, functor Functor) (InstrAddr, error) {
 	if err != nil {
 		return m.backtrack(err)
 	}
-	if len(m.Reg) < clause.NumRegisters {
-		nils := make([]Cell, clause.NumRegisters-len(m.Reg))
-		m.Reg = append(m.Reg, nils...)
-	}
+	m.growRegisters(clause)
 	return InstrAddr{Clause: clause, Pos: 0}, nil
 }
 

@@ -24,10 +24,9 @@ var (
 )
 
 var (
-	// Machine is the underlying WAM with already-compiled parsing rules.
-	// Don't use it directly; call Machine.Reset() to create a copy.
-	Machine *wam.Machine
-	grammar = []*logic.Clause{
+	// ParserPkg is the underlying package with already-compiled parsing rules.
+	ParserPkg *wam.Package
+	grammar   = []*logic.Clause{
 		// Package declaration
 		clause(comp("package", atom("parser"),
 			list(),
@@ -236,25 +235,28 @@ var (
 )
 
 func init() {
-	clauses := wam.CompileClauses(grammar)
-	Machine = wam.NewMachine()
-	for _, clause := range clauses {
-		Machine.AddClause(clause)
+	pkg, err := wam.CompilePackage(grammar)
+	if err != nil {
+		panic(err)
 	}
+	ParserPkg = pkg
 }
 
 // ---- parse functions
 
 // ParseTerm parses a single term.
 func ParseTerm(text string) (logic.Term, error) {
-	m := Machine.Reset()
 	var letters []logic.Term
 	for _, ch := range text {
 		letters = append(letters, dsl.Atom(string(ch)))
 	}
 	tree := dsl.Var("Tree")
+	m := wam.NewMachine()
+	m.AddPackage(ParserPkg)
 	//m.DebugFilename = fmt.Sprintf("debugtest/%s.jsonl", text)
-	bindings, err := m.RunQuery(dsl.Comp("parse", dsl.List(letters...), tree))
+	bindings, err := m.RunQuery(
+		dsl.Comp("import", dsl.Atom("parser")),
+		dsl.Comp("parse", dsl.List(letters...), tree))
 	if err != nil {
 		return nil, err
 	}
@@ -272,13 +274,16 @@ func parseTerm(term logic.Term) (t logic.Term, err error) {
 
 // ParseClauses parses a sequence of facts and rules.
 func ParseClauses(text string) ([]*logic.Clause, error) {
-	m := Machine.Reset()
 	var letters []logic.Term
 	for _, ch := range text {
 		letters = append(letters, dsl.Atom(string(ch)))
 	}
 	tree := dsl.Var("Tree")
-	bindings, err := m.RunQuery(dsl.Comp("parse_kb", dsl.List(letters...), tree))
+	m := wam.NewMachine()
+	m.AddPackage(ParserPkg)
+	bindings, err := m.RunQuery(
+		dsl.Comp("import", dsl.Atom("parser")),
+		dsl.Comp("parse_kb", dsl.List(letters...), tree))
 	if err != nil {
 		return nil, err
 	}
@@ -296,13 +301,16 @@ func parseClauses(term logic.Term) (clauses []*logic.Clause, err error) {
 
 // ParseQuery parses a sequence of terms.
 func ParseQuery(text string) ([]logic.Term, error) {
-	m := Machine.Reset()
 	var letters []logic.Term
 	for _, ch := range text {
 		letters = append(letters, dsl.Atom(string(ch)))
 	}
 	x := dsl.Var("Terms")
-	bindings, err := m.RunQuery(dsl.Comp("parse_query", dsl.List(letters...), x))
+	m := wam.NewMachine()
+	m.AddPackage(ParserPkg)
+	bindings, err := m.RunQuery(
+		dsl.Comp("import", dsl.Atom("parser")),
+		dsl.Comp("parse_query", dsl.List(letters...), x))
 	if err != nil {
 		return nil, err
 	}

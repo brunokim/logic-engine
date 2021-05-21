@@ -9,6 +9,7 @@ import (
 	"github.com/brunokim/logic-engine/dsl"
 	"github.com/brunokim/logic-engine/logic"
 	"github.com/brunokim/logic-engine/parser"
+	"github.com/brunokim/logic-engine/wam"
 )
 
 var (
@@ -38,9 +39,12 @@ func main() {
 		letters = append(letters, dsl.Atom(string(ch)))
 	}
 	tree := dsl.Var("Tree")
-	m := parser.Machine.Reset()
+	m := wam.NewMachine()
+	m.AddPackage(parser.ParserPkg)
 	m.DebugFilename = *outputFilename
-	bindings, err := m.RunQuery(dsl.Comp("parse_kb", dsl.List(letters...), tree))
+	bindings, err := m.RunQuery(
+		dsl.Comp("import", dsl.Atom("parser")),
+		dsl.Comp("parse_kb", dsl.List(letters...), tree))
 	if err != nil {
 		log.Fatalf("parse: %v", err)
 	}

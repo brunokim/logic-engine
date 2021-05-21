@@ -9,7 +9,6 @@ import (
 )
 
 func Example() {
-	m := wam.NewMachine()
 	logicClauses := []*logic.Clause{
 		Clause(Comp("parent", Atom("elizabeth"), Atom("charles"))),
 		Clause(Comp("parent", Atom("philip"), Atom("charles"))),
@@ -26,10 +25,9 @@ func Example() {
 			Comp("parent", Var("P2"), Var("C")),
 			Comp("\\=", Var("P1"), Var("P2"))),
 	}
-	wamClauses := wam.CompileClauses(logicClauses)
-	for _, clause := range wamClauses {
-		m.AddClause(clause)
-	}
+	pkg, _ := wam.CompilePackage(logicClauses)
+	m := wam.NewMachine()
+	m.AddPackage(pkg)
 	bindings, _ := m.RunQuery(
 		Comp("grandparent", Var("G1"), Atom("harry")),
 		Comp("partner", Var("G1"), Var("G2")),
