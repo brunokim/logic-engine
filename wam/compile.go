@@ -564,7 +564,7 @@ func (ctx *compileCtx) flattenControl(terms0 flatClause) (flatClause, error) {
 	return body, nil
 }
 
-func (ctx *compileCtx) compileBodyTerm(pos int, g goal) []Instruction {
+func (ctx *compileCtx) compileBodyTerm(pos int, g goal) ([]Instruction, error) {
 	ctx.instrs = nil
 	if g.pkg != "" {
 		return ctx.compileDefaultTerm(g)
@@ -577,28 +577,31 @@ func (ctx *compileCtx) compileBodyTerm(pos int, g goal) []Instruction {
 			params[i] = ctx.termAddr(param)
 		}
 		ctx.instrs = append(ctx.instrs, callMeta{Addr: callee, Params: params})
-		return ctx.instrs
+		return ctx.instrs, nil
 	}
 	switch term.Indicator() {
 	case dsl.Indicator("!", 0):
 		if pos == 0 {
-			return []Instruction{neckCut{}}
+			return []Instruction{neckCut{}}, nil
 		}
-		return []Instruction{cut{}}
+		return []Instruction{cut{}}, nil
 	case dsl.Indicator("true", 0):
-		return []Instruction{}
+		return []Instruction{}, nil
 	case dsl.Indicator("fail", 0), dsl.Indicator("false", 0):
-		return []Instruction{fail{}}
+		return []Instruction{fail{}}, nil
 	case dsl.Indicator("asm", 1):
-		return []Instruction{DecodeInstruction(term.Args[0])}
+		return []Instruction{DecodeInstruction(term.Args[0])}, nil
 	case dsl.Indicator("import", 1):
-		pkg := term.Args[0].(logic.Atom)
-		return []Instruction{importPkg{pkg.Name}}
+		pkg, ok := term.Args[0].(logic.Atom)
+		if !ok {
+			return nil, errors.New("expected atom for import/1, got %v", term.Args[0])
+		}
+		return []Instruction{importPkg{pkg.Name}}, nil
 	case dsl.Indicator("=", 2):
 		x := ctx.termAddr(term.Args[0])
 		y := ctx.termAddr(term.Args[1])
 		ctx.instrs = append(ctx.instrs, inlineUnify{x, y})
-		return ctx.instrs
+		return ctx.instrs, nil
 	case dsl.Indicator("@<", 2),
 		dsl.Indicator("@=<", 2),
 		dsl.Indicator("@>=", 2),
@@ -609,7 +612,7 @@ func (ctx *compileCtx) compileBodyTerm(pos int, g goal) []Instruction {
 		y := ctx.termAddr(term.Args[1])
 		pred := comparisonPredicates[term.Functor]
 		ctx.instrs = append(ctx.instrs, builtinComparisonInstruction(pred, x, y))
-		return ctx.instrs
+		return ctx.instrs, nil
 	case dsl.Indicator("atom", 1),
 		dsl.Indicator("int", 1),
 		dsl.Indicator("ptr", 1),
@@ -620,28 +623,28 @@ func (ctx *compileCtx) compileBodyTerm(pos int, g goal) []Instruction {
 		x := ctx.termAddr(term.Args[0])
 		pred := typeCheckPredicates[term.Functor]
 		ctx.instrs = append(ctx.instrs, builtinTypeCheckInstruction(pred, x))
-		return ctx.instrs
+		return ctx.instrs, nil
 	case dsl.Indicator("get_attr", 2):
 		x := ctx.termAddr(term.Args[0])
 		attr := ctx.termAddr(term.Args[1])
 		ctx.instrs = append(ctx.instrs, getAttr{x, attr})
-		return ctx.instrs
+		return ctx.instrs, nil
 	case dsl.Indicator("put_attr", 2):
 		x := ctx.termAddr(term.Args[0])
 		attr := ctx.termAddr(term.Args[1])
 		ctx.instrs = append(ctx.instrs, putAttr{x, attr})
-		return ctx.instrs
+		return ctx.instrs, nil
 	case dsl.Indicator("del_attr", 2):
 		x := ctx.termAddr(term.Args[0])
 		attr := ctx.termAddr(term.Args[1])
 		ctx.instrs = append(ctx.instrs, delAttr{x, attr})
-		return ctx.instrs
+		return ctx.instrs, nil
 	default:
 		return ctx.compileDefaultTerm(g)
 	}
 }
 
-func (ctx *compileCtx) compileDefaultTerm(g goal) []Instruction {
+func (ctx *compileCtx) compileDefaultTerm(g goal) ([]Instruction, error) {
 	// Put term args into registers X0-Xn and issue a call to f/n.
 	for i, arg := range g.comp.Args {
 		ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, RegAddr(i))...)
@@ -650,7 +653,7 @@ func (ctx *compileCtx) compileDefaultTerm(g goal) []Instruction {
 		Pkg:     g.pkg,
 		Functor: toFunctor(g.comp.Indicator()),
 	})
-	return ctx.instrs
+	return ctx.instrs, nil
 }
 
 func compile0(clause flatClause, permVars map[logic.Var]struct{}) (*Clause, error) {
@@ -685,7 +688,11 @@ func compile0(clause flatClause, permVars map[logic.Var]struct{}) (*Clause, erro
 		return nil, err
 	}
 	for i, term := range body {
-		c.Code = append(c.Code, ctx.compileBodyTerm(i, term)...)
+		instrs, err := ctx.compileBodyTerm(i, term)
+		if err != nil {
+			return nil, err
+		}
+		c.Code = append(c.Code, instrs...)
 	}
 	// Add "proceed" instruction for facts and when a body doesn't end with a call.
 	if requiresProceed(c.Code) {
