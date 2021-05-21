@@ -521,11 +521,23 @@ func NewPackage(name string) *Package {
 }
 
 func (pkg *Package) AddExported(clause *Clause) error {
-	return addClause(pkg.Exported, clause)
+	if err := addClause(pkg.Exported, clause); err != nil {
+		return err
+	}
+	for _, c := range reachableClauses(clause) {
+		c.Pkg = pkg
+	}
+	return nil
 }
 
 func (pkg *Package) AddInternal(clause *Clause) error {
-	return addClause(pkg.Internal, clause)
+	if err := addClause(pkg.Internal, clause); err != nil {
+		return err
+	}
+	for _, c := range reachableClauses(clause) {
+		c.Pkg = pkg
+	}
+	return nil
 }
 
 func addClause(index map[Functor]*Clause, clause *Clause) error {

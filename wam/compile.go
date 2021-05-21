@@ -38,7 +38,7 @@ func (m *Machine) AddPackage(pkg *Package) error {
 	if pkg.Name == "" {
 		globalPkg := m.Packages[""]
 		for _, clause := range pkg.Exported {
-			if err := addClause(globalPkg.Exported, clause); err != nil {
+			if err := globalPkg.AddExported(clause); err != nil {
 				return errors.New("global: %v", err)
 			}
 		}
@@ -1071,10 +1071,7 @@ func CompilePackage(clauses []*logic.Clause, options ...CompileOption) (*Package
 		pkg := NewPackage("")
 		compiled := compileClauses(clauses, options...)
 		for _, clause := range compiled {
-			addClause(pkg.Exported, clause)
-			for _, c := range reachableClauses(clause) {
-				c.Pkg = pkg
-			}
+			pkg.AddExported(clause)
 		}
 		return pkg, nil
 	}
@@ -1121,17 +1118,14 @@ func CompilePackage(clauses []*logic.Clause, options ...CompileOption) (*Package
 	compiled := compileClauses(clauses[1:], options...)
 	for _, clause := range compiled {
 		if _, ok := exportedFunctors[clause.Functor]; ok {
-			if err := addClause(pkg.Exported, clause); err != nil {
+			if err := pkg.AddExported(clause); err != nil {
 				return nil, errors.New("exported: %v", err)
 			}
 			delete(exportedFunctors, clause.Functor)
 		} else {
-			if err := addClause(pkg.Internal, clause); err != nil {
+			if err := pkg.AddInternal(clause); err != nil {
 				return nil, errors.New("internal: %v", err)
 			}
-		}
-		for _, c := range reachableClauses(clause) {
-			c.Pkg = pkg
 		}
 	}
 	if len(exportedFunctors) > 0 {
