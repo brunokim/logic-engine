@@ -161,3 +161,28 @@ func TestDeleteAttribute(t *testing.T) {
 		t.Log(s.Err)
 	}
 }
+
+// TODO: there's a bug when allocating vars to registers when using
+// ->/3, and/n or other control predicates, because there may be a single functor
+// and all variables are then considered temporary.
+func _TestDif(t *testing.T) {
+	s, err := solver.New(``)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.SetDebug("debugtest/attribute-dif.jsonl")
+	s.SetIterLimit(1000)
+
+	got, err := firstSolution(s.Query(`
+        import(dif),
+        dif(X, Y),
+    `))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := solver.Solution{}
+	if diff := cmp.Diff(want, got, test_helpers.IgnoreUnexported); diff != "" {
+		t.Errorf("(-want, +got):\n%s", diff)
+		t.Log(s.Err)
+	}
+}
