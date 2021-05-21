@@ -28,3 +28,11 @@ call(Fn, A, B, C, D, E) :- call(Fn, A, B, C, D, E).
 call(Fn, A, B, C, D, E, F) :- call(Fn, A, B, C, D, E, F).
 call(Fn, A, B, C, D, E, F, G) :- call(Fn, A, B, C, D, E, F, G).
 call(Fn, A, B, C, D, E, F, G, H) :- call(Fn, A, B, C, D, E, F, G, H).
+
+'$join_attribute'(X, Y, Pkg) :-
+    asm(call(X2, 'join_attribute/2')),
+    asm(proceed(verify_attributes)).
+
+'$check_attribute'(Attr, Value, Pkg) :-
+    asm(call(X2, 'check_attribute/2')),
+    asm(proceed(verify_attributes)).

@@ -660,8 +660,12 @@ func (ctx *compileCtx) compileDefaultTerm(g goal) ([]Instruction, error) {
 	for i, arg := range g.comp.Args {
 		ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, RegAddr(i))...)
 	}
+	var pkg Addr
+	if g.pkg != "" {
+		pkg = ConstantAddr{WAtom(g.pkg)}
+	}
 	ctx.instrs = append(ctx.instrs, call{
-		Pkg:     g.pkg,
+		Pkg:     pkg,
 		Functor: toFunctor(g.comp.Indicator()),
 	})
 	return ctx.instrs, nil

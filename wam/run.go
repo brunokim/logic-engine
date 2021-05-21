@@ -590,7 +590,16 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		// Save instruction pointer, and set it to clause location.
 		m.Continuation = m.CodePtr.inc()
 		m.CutChoice = m.ChoicePoint
-		return m.call(instr.Pkg, instr.Functor)
+		var pkg string
+		if instr.Pkg != nil {
+			c := deref(m.get(instr.Pkg))
+			pkgAtom, ok := c.(WAtom)
+			if !ok {
+				return m.backtrack(errors.New("call: pkg is not an atom: %v", c))
+			}
+			pkg = string(pkgAtom)
+		}
+		return m.call(pkg, instr.Functor)
 	case callMeta:
 		// call clause pointed by a ref or struct.
 		pkg, functor, err := m.putMeta(instr.Addr, instr.Params)
@@ -603,7 +612,16 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 	case execute:
 		// Trampoline into other clause, without changing the continuation.
 		m.CutChoice = m.ChoicePoint
-		return m.call(instr.Pkg, instr.Functor)
+		var pkg string
+		if instr.Pkg != nil {
+			c := deref(m.get(instr.Pkg))
+			pkgAtom, ok := c.(WAtom)
+			if !ok {
+				return m.backtrack(errors.New("call: pkg is not an atom: %v", c))
+			}
+			pkg = string(pkgAtom)
+		}
+		return m.call(pkg, instr.Functor)
 	case executeMeta:
 		// Trampoline into other dynamic clause, without changing the continuation.
 		pkg, functor, err := m.putMeta(instr.Addr, instr.Params)
@@ -1074,16 +1092,18 @@ func (m *Machine) verifyAttributes() {
 		// If value is a var, call join_attribute(X, Y)
 		m.Reg[0] = ref
 		m.Reg[1] = otherRef
-		functor = Functor{"join_attribute", 2}
+		m.Reg[2] = WAtom(attr.Pkg)
+		functor = Functor{"$join_attribute", 3}
 	} else {
 		// If value is not a var, call check_attribute(Attr, Value)
 		m.Reg[0] = attr.Value
 		m.Reg[1] = value
-		functor = Functor{"check_attribute", 2}
+		m.Reg[2] = WAtom(attr.Pkg)
+		functor = Functor{"$check_attribute", 3}
 	}
 	m.Continuation = m.CodePtr
 	m.CutChoice = m.ChoicePoint
-	instrAddr, err := m.call(attr.Pkg, functor)
+	instrAddr, err := m.call("", functor)
 	if err != nil {
 		// Should never happen.
 		panic(err)

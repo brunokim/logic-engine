@@ -137,7 +137,7 @@ type unifyConstant struct {
 type unifyVoid struct{}
 
 type call struct {
-	Pkg     string
+	Pkg     Addr
 	Functor Functor
 }
 
@@ -147,7 +147,7 @@ type callMeta struct {
 }
 
 type execute struct {
-	Pkg     string
+	Pkg     Addr
 	Functor Functor
 }
 
@@ -347,10 +347,10 @@ func (i unifyVoid) String() string {
 }
 
 func (i call) String() string {
-	if i.Pkg == "" {
+	if i.Pkg == nil {
 		return fmt.Sprintf("call %v", i.Functor)
 	}
-	return fmt.Sprintf("call %s:%v", i.Pkg, i.Functor)
+	return fmt.Sprintf("call %v:%v", i.Pkg, i.Functor)
 }
 
 func (i callMeta) String() string {
@@ -358,7 +358,7 @@ func (i callMeta) String() string {
 }
 
 func (i execute) String() string {
-	if i.Pkg == "" {
+	if i.Pkg == nil {
 		return fmt.Sprintf("execute %v", i.Functor)
 	}
 	return fmt.Sprintf("call %s:%v", i.Pkg, i.Functor)

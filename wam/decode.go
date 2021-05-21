@@ -36,14 +36,22 @@ func ParseFunctor(s string) (Functor, error) {
 }
 
 func decodeAddr(t logic.Term) Addr {
-	x := t.(logic.Var)
-	switch x.Name[0] {
-	case 'X', 'A':
-		return RegAddr(varAddr(x))
-	case 'Y':
-		return StackAddr(varAddr(x))
+	switch x := t.(type) {
+	case logic.Atom:
+		return ConstantAddr{toConstant(x)}
+	case logic.Int:
+		return ConstantAddr{toConstant(x)}
+	case logic.Var:
+		switch x.Name[0] {
+		case 'X', 'A':
+			return RegAddr(varAddr(x))
+		case 'Y':
+			return StackAddr(varAddr(x))
+		default:
+			panic(fmt.Sprintf("invalid letter for addr %v", x))
+		}
 	default:
-		panic(fmt.Sprintf("invalid letter for addr %v", x))
+		panic(fmt.Sprintf("invalid addr %v", t))
 	}
 }
 
@@ -205,13 +213,13 @@ func DecodeInstruction(term logic.Term) Instruction {
 	case dsl.Indicator("call", 1):
 		return call{Functor: decodeFunctor(c.Args[0])}
 	case dsl.Indicator("call", 2):
-		return call{Pkg: decodeString(c.Args[0]), Functor: decodeFunctor(c.Args[1])}
+		return call{Pkg: decodeAddr(c.Args[0]), Functor: decodeFunctor(c.Args[1])}
 	case dsl.Indicator("call_meta", 2):
 		return callMeta{decodeAddr(c.Args[0]), decodeAddrList(c.Args[1])}
 	case dsl.Indicator("execute", 1):
 		return execute{Functor: decodeFunctor(c.Args[0])}
 	case dsl.Indicator("execute", 2):
-		return execute{Pkg: decodeString(c.Args[0]), Functor: decodeFunctor(c.Args[1])}
+		return execute{Pkg: decodeAddr(c.Args[0]), Functor: decodeFunctor(c.Args[1])}
 	case dsl.Indicator("execute_meta", 2):
 		return executeMeta{decodeAddr(c.Args[0]), decodeAddrList(c.Args[1])}
 	case dsl.Indicator("proceed", 1):
