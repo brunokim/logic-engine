@@ -59,46 +59,56 @@ type goal struct {
 }
 type flatClause []goal
 
-func flatten(clause *logic.Clause) flatClause {
-	goals := make(flatClause, len(clause.Body)+1)
+func flatten(clause *logic.Clause) (flatClause, error) {
+	var headGoal goal
 	switch head := clause.Head.(type) {
 	case logic.Atom:
-		goals[0] = goal{"", logic.NewComp(head.Name)}
+		headGoal = goal{"", logic.NewComp(head.Name)}
 	case *logic.Comp:
-		goals[0] = goal{"", head}
+		headGoal = goal{"", head}
 	default:
-		panic(fmt.Sprintf("Unhandled clause head term type: %T (%v)", clause.Head, clause.Head))
+		return nil, errors.New("invalid clause head term type: %T (%v)", clause.Head, clause.Head)
 	}
-	copy(goals[1:], toGoals(clause.Body))
-	return goals
+	goals, err := toGoals(clause.Body)
+	if err != nil {
+		return nil, errors.New("invalid clause body: %v", err)
+	}
+	return append([]goal{headGoal}, goals...), nil
 }
 
-func toGoal(term logic.Term) goal {
+func toGoal(term logic.Term) (goal, error) {
 	switch t := term.(type) {
 	case *logic.Comp:
-		return goal{"", t}
+		return goal{"", t}, nil
 	case logic.Atom:
-		return goal{"", logic.NewComp(t.Name)}
+		return goal{"", logic.NewComp(t.Name)}, nil
 	case logic.Var:
-		return goal{"", logic.NewComp("call", t)}
+		return goal{"", logic.NewComp("call", t)}, nil
 	case *logic.Assoc:
 		pkg, ok := t.Key.(logic.Atom)
 		if !ok {
 			break
 		}
-		g := toGoal(t.Val)
+		g, err := toGoal(t.Val)
+		if err != nil {
+			return goal{}, err
+		}
 		g.pkg = pkg.Name
-		return g
+		return g, nil
 	}
-	panic(fmt.Sprintf("Unhandled goal type %T (%v)", term, term))
+	return goal{}, errors.New("invalid goal type %T (%v)", term, term)
 }
 
-func toGoals(terms []logic.Term) flatClause {
+func toGoals(terms []logic.Term) (flatClause, error) {
 	goals := make(flatClause, len(terms))
 	for i, term := range terms {
-		goals[i] = toGoal(term)
+		var err error
+		goals[i], err = toGoal(term)
+		if err != nil {
+			return nil, errors.New("goal #%d: %v", i+1, err)
+		}
 	}
-	return goals
+	return goals, nil
 }
 
 func goalVars(goals flatClause) []logic.Var {
@@ -410,21 +420,32 @@ func (ctx *compileCtx) termAddr(term logic.Term) Addr {
 
 // ---- compiling terms
 
-func Compile(clause *logic.Clause) *Clause {
-	return compile(flatten(clause))
+func Compile(clause *logic.Clause) (*Clause, error) {
+	goals, err := flatten(clause)
+	if err != nil {
+		return nil, err
+	}
+	return compile(goals)
 }
 
-func compile(clause flatClause) *Clause {
-	c := compile0(clause, permanentVars(clause))
+func compile(clause flatClause) (*Clause, error) {
+	c, err := compile0(clause, permanentVars(clause))
+	if err != nil {
+		return nil, err
+	}
 	c.Code = optimizeLastCall(optimizeInstructions(c.Code))
-	return c
+	return c, nil
 }
 
-func compileQuery(query []logic.Term) *Clause {
+func compileQuery(query []logic.Term) (*Clause, error) {
 	dummy := make(flatClause, len(query)+1)
 	dummy[0] = goal{"", logic.NewComp("dummy")}
 	for i, term := range query {
-		dummy[i+1] = toGoal(term)
+		var err error
+		dummy[i+1], err = toGoal(term)
+		if err != nil {
+			return nil, errors.New("term #%d: %v", i+1, err)
+		}
 	}
 	// All vars in a query are made permanent, so we can retrieve them at the end
 	// for display.
@@ -432,7 +453,10 @@ func compileQuery(query []logic.Term) *Clause {
 	for _, x := range goalVars(dummy) {
 		permVars[x] = struct{}{}
 	}
-	c := compile0(dummy, permVars)
+	c, err := compile0(dummy, permVars)
+	if err != nil {
+		return nil, err
+	}
 	c.Code = optimizeInstructions(c.Code)
 	c.Functor = Functor{}
 	// Remove deallocate, so we can retrieve the vars at the end of execution.
@@ -448,14 +472,14 @@ func compileQuery(query []logic.Term) *Clause {
 	}
 	// Add halt instruction
 	c.Code = append(c.Code, halt{})
-	return c
+	return c, nil
 }
 
 func asmGoal(t logic.Term) goal {
 	return goal{"", comp("asm", t)}
 }
 
-func (ctx *compileCtx) flattenControl(terms0 flatClause) flatClause {
+func (ctx *compileCtx) flattenControl(terms0 flatClause) (flatClause, error) {
 	terms := make(flatClause, len(terms0))
 	copy(terms, terms0)
 	var body flatClause
@@ -468,7 +492,11 @@ func (ctx *compileCtx) flattenControl(terms0 flatClause) flatClause {
 			continue
 		}
 		if g.comp.Functor == "and" {
-			terms = append(toGoals(g.comp.Args), terms...)
+			goalArgs, err := toGoals(g.comp.Args)
+			if err != nil {
+				return nil, err
+			}
+			terms = append(goalArgs, terms...)
 			continue
 		}
 		switch g.comp.Indicator() {
@@ -478,6 +506,11 @@ func (ctx *compileCtx) flattenControl(terms0 flatClause) flatClause {
 			target := g.comp.Args[0]
 			targetID, endID := labelID, labelID+1
 			labelID += 2
+			//
+			targetGoal, err := toGoal(target)
+			if err != nil {
+				return nil, err
+			}
 			// Ensure that variables referenced within Target are initialized.
 			ctx.instrs = nil
 			for _, x := range logic.Vars(g.comp) {
@@ -489,7 +522,7 @@ func (ctx *compileCtx) flattenControl(terms0 flatClause) flatClause {
 				asmGoal(comp("try", comp("instr", ptr(ctx.clause), int_(-targetID)))),
 				asmGoal(comp("trust", comp("instr", ptr(ctx.clause), int_(-endID)))),
 				asmGoal(comp("label", int_(targetID))),
-				toGoal(target),
+				targetGoal,
 				asmGoal(atom("cut")),
 				asmGoal(atom("fail")),
 				asmGoal(comp("label", int_(endID))),
@@ -499,6 +532,13 @@ func (ctx *compileCtx) flattenControl(terms0 flatClause) flatClause {
 			cond, then_, else_ := g.comp.Args[0], g.comp.Args[1], g.comp.Args[2]
 			thenID, elseID, endID := labelID, labelID+1, labelID+2
 			labelID += 3
+			//
+			condGoal, err1 := toGoal(cond)
+			thenGoal, err2 := toGoal(then_)
+			elseGoal, err3 := toGoal(else_)
+			if !(err1 == nil && err2 == nil && err3 == nil) {
+				return nil, errors.New("cond=%v, then=%v, else=%v", err1, err2, err3)
+			}
 			// Ensure that variables referenced in any branch are initialized.
 			ctx.instrs = nil
 			for _, x := range logic.Vars(g.comp) {
@@ -510,18 +550,18 @@ func (ctx *compileCtx) flattenControl(terms0 flatClause) flatClause {
 				asmGoal(comp("try", comp("instr", ptr(ctx.clause), int_(-thenID)))),
 				asmGoal(comp("trust", comp("instr", ptr(ctx.clause), int_(-elseID)))),
 				asmGoal(comp("label", int_(thenID))),
-				toGoal(cond),
+				condGoal,
 				asmGoal(atom("cut")),
-				toGoal(then_),
+				thenGoal,
 				asmGoal(comp("jump", comp("instr", ptr(ctx.clause), int_(-endID)))),
 				asmGoal(comp("label", int_(elseID))),
-				toGoal(else_),
+				elseGoal,
 				asmGoal(comp("label", int_(endID))),
 			}
 			terms = append(goals, terms...)
 		}
 	}
-	return body
+	return body, nil
 }
 
 func (ctx *compileCtx) compileBodyTerm(pos int, g goal) []Instruction {
@@ -613,7 +653,7 @@ func (ctx *compileCtx) compileDefaultTerm(g goal) []Instruction {
 	return ctx.instrs
 }
 
-func compile0(clause flatClause, permVars map[logic.Var]struct{}) *Clause {
+func compile0(clause flatClause, permVars map[logic.Var]struct{}) (*Clause, error) {
 	functor := toFunctor(clause[0].comp.Indicator())
 	c := &Clause{Functor: functor}
 	ctx := newCompileCtx(c, numArgs(clause))
@@ -640,7 +680,10 @@ func compile0(clause flatClause, permVars map[logic.Var]struct{}) *Clause {
 		}
 	}
 	// Compile clause body
-	body := ctx.flattenControl(clause[1:])
+	body, err := ctx.flattenControl(clause[1:])
+	if err != nil {
+		return nil, err
+	}
 	for i, term := range body {
 		c.Code = append(c.Code, ctx.compileBodyTerm(i, term)...)
 	}
@@ -654,7 +697,7 @@ func compile0(clause flatClause, permVars map[logic.Var]struct{}) *Clause {
 		c.Code = append(c.Code, deallocate{})
 	}
 	c.NumRegisters = int(ctx.topReg)
-	return c
+	return c, nil
 }
 
 // If instructions don't end with call, adds a proceed instruction.
@@ -772,7 +815,7 @@ func optimizeLabels(code []Instruction) []Instruction {
 // ---- indexing
 
 // Create level-1 index of clauses, based on their first arg.
-func compileClauseGroup(ind logic.Indicator, clauses []flatClause) *Clause {
+func compileClauseGroup(ind logic.Indicator, clauses []flatClause) (*Clause, error) {
 	if len(clauses) == 1 {
 		return compile(clauses[0])
 	}
@@ -788,7 +831,11 @@ func compileClauseGroup(ind logic.Indicator, clauses []flatClause) *Clause {
 	var numReg int
 	compiledClauses := make([]*Clause, len(seqs))
 	for i, seq := range seqs {
-		compiledClauses[i] = compileSequence(ind, seq)
+		var err error
+		compiledClauses[i], err = compileSequence(ind, seq)
+		if err != nil {
+			return nil, err
+		}
 		if compiledClauses[i].NumRegisters > numReg {
 			numReg = compiledClauses[i].NumRegisters
 		}
@@ -798,7 +845,7 @@ func compileClauseGroup(ind logic.Indicator, clauses []flatClause) *Clause {
 		Functor:      toFunctor(ind),
 		NumRegisters: numReg,
 		Code:         compiledClauses[0].Code,
-	}
+	}, nil
 }
 
 // Compile a subsequence of clauses with non-var first argument.
@@ -808,11 +855,15 @@ func compileClauseGroup(ind logic.Indicator, clauses []flatClause) *Clause {
 //
 // Clauses with same first arg are also placed in a linked-list of
 // try-retry-trust instructions.
-func compileSequence(ind logic.Indicator, clauses []flatClause) *Clause {
+func compileSequence(ind logic.Indicator, clauses []flatClause) (*Clause, error) {
 	var numReg int
 	codes := make([]*Clause, len(clauses))
 	for i, clause := range clauses {
-		codes[i] = compile(clause)
+		var err error
+		codes[i], err = compile(clause)
+		if err != nil {
+			return nil, errors.New("%v#%d: %v", ind, i+1, err)
+		}
 		if codes[i].NumRegisters > numReg {
 			numReg = codes[i].NumRegisters
 		}
@@ -820,7 +871,7 @@ func compileSequence(ind logic.Indicator, clauses []flatClause) *Clause {
 	addChoiceLinks(codes)
 	if len(codes) == 1 {
 		// TODO: maybe index this one, if it's a nonvar?
-		return codes[0]
+		return codes[0], nil
 	}
 	// Group clauses by type and index key.
 	constIndex := make(map[Constant][]InstrAddr)
@@ -913,7 +964,7 @@ func compileSequence(ind logic.Indicator, clauses []flatClause) *Clause {
 		switchOnTerm.IfDict = putAddrs(dictIndex)
 	}
 	indexClause.Code[0] = switchOnTerm
-	return indexClause
+	return indexClause, nil
 }
 
 // Split sequence into subsequences, where clauses whose first arg is
@@ -953,14 +1004,18 @@ func splitOnVarFirstArg(clauses []flatClause) ([][]flatClause, bool) {
 	return subSeqs, anyNonVar
 }
 
-func compileSequenceNoIndex(clauses []flatClause) *Clause {
+func compileSequenceNoIndex(clauses []flatClause) (*Clause, error) {
 	// Compile each clause in isolation.
 	codes := make([]*Clause, len(clauses))
 	for i, clause := range clauses {
-		codes[i] = compile(clause)
+		var err error
+		codes[i], err = compile(clause)
+		if err != nil {
+			return nil, err
+		}
 	}
 	addChoiceLinks(codes)
-	return codes[0]
+	return codes[0], nil
 }
 
 func addChoiceLinks(clauses []*Clause) {
@@ -1023,7 +1078,7 @@ func (KeepLabels) isCompileOption() {}
 
 // compileClauses returns a list of compiled clauses. Each corresponds with
 // a functor f/n, and all sub-clauses that implement the same functor.
-func compileClauses(clauses []*logic.Clause, options ...CompileOption) []*Clause {
+func compileClauses(clauses []*logic.Clause, options ...CompileOption) ([]*Clause, error) {
 	opts := make(map[CompileOption]struct{})
 	for _, opt := range options {
 		opts[opt] = struct{}{}
@@ -1031,8 +1086,11 @@ func compileClauses(clauses []*logic.Clause, options ...CompileOption) []*Clause
 	// Group clauses by functor and compile each group.
 	m := make(map[logic.Indicator][]flatClause)
 	var order []logic.Indicator
-	for _, clause := range clauses {
-		goals := flatten(clause)
+	for i, clause := range clauses {
+		goals, err := flatten(clause)
+		if err != nil {
+			return nil, errors.New("clause #%d: %v", i+1, err)
+		}
 		ind := goals[0].comp.Indicator()
 		if _, ok := m[ind]; !ok {
 			order = append(order, ind)
@@ -1041,8 +1099,11 @@ func compileClauses(clauses []*logic.Clause, options ...CompileOption) []*Clause
 	}
 	var cs []*Clause
 	for _, ind := range order {
-		cs2 := m[ind]
-		cs = append(cs, compileClauseGroup(ind, cs2))
+		clause, err := compileClauseGroup(ind, m[ind])
+		if err != nil {
+			return nil, err
+		}
+		cs = append(cs, clause)
 	}
 	// Remove labels from clause bodies.
 	if _, ok := opts[KeepLabels{}]; !ok {
@@ -1050,7 +1111,7 @@ func compileClauses(clauses []*logic.Clause, options ...CompileOption) []*Clause
 			clause.Code = optimizeLabels(clause.Code)
 		}
 	}
-	return cs
+	return cs, nil
 }
 
 // CompilePackage compiles a list of clauses into a single package.
@@ -1069,7 +1130,10 @@ func CompilePackage(clauses []*logic.Clause, options ...CompileOption) (*Package
 	if !(ok && head.Indicator() == dsl.Indicator("package", 3) && len(pkgClause.Body) == 0) {
 		// Global package
 		pkg := NewPackage("")
-		compiled := compileClauses(clauses, options...)
+		compiled, err := compileClauses(clauses, options...)
+		if err != nil {
+			return nil, err
+		}
 		for _, clause := range compiled {
 			pkg.AddExported(clause)
 		}
@@ -1115,7 +1179,10 @@ func CompilePackage(clauses []*logic.Clause, options ...CompileOption) (*Package
 		}
 		exportedFunctors[fn] = struct{}{}
 	}
-	compiled := compileClauses(clauses[1:], options...)
+	compiled, err := compileClauses(clauses[1:], options...)
+	if err != nil {
+		return nil, err
+	}
 	for _, clause := range compiled {
 		if _, ok := exportedFunctors[clause.Functor]; ok {
 			if err := pkg.AddExported(clause); err != nil {

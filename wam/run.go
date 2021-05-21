@@ -29,7 +29,10 @@ func (m *Machine) RunQuery(query ...logic.Term) (map[logic.Var]logic.Term, error
 			m.xs = append(m.xs, x)
 		}
 	}
-	c := compileQuery(query)
+	c, err := compileQuery(query)
+	if err != nil {
+		return nil, err
+	}
 	m.Packages[""].Exported[Functor{}] = c
 	return m.runOnce()
 }

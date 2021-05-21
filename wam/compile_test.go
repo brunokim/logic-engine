@@ -290,7 +290,10 @@ func TestCompile(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		got := wam.Compile(test.clause)
+		got, err := wam.Compile(test.clause)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if diff := cmp.Diff(test.want, got, cmpopts.EquateEmpty()); diff != "" {
 			t.Errorf("%v: (-want, +got)%s", test.clause, diff)
 		}
