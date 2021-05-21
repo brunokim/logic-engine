@@ -20,6 +20,7 @@ full Prolog environment, which necessarily involve some ser-/deserialization.
 - [x] Prolog parser
 - [ ] DCGs
 - [X] Attributed variables
+- [X] Packages
 - [ ] Go integration
 - [ ] Delimited continuations
 - [ ] Tabling
