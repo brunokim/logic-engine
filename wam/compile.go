@@ -204,9 +204,6 @@ func newCompileCtx(clause *Clause, numArgs int) *compileCtx {
 // ---- get/unify/put variables
 
 func (ctx *compileCtx) getVar(x logic.Var, regAddr RegAddr) Instruction {
-	if x == logic.AnonymousVar {
-		return nil
-	}
 	if _, ok := ctx.seen[x]; ok {
 		return getValue{ctx.varAddr[x], regAddr}
 	}
@@ -247,6 +244,9 @@ func (ctx *compileCtx) getTerm(term logic.Term, addr RegAddr) []Instruction {
 	case logic.Int:
 		return []Instruction{getConstant{toConstant(t), addr}}
 	case logic.Var:
+		if t == logic.AnonymousVar {
+			return []Instruction{}
+		}
 		return []Instruction{ctx.getVar(t, addr)}
 	case *logic.Comp:
 		instrs := make([]Instruction, len(t.Args)+1)
@@ -433,7 +433,7 @@ func compile(clause flatClause) (*Clause, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.Code = optimizeLastCall(optimizeInstructions(c.Code))
+	c.Code = optimizeLastCall(c.Code)
 	return c, nil
 }
 
@@ -457,7 +457,6 @@ func compileQuery(query []logic.Term) (*Clause, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.Code = optimizeInstructions(c.Code)
 	c.Functor = Functor{}
 	// Remove deallocate, so we can retrieve the vars at the end of execution.
 	n := len(c.Code)
@@ -746,25 +745,6 @@ func requiresEnv(code []Instruction) bool {
 		}
 	}
 	return false
-}
-
-func optimizeInstructions(code []Instruction) []Instruction {
-	var buf []Instruction
-	for _, instr := range code {
-		// Remove nils
-		if instr == nil {
-			continue
-		}
-		// Simply append if there's no instruction yet.
-		n := len(buf)
-		if n < 1 {
-			buf = append(buf, instr)
-			continue
-		}
-		// Otherwise, simply append instruction to buffer.
-		buf = append(buf, instr)
-	}
-	return buf
 }
 
 func optimizeLastCall(code []Instruction) []Instruction {
