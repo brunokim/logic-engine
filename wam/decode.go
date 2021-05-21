@@ -21,6 +21,7 @@ func decodeFunctor(t logic.Term) Functor {
 	return fn
 }
 
+// ParseFunctor returns a Functor from a string like 'fn/3'.
 func ParseFunctor(s string) (Functor, error) {
 	matches := functorRE.FindStringSubmatch(s)
 	if len(matches) != 3 {

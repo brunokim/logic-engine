@@ -1,3 +1,4 @@
+// Package errors contains utility functions to handle errors.
 package errors
 
 import (
@@ -22,6 +23,7 @@ func (err err) Unwrap() error {
 	return nil
 }
 
+// New creates an error that lazily computes its message.
 func New(msg string, args ...interface{}) error {
 	return err{msg, args}
 }

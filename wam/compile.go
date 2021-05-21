@@ -1015,8 +1015,8 @@ type CompileOption interface {
 	isCompileOption()
 }
 
-// Keep labels in control instructions, instead of replacing them for their actual
-// position in code.
+// Compile option to keep labels in control instructions. Without it, replace label
+// references to a concrete position in code.
 type KeepLabels struct{}
 
 func (KeepLabels) isCompileOption() {}

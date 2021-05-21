@@ -116,6 +116,7 @@ func FormatAtom(text string) string {
 	return b.String()
 }
 
+// FormatString formats runes as a Prolog string with proper escaping.
 func FormatString(text []rune) string {
 	var b strings.Builder
 	b.WriteRune('"')
