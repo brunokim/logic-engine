@@ -25,12 +25,14 @@ func firstSolution(solutions <-chan solver.Solution, cancel func()) (solver.Solu
 
 func TestCheckAttribute(t *testing.T) {
 	s, err := solver.New(`
+        package(range, [], ['in_range/3']).
+
         in_range(X, Min, Max) :-
             put_attr(range, X, range(Min, Max)).
 
         % Join ranges if Y also has range attribute, otherwise simply
         % move it to Y.
-        join_attribute(range, X, Y) :-
+        join_attribute(X, Y) :-
             get_attr(range, X, range(Min1, Max1)),
             ->(get_attr(range, Y, range(Min2, Max2)),
                 % Compute the intersection of ranges
@@ -40,12 +42,14 @@ func TestCheckAttribute(t *testing.T) {
                     @<(Min, Max),
                 ),
                 and(=(Min, Min1), =(Max, Max1))),
-            in_range(Y, Min, Max).
+            in_range(Y, Min, Max),
+            asm(proceed(unify)).
 
         % Check that the value is compatible with the attribute.
-        check_attribute(range, range(Min, Max), Value) :-
+        check_attribute(range(Min, Max), Value) :-
             @=<(Min, Value),
-            @>(Max, Value).
+            @>(Max, Value),
+            asm(proceed(unify)).
     `)
 	if err != nil {
 		t.Fatal(err)
@@ -54,6 +58,7 @@ func TestCheckAttribute(t *testing.T) {
 	s.SetIterLimit(150)
 
 	_, err = firstSolution(s.Query(`
+        import(range),
         in_range(X, 1, 5),
         in_range(Y, 3, 9),
         =(X, Y),
@@ -66,6 +71,8 @@ func TestCheckAttribute(t *testing.T) {
 
 func TestAttributeBacktrack(t *testing.T) {
 	s, err := solver.New(`
+        package(range, [], ['test/1']).
+
         test_value(1).
         test_value(2).
         test_value(3).
@@ -82,7 +89,7 @@ func TestAttributeBacktrack(t *testing.T) {
 
         % Join ranges if Y also has range attribute, otherwise simply
         % move it to Y.
-        join_attribute(range, X, Y) :-
+        join_attribute(X, Y) :-
             get_attr(range, X, range(Min1, Max1)),
             ->(get_attr(range, Y, range(Min2, Max2)),
                 % Compute the intersection of ranges
@@ -90,12 +97,14 @@ func TestAttributeBacktrack(t *testing.T) {
                     ->(@>(Max1, Max2), =(Max, Max2), =(Max, Max1)),
                     @<(Min, Max)),
                 and(=(Min, Min1), =(Max, Max1))),
-            in_range(Y, Min, Max).
+            in_range(Y, Min, Max),
+            asm(proceed(unify)).
 
         % Check that the value is compatible with the attribute.
-        check_attribute(range, range(Min, Max), Value) :-
+        check_attribute(range(Min, Max), Value) :-
             @=<(Min, Value),
-            @>(Max, Value).
+            @>(Max, Value),
+            asm(proceed(unify)).
     `)
 	if err != nil {
 		t.Fatal(err)
@@ -103,7 +112,7 @@ func TestAttributeBacktrack(t *testing.T) {
 	s.SetDebug("debugtest/attribute-backtrack.jsonl")
 	s.SetIterLimit(400)
 
-	solutions, _ := s.Query("test(X)")
+	solutions, _ := s.Query("import(range), test(X)")
 	var got []solver.Solution
 	for solution := range solutions {
 		got = append(got, solution)
@@ -120,15 +129,19 @@ func TestAttributeBacktrack(t *testing.T) {
 
 func TestDeleteAttribute(t *testing.T) {
 	s, err := solver.New(`
-        join_attribute(only, X, Y) :-
+        package(only, [], []).
+
+        join_attribute(X, Y) :-
             get_attr(only, X, V1),
             ->(get_attr(only, Y, V2),
                 =(V1, V2),
                 true),
-            put_attr(only, Y, V1).
+            put_attr(only, Y, V1),
+            asm(proceed(unify)).
 
-        check_attribute(only, V1, V2) :-
-            =(V1, V2).
+        check_attribute(V1, V2) :-
+            =(V1, V2),
+            asm(proceed(unify)).
     `)
 	if err != nil {
 		t.Fatal(err)

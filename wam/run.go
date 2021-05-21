@@ -1071,21 +1071,19 @@ func (m *Machine) verifyAttributes() {
 	ref, value := binding.Ref, binding.Value
 	var functor Functor
 	if otherRef, ok := value.(*Ref); ok {
-		// If value is a var, call join_attribute(Pkg, X, Y)
-		m.Reg[0] = WAtom(attr.Pkg)
-		m.Reg[1] = ref
-		m.Reg[2] = otherRef
-		functor = Functor{"$join_attribute", 3}
+		// If value is a var, call join_attribute(X, Y)
+		m.Reg[0] = ref
+		m.Reg[1] = otherRef
+		functor = Functor{"join_attribute", 2}
 	} else {
-		// If value is not a var, call check_attribute(Pkg, Attr, Value)
-		m.Reg[0] = WAtom(attr.Pkg)
-		m.Reg[1] = attr.Value
-		m.Reg[2] = value
-		functor = Functor{"$check_attribute", 3}
+		// If value is not a var, call check_attribute(Attr, Value)
+		m.Reg[0] = attr.Value
+		m.Reg[1] = value
+		functor = Functor{"check_attribute", 2}
 	}
 	m.Continuation = m.CodePtr
 	m.CutChoice = m.ChoicePoint
-	instrAddr, err := m.call("", functor)
+	instrAddr, err := m.call(attr.Pkg, functor)
 	if err != nil {
 		// Should never happen.
 		panic(err)

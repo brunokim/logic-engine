@@ -28,14 +28,3 @@ call(Fn, A, B, C, D, E) :- call(Fn, A, B, C, D, E).
 call(Fn, A, B, C, D, E, F) :- call(Fn, A, B, C, D, E, F).
 call(Fn, A, B, C, D, E, F, G) :- call(Fn, A, B, C, D, E, F, G).
 call(Fn, A, B, C, D, E, F, G, H) :- call(Fn, A, B, C, D, E, F, G, H).
-
-%% Attribute checker machinery
-
-'$join_attribute'(Pkg, X, Y) :-
-    asm(call('join_attribute/3')),
-    asm(proceed(unify)).
-
-'$check_attribute'(Pkg, Attr, Value) :-
-    asm(call('check_attribute/3')),
-    asm(proceed(unify)).
-
