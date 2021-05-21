@@ -431,20 +431,6 @@ func (t *Dict) vars(seen map[Var]struct{}, xs []Var) []Var {
 	return xs
 }
 
-// Vars returns a set with all variables, in insertion order.
-func (t *Clause) Vars() []Var {
-	if !t.hasVar_ {
-		return nil
-	}
-	seen := make(map[Var]struct{})
-	var xs []Var
-	xs = t.Head.vars(seen, xs)
-	for _, term := range t.Body {
-		xs = term.vars(seen, xs)
-	}
-	return xs
-}
-
 // ---- hasVar()
 
 func (t Atom) hasVar() bool   { return false }

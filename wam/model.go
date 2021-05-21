@@ -776,7 +776,7 @@ type Binding struct {
 
 // Machine represents an abstract machine state.
 type Machine struct {
-	//
+	// Current mode for next machine iteration.
 	Mode ExecutionMode
 
 	// Compiled packages, indexed by package name.
@@ -815,9 +815,6 @@ type Machine struct {
 
 	// Incrementing ID to identify generated variables.
 	LastRefID int
-
-	//
-	Bindings []Binding
 
 	// Attributes indexed by ref ID and attribute name.
 	attributes map[int]map[string]Cell
