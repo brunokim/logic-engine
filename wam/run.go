@@ -741,29 +741,18 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 			return m.backtrack(errors.New("put_attr: variable is bound"))
 		}
 		cell := deref(m.get(instr.Attribute))
-		switch c := cell.(type) {
-		case *Struct:
-			m.setAttribute(ref, c.Name, c)
-		default:
-			return m.backtrack(errors.New("put_attr: invalid attribute"))
-		}
+		m.setAttribute(ref, instr.Pkg, cell)
 	case getAttr:
 		// Retrieves attribute associated to ref.
 		ref, ok := deref(m.get(instr.Addr)).(*Ref)
 		if !ok {
 			return m.backtrack(errors.New("get_attr: variable is bound"))
 		}
-		cell := deref(m.get(instr.Attribute))
-		var attr Cell
-		switch c := cell.(type) {
-		case *Struct:
-			attr = m.getAttribute(ref, c.Name)
-			if attr == nil {
-				return m.backtrack(errors.New("get_attr: attribute not present"))
-			}
-		default:
-			return m.backtrack(errors.New("get_attr: invalid attribute"))
+		attr := m.getAttribute(ref, instr.Pkg)
+		if attr == nil {
+			return m.backtrack(errors.New("get_attr: attribute not present"))
 		}
+		cell := deref(m.get(instr.Attribute))
 		return m.tryUnify(attr, cell)
 	case delAttr:
 		// Deletes attribute associated to ref.
@@ -771,15 +760,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 		if !ok {
 			return m.backtrack(errors.New("del_attr: variable is bound"))
 		}
-		cell := deref(m.get(instr.Attribute))
-		switch c := cell.(type) {
-		case *Struct:
-			m.deleteAttribute(ref, c.Name)
-		case WAtom:
-			m.deleteAttribute(ref, string(c))
-		default:
-			return m.backtrack(errors.New("del_attr: invalid attribute"))
-		}
+		m.deleteAttribute(ref, instr.Pkg)
 	case inlineUnify:
 		// Unify two arbitrary addresses.
 		return m.tryUnify(m.get(instr.Addr1), m.get(instr.Addr2))
@@ -1034,24 +1015,21 @@ func (m *Machine) dictMatchingPairs(d1, d2 *Pair) ([]Cell, error) {
 	return cells, nil
 }
 
-func attrName(attr Cell) string {
-	switch c := attr.(type) {
-	case *Struct:
-		return c.Name
-	default:
-		panic(fmt.Sprintf("unhandled attribute type %T (%v)", attr, attr))
-	}
-}
-
-func attrsToSlice(as map[string]Cell) []Cell {
-	attrs := make([]Cell, len(as))
+func attrsToSlice(as map[string]Cell) []Attribute {
+	attrs := make([]Attribute, len(as))
 	i := 0
-	for _, attr := range as {
-		attrs[i] = attr
+	for pkg, attr := range as {
+		attrs[i] = Attribute{pkg, attr}
 		i++
 	}
 	sort.Slice(attrs, func(i, j int) bool {
-		return attrName(attrs[i]) < attrName(attrs[j])
+		if attrs[i].Pkg < attrs[j].Pkg {
+			return true
+		}
+		if attrs[i].Pkg > attrs[j].Pkg {
+			return false
+		}
+		return compareCells(attrs[i].Value, attrs[j].Value) == less
 	})
 	return attrs
 }
@@ -1093,16 +1071,17 @@ func (m *Machine) verifyAttributes() {
 	ref, value := binding.Ref, binding.Value
 	var functor Functor
 	if otherRef, ok := value.(*Ref); ok {
-		// If value is a var, call join_attribute(AttrName, X, Y)
-		m.Reg[0] = WAtom(attrName(attr))
+		// If value is a var, call join_attribute(Pkg, X, Y)
+		m.Reg[0] = WAtom(attr.Pkg)
 		m.Reg[1] = ref
 		m.Reg[2] = otherRef
 		functor = Functor{"$join_attribute", 3}
 	} else {
-		// If value is not a var, call check_attribute(Attr, Value)
-		m.Reg[0] = attr
-		m.Reg[1] = value
-		functor = Functor{"$check_attribute", 2}
+		// If value is not a var, call check_attribute(Pkg, Attr, Value)
+		m.Reg[0] = WAtom(attr.Pkg)
+		m.Reg[1] = attr.Value
+		m.Reg[2] = value
+		functor = Functor{"$check_attribute", 3}
 	}
 	m.Continuation = m.CodePtr
 	m.CutChoice = m.ChoicePoint

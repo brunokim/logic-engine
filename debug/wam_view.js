@@ -413,6 +413,7 @@ export class Wam {
         return [
             this.instructionFirstArg(instr),
             this.instructionSecondArg(instr),
+            this.instructionThirdArg(instr),
         ]
     }
 
@@ -427,8 +428,6 @@ export class Wam {
                 return instr.Functor
             }
             return instr.Pkg
-        case "importPkg":
-            return instr.Pkg
         case "putConstant":
         case "getConstant":
         case "unifyConstant":
@@ -441,10 +440,12 @@ export class Wam {
         case "unifyValue":
         case "callMeta":
         case "executeMeta":
+            return instr.Addr
+        case "importPkg":
         case "putAttr":
         case "getAttr":
         case "delAttr":
-            return instr.Addr
+            return instr.Pkg
         case "unifyVoid":
         case "allocate":
             return instr.NumVars
@@ -500,7 +501,7 @@ export class Wam {
         case "putAttr":
         case "getAttr":
         case "delAttr":
-            return instr.Attribute
+            return instr.Addr
         case "inlineUnify":
             return instr.Addr2
         case "call":
@@ -509,6 +510,15 @@ export class Wam {
                 return instr.Functor
             }
             return null
+        }
+        return null
+    }
+
+    instructionThirdArg(instr) {
+        switch (instr.Type) {
+        case "putAttr":
+        case "getAttr":
+            return instr.Attribute
         }
         return null
     }

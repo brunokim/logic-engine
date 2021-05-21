@@ -26,13 +26,13 @@ func firstSolution(solutions <-chan solver.Solution, cancel func()) (solver.Solu
 func TestCheckAttribute(t *testing.T) {
 	s, err := solver.New(`
         in_range(X, Min, Max) :-
-            put_attr(X, range(Min, Max)).
+            put_attr(range, X, range(Min, Max)).
 
         % Join ranges if Y also has range attribute, otherwise simply
         % move it to Y.
         join_attribute(range, X, Y) :-
-            get_attr(X, range(Min1, Max1)),
-            ->(get_attr(Y, range(Min2, Max2)),
+            get_attr(range, X, range(Min1, Max1)),
+            ->(get_attr(range, Y, range(Min2, Max2)),
                 % Compute the intersection of ranges
                 and(
                     ->(@<(Min1, Min2), =(Min, Min2), =(Min, Min1)),
@@ -43,7 +43,7 @@ func TestCheckAttribute(t *testing.T) {
             in_range(Y, Min, Max).
 
         % Check that the value is compatible with the attribute.
-        check_attribute(range(Min, Max), Value) :-
+        check_attribute(range, range(Min, Max), Value) :-
             @=<(Min, Value),
             @>(Max, Value).
     `)
@@ -78,13 +78,13 @@ func TestAttributeBacktrack(t *testing.T) {
             =(X, Value).       % Will backtrack for 1 and 2, and succeed for 3 and 4.
 
         in_range(X, Min, Max) :-
-            put_attr(X, range(Min, Max)).
+            put_attr(range, X, range(Min, Max)).
 
         % Join ranges if Y also has range attribute, otherwise simply
         % move it to Y.
         join_attribute(range, X, Y) :-
-            get_attr(X, range(Min1, Max1)),
-            ->(get_attr(Y, range(Min2, Max2)),
+            get_attr(range, X, range(Min1, Max1)),
+            ->(get_attr(range, Y, range(Min2, Max2)),
                 % Compute the intersection of ranges
                 and(->(@<(Min1, Min2), =(Min, Min2), =(Min, Min1)),
                     ->(@>(Max1, Max2), =(Max, Max2), =(Max, Max1)),
@@ -93,7 +93,7 @@ func TestAttributeBacktrack(t *testing.T) {
             in_range(Y, Min, Max).
 
         % Check that the value is compatible with the attribute.
-        check_attribute(range(Min, Max), Value) :-
+        check_attribute(range, range(Min, Max), Value) :-
             @=<(Min, Value),
             @>(Max, Value).
     `)
@@ -121,13 +121,13 @@ func TestAttributeBacktrack(t *testing.T) {
 func TestDeleteAttribute(t *testing.T) {
 	s, err := solver.New(`
         join_attribute(only, X, Y) :-
-            get_attr(X, only(V1)),
-            ->(get_attr(Y, only(V2)),
+            get_attr(only, X, V1),
+            ->(get_attr(only, Y, V2),
                 =(V1, V2),
                 true),
-            put_attr(Y, only(V1)).
+            put_attr(only, Y, V1).
 
-        check_attribute(only(V1), V2) :-
+        check_attribute(only, V1, V2) :-
             =(V1, V2).
     `)
 	if err != nil {
@@ -137,10 +137,10 @@ func TestDeleteAttribute(t *testing.T) {
 	s.SetIterLimit(100)
 
 	got, err := firstSolution(s.Query(`
-        put_attr(X, only(1)),
-        put_attr(Y, only(2)),
+        put_attr(only, X, 1),
+        put_attr(only, Y, 2),
         \=(X, Y),
-        del_attr(Y, only),
+        del_attr(only, Y),
         =(X, Y),
         \=(X, 2),
         =(X, 1),

@@ -259,12 +259,12 @@ func DecodeInstruction(term logic.Term) Instruction {
 		return fail{}
 	case dsl.Indicator("import", 1):
 		return importPkg{decodeString(c.Args[0])}
-	case dsl.Indicator("put_attr", 2):
-		return putAttr{decodeAddr(c.Args[0]), decodeAddr(c.Args[1])}
-	case dsl.Indicator("get_attr", 2):
-		return getAttr{decodeAddr(c.Args[0]), decodeAddr(c.Args[1])}
+	case dsl.Indicator("put_attr", 3):
+		return putAttr{decodeString(c.Args[0]), decodeAddr(c.Args[1]), decodeAddr(c.Args[2])}
+	case dsl.Indicator("get_attr", 3):
+		return getAttr{decodeString(c.Args[0]), decodeAddr(c.Args[1]), decodeAddr(c.Args[2])}
 	case dsl.Indicator("del_attr", 2):
-		return delAttr{decodeAddr(c.Args[0]), decodeAddr(c.Args[1])}
+		return delAttr{decodeString(c.Args[0]), decodeAddr(c.Args[1])}
 	case dsl.Indicator("=", 2):
 		return inlineUnify{decodeAddr(c.Args[0]), decodeAddr(c.Args[1])}
 	default:

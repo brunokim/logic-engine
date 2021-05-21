@@ -624,20 +624,31 @@ func (ctx *compileCtx) compileBodyTerm(pos int, g goal) ([]Instruction, error) {
 		pred := typeCheckPredicates[term.Functor]
 		ctx.instrs = append(ctx.instrs, builtinTypeCheckInstruction(pred, x))
 		return ctx.instrs, nil
-	case dsl.Indicator("get_attr", 2):
-		x := ctx.termAddr(term.Args[0])
-		attr := ctx.termAddr(term.Args[1])
-		ctx.instrs = append(ctx.instrs, getAttr{x, attr})
+	case dsl.Indicator("get_attr", 3):
+		pkg, ok := term.Args[0].(logic.Atom)
+		if !ok {
+			return nil, errors.New("expected atom for get_attr/3, got %v", term.Args[0])
+		}
+		x := ctx.termAddr(term.Args[1])
+		attr := ctx.termAddr(term.Args[2])
+		ctx.instrs = append(ctx.instrs, getAttr{pkg.Name, x, attr})
 		return ctx.instrs, nil
-	case dsl.Indicator("put_attr", 2):
-		x := ctx.termAddr(term.Args[0])
-		attr := ctx.termAddr(term.Args[1])
-		ctx.instrs = append(ctx.instrs, putAttr{x, attr})
+	case dsl.Indicator("put_attr", 3):
+		pkg, ok := term.Args[0].(logic.Atom)
+		if !ok {
+			return nil, errors.New("expected atom for put_attr/3, got %v", term.Args[0])
+		}
+		x := ctx.termAddr(term.Args[1])
+		attr := ctx.termAddr(term.Args[2])
+		ctx.instrs = append(ctx.instrs, putAttr{pkg.Name, x, attr})
 		return ctx.instrs, nil
 	case dsl.Indicator("del_attr", 2):
-		x := ctx.termAddr(term.Args[0])
-		attr := ctx.termAddr(term.Args[1])
-		ctx.instrs = append(ctx.instrs, delAttr{x, attr})
+		pkg, ok := term.Args[0].(logic.Atom)
+		if !ok {
+			return nil, errors.New("expected atom for del_attr/2, got %v", term.Args[0])
+		}
+		x := ctx.termAddr(term.Args[1])
+		ctx.instrs = append(ctx.instrs, delAttr{pkg.Name, x})
 		return ctx.instrs, nil
 	default:
 		return ctx.compileDefaultTerm(g)

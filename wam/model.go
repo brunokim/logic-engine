@@ -227,18 +227,20 @@ type importPkg struct {
 }
 
 type putAttr struct {
+	Pkg       string
 	Addr      Addr
 	Attribute Addr
 }
 
 type getAttr struct {
+	Pkg       string
 	Addr      Addr
 	Attribute Addr
 }
 
 type delAttr struct {
-	Addr      Addr
-	Attribute Addr
+	Pkg  string
+	Addr Addr
 }
 
 type inlineUnify struct {
@@ -471,15 +473,15 @@ func (i importPkg) String() string {
 }
 
 func (i putAttr) String() string {
-	return fmt.Sprintf("put_attr %v, %v", i.Addr, i.Attribute)
+	return fmt.Sprintf("put_attr %s, %v, %v", i.Pkg, i.Addr, i.Attribute)
 }
 
 func (i getAttr) String() string {
-	return fmt.Sprintf("get_attr %v, %v", i.Addr, i.Attribute)
+	return fmt.Sprintf("get_attr %s, %v, %v", i.Pkg, i.Addr, i.Attribute)
 }
 
 func (i delAttr) String() string {
-	return fmt.Sprintf("del_attr %v, %v", i.Addr, i.Attribute)
+	return fmt.Sprintf("del_attr %s, %v", i.Pkg, i.Addr)
 }
 
 func (i inlineUnify) String() string {
@@ -747,13 +749,18 @@ type ChoicePoint struct {
 	UnificationFrame *UnificationFrame
 }
 
+type Attribute struct {
+	Pkg   string
+	Value Cell
+}
+
 type UnificationFrame struct {
 	Prev         *UnificationFrame
 	Continuation InstrAddr
 	CutChoice    *ChoicePoint
 	Bindings     []Binding
 	Index        int
-	Attributes   []Cell
+	Attributes   []Attribute
 	FirstRun     bool
 }
 
