@@ -120,7 +120,7 @@ func (m *Machine) Run() error {
 		switch m.Mode {
 		case Run:
 			exit, err = m.runCode(i)
-		case Unify:
+		case VerifyAttributes:
 			m.verifyAttributes()
 		}
 		m.debugWrite(f, i)
@@ -845,7 +845,7 @@ func (m *Machine) tryUnify(a1, a2 Cell) (InstrAddr, error) {
 }
 
 func (m *Machine) setupVerifyAttributes(bindings map[*Ref]Cell) (InstrAddr, error) {
-	m.Mode = Unify
+	m.Mode = VerifyAttributes
 	m.UnificationFrame = &UnificationFrame{
 		Prev:         m.UnificationFrame,
 		Continuation: m.Continuation,

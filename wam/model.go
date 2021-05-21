@@ -769,8 +769,8 @@ type ExecutionMode int
 
 //go:generate stringer -type=ExecutionMode --linecomment
 const (
-	Run   ExecutionMode = iota // run
-	Unify                      // unify
+	Run              ExecutionMode = iota // run
+	VerifyAttributes                      // verify_attributes
 )
 
 // UnificationMode sets the machine mode for unifying complex terms' args.

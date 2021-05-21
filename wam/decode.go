@@ -81,8 +81,8 @@ func decodeExecutionMode(t logic.Term) ExecutionMode {
 	switch t {
 	case dsl.Atom("run"):
 		return Run
-	case dsl.Atom("unify"):
-		return Unify
+	case dsl.Atom("verify_attributes"):
+		return VerifyAttributes
 	default:
 		panic(fmt.Sprintf("invalid execution mode: %v", t))
 	}

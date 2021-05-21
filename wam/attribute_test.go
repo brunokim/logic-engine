@@ -43,13 +43,13 @@ func TestCheckAttribute(t *testing.T) {
                 ),
                 and(=(Min, Min1), =(Max, Max1))),
             in_range(Y, Min, Max),
-            asm(proceed(unify)).
+            asm(proceed(verify_attributes)).
 
         % Check that the value is compatible with the attribute.
         check_attribute(range(Min, Max), Value) :-
             @=<(Min, Value),
             @>(Max, Value),
-            asm(proceed(unify)).
+            asm(proceed(verify_attributes)).
     `)
 	if err != nil {
 		t.Fatal(err)
@@ -98,13 +98,13 @@ func TestAttributeBacktrack(t *testing.T) {
                     @<(Min, Max)),
                 and(=(Min, Min1), =(Max, Max1))),
             in_range(Y, Min, Max),
-            asm(proceed(unify)).
+            asm(proceed(verify_attributes)).
 
         % Check that the value is compatible with the attribute.
         check_attribute(range(Min, Max), Value) :-
             @=<(Min, Value),
             @>(Max, Value),
-            asm(proceed(unify)).
+            asm(proceed(verify_attributes)).
     `)
 	if err != nil {
 		t.Fatal(err)
@@ -137,11 +137,11 @@ func TestDeleteAttribute(t *testing.T) {
                 =(V1, V2),
                 true),
             put_attr(only, Y, V1),
-            asm(proceed(unify)).
+            asm(proceed(verify_attributes)).
 
         check_attribute(V1, V2) :-
             =(V1, V2),
-            asm(proceed(unify)).
+            asm(proceed(verify_attributes)).
     `)
 	if err != nil {
 		t.Fatal(err)

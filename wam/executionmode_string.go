@@ -9,12 +9,12 @@ func _() {
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
 	_ = x[Run-0]
-	_ = x[Unify-1]
+	_ = x[VerifyAttributes-1]
 }
 
-const _ExecutionMode_name = "rununify"
+const _ExecutionMode_name = "runverify_attributes"
 
-var _ExecutionMode_index = [...]uint8{0, 3, 8}
+var _ExecutionMode_index = [...]uint8{0, 3, 20}
 
 func (i ExecutionMode) String() string {
 	if i < 0 || i >= ExecutionMode(len(_ExecutionMode_index)-1) {
