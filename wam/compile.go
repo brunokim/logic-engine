@@ -1172,7 +1172,7 @@ func CompilePackage(clauses []*logic.Clause, options ...CompileOption) (*Package
 		if !ok {
 			return nil, errors.New("imported #%d: expecting atom package name, got %v", i+1, importedPkg)
 		}
-		pkg.ImportedPkgs = append(pkg.ImportedPkgs, pkgName.Name)
+		pkg.AddImported(pkgName.Name)
 	}
 	exportedFunctors := make(map[Functor]struct{})
 	for i, exportedFn := range exported {

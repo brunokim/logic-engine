@@ -733,7 +733,7 @@ func (m *Machine) execute(instr Instruction) (InstrAddr, error) {
 			m.CodePtr.Clause.Pkg = NewPackage("")
 		}
 		pkg := m.CodePtr.Clause.Pkg
-		pkg.ImportedPkgs = append(pkg.ImportedPkgs, instr.Pkg)
+		pkg.AddImported(instr.Pkg)
 	case putAttr:
 		// Associates attribute to a ref.
 		ref, ok := deref(m.get(instr.Addr)).(*Ref)

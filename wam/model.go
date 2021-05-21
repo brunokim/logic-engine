@@ -540,6 +540,15 @@ func (pkg *Package) AddInternal(clause *Clause) error {
 	return nil
 }
 
+func (pkg *Package) AddImported(imported string) {
+	for _, imp := range pkg.ImportedPkgs {
+		if imp == imported {
+			return
+		}
+	}
+	pkg.ImportedPkgs = append(pkg.ImportedPkgs, imported)
+}
+
 func addClause(index map[Functor]*Clause, clause *Clause) error {
 	if _, ok := index[clause.Functor]; ok {
 		return errors.New("overwriting clause %v", clause.Functor)
