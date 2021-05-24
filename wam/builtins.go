@@ -218,13 +218,14 @@ type typeCheckPredicate struct {
 }
 
 var typeCheckPredicates = map[string]typeCheckPredicate{
-	"atom":  {"atom", errors.New("not an atom")},
-	"int":   {"int", errors.New("not an int")},
-	"ptr":   {"ptr", errors.New("not a ptr")},
-	"var":   {"var", errors.New("not a var")},
-	"list":  {"list", errors.New("not a list")},
-	"assoc": {"assoc", errors.New("not an assoc")},
-	"dict":  {"dict", errors.New("not a dict")},
+	"atom":   {"atom", errors.New("not an atom")},
+	"int":    {"int", errors.New("not an int")},
+	"ptr":    {"ptr", errors.New("not a ptr")},
+	"var":    {"var", errors.New("not a var")},
+	"struct": {"struct", errors.New("not a struct")},
+	"list":   {"list", errors.New("not a list")},
+	"assoc":  {"assoc", errors.New("not an assoc")},
+	"dict":   {"dict", errors.New("not a dict")},
 }
 
 func builtinTypeCheckPredicate(pred typeCheckPredicate) *Clause {
@@ -267,6 +268,8 @@ func typeCheck(m *Machine, addr Addr) string {
 		return "ptr"
 	case *Ref:
 		return "var"
+	case *Struct:
+		return "struct"
 	case *Pair:
 		switch c.Tag {
 		case ListPair:

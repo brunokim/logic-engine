@@ -86,15 +86,16 @@ dif(X, Y) :-
     \==(X, Y),
     dif_compounds(X, Y, _).
 
-dif_compounds(X, Y, Or) :-
-    ->(unifiable(X, Y, Unifier),
-        ->(==(Unifier, []),
-            % X=Y, remove this association from Or node.
-            or_one_fail(Or),
-            % X \= Y, add relations to X, Y and Or.
-            append_edges(Unifier, Or)),
-        % X is different from Y, succeed Or node.
-        or_succeed(Or)).
+% TODO: there's a bug when allocating vars to registers when using ->/3, and/n
+% or other control predicates, because there is a single functor and all variables
+% are then considered temporary.
+dif_compounds(X, Y, Or) :- unifiable(X, Y, Unifier), !, dif_comp2(Unifier, Or).
+% X is different from Y, succeed Or node.
+dif_compounds(_, _, Or) :- or_succeed(Or).
+% X=Y, remove this association from Or node.
+dif_comp2(Unifier, Or) :- ==(Unifier, []), !, or_one_fail(Or).
+% X \= Y, add relations to X, Y and Or.
+dif_comp2(Unifier, Or) :- append_edges(Unifier, Or).
 
 append_edges(Unifier, Or) :-
     ->(get_attr(dif, Or, dif_node(L2)),
@@ -133,7 +134,7 @@ add_outgoing_edge(X, Y, Or) :-
 % and remove it from all referencing attributed vars.
 or_succeed(Or) :-
     get_attr(dif, Or, dif_node(Unifier)),
-    del_attr(dif, Or, dif_node),
+    del_attr(dif, Or),
     =(Or, success),
     del_or_dif(Unifier).
 
@@ -151,7 +152,7 @@ cleanup_dead_nodes(X) :-
     filter_dead_ors(Inc, NewInc),
     filter_dead_ors(Out, NewOut),
     ->(and(==(NewInc, []), ==(NewOut, [])),
-        del_attr(dif, X, dif_edges),
+        del_attr(dif, X),
         put_attr(dif, X, dif_edges(NewInc, NewOut))).
 
 % Remove edges associated to bound Or nodes.
@@ -194,7 +195,7 @@ join_attribute(dif_edges, X, Y) :-
     append(NewIncX, NewIncY, JoinedInc),
     append(NewOutX, NewOutY, JoinedOut),
     ->(and(==(JoinedInc, []), ==(JoinedOut, [])),
-        del_attr(dif, Y, dif_edges),
+        del_attr(dif, Y),
         put_attr(dif, Y, dif_edges(JoinedInc, JoinedOut))).
 
 update_dif_attrs(Inc, Out, Value, NewInc, NewOut) :-

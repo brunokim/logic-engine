@@ -162,10 +162,7 @@ func TestDeleteAttribute(t *testing.T) {
 	}
 }
 
-// TODO: there's a bug when allocating vars to registers when using
-// ->/3, and/n or other control predicates, because there may be a single functor
-// and all variables are then considered temporary.
-func _TestDif(t *testing.T) {
+func TestDif(t *testing.T) {
 	s, err := solver.New(``)
 	if err != nil {
 		t.Fatal(err)
@@ -176,11 +173,21 @@ func _TestDif(t *testing.T) {
 	got, err := firstSolution(s.Query(`
         import(dif),
         dif(X, Y),
+        =(X, f(a)),
+        =(Y, f(Z)),
+        get_attr(dif, Z, dif_edges([edge(Or, a)], [])),
+        get_attr(dif, Or, dif_node(Forbidden)),
     `))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := solver.Solution{}
+	want := solver.Solution{
+		var_("X"): comp("f", atom("a")),
+		var_("Y"): comp("f", var_("Z")),
+		var_("Forbidden"): list(
+			assoc(var_("Z"), atom("a")),
+			assoc(var_("Y"), var_("X"))),
+	}
 	if diff := cmp.Diff(want, got, test_helpers.IgnoreUnexported); diff != "" {
 		t.Errorf("(-want, +got):\n%s", diff)
 		t.Log(s.Err)
