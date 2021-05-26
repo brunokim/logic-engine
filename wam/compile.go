@@ -201,6 +201,12 @@ func newCompileCtx(clause *Clause, numArgs int) *compileCtx {
 	}
 }
 
+func (ctx *compileCtx) nextReg() RegAddr {
+	addr := ctx.topReg
+	ctx.topReg++
+	return addr
+}
+
 // ---- get/unify/put variables
 
 func (ctx *compileCtx) getVar(x logic.Var, regAddr RegAddr) Instruction {
@@ -224,9 +230,7 @@ func (ctx *compileCtx) unifyVar(x logic.Var) Instruction {
 
 func (ctx *compileCtx) putVar(x logic.Var, regAddr RegAddr) Instruction {
 	if x == logic.AnonymousVar {
-		addr := ctx.topReg
-		ctx.topReg++
-		return putVariable{addr, regAddr}
+		return putVariable{ctx.nextReg(), regAddr}
 	}
 	if _, ok := ctx.seen[x]; ok {
 		return putValue{ctx.varAddr[x], regAddr}
@@ -273,8 +277,7 @@ func (ctx *compileCtx) getPair(tag PairTag, addr RegAddr, head, tail logic.Term)
 // ---- unify terms
 
 func (ctx *compileCtx) delayComplexArg(arg logic.Term) Instruction {
-	addr := RegAddr(ctx.topReg)
-	ctx.topReg++
+	addr := ctx.nextReg()
 	ctx.delayed = append(ctx.delayed, compound{t: arg, addr: addr})
 	return unifyVariable{addr}
 }
@@ -379,8 +382,7 @@ func (ctx *compileCtx) setArg(arg logic.Term) Instruction {
 }
 
 func (ctx *compileCtx) setComplexArg(arg logic.Term) Instruction {
-	addr := ctx.topReg
-	ctx.topReg++
+	addr := ctx.nextReg()
 	ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, addr)...)
 	return unifyValue{addr}
 }
@@ -395,9 +397,7 @@ func (ctx *compileCtx) ensureVar(x logic.Var) {
 		return
 	}
 	ctx.seen[x] = struct{}{}
-	addr := ctx.topReg
-	ctx.topReg++
-	ctx.instrs = append(ctx.instrs, putVariable{ctx.varAddr[x], addr})
+	ctx.instrs = append(ctx.instrs, putVariable{ctx.varAddr[x], ctx.nextReg()})
 }
 
 func (ctx *compileCtx) termAddr(term logic.Term) Addr {
@@ -412,8 +412,7 @@ func (ctx *compileCtx) termAddr(term logic.Term) Addr {
 		ctx.ensureVar(t)
 		return ctx.varAddr[t]
 	}
-	addr := ctx.topReg
-	ctx.topReg++
+	addr := ctx.nextReg()
 	ctx.instrs = append(ctx.instrs, ctx.putTerm(term, addr)...)
 	return addr
 }
@@ -681,8 +680,7 @@ func compile0(clause flatClause, permVars map[logic.Var]struct{}) (*Clause, erro
 			ctx.varAddr[x] = StackAddr(currStack)
 			currStack++
 		} else if x != logic.AnonymousVar {
-			ctx.varAddr[x] = ctx.topReg
-			ctx.topReg++
+			ctx.varAddr[x] = ctx.nextReg()
 		}
 	}
 	// Compile clause head
