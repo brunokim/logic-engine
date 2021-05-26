@@ -747,6 +747,14 @@ type ChoicePoint struct {
 	CutChoice        *ChoicePoint
 	Continuation     InstrAddr
 	UnificationFrame *UnificationFrame
+	Depth            int
+}
+
+type ExecutionState struct {
+	Depth   int
+	CodePtr InstrAddr
+	Args    []Cell
+	Env     *Env
 }
 
 type Attribute struct {
@@ -843,6 +851,12 @@ type Machine struct {
 
 	// Incrementing ID to identify generated variables.
 	LastRefID int
+
+	// Depth of calls.
+	Depth int
+
+	// Execution state of the deepest error. Useful for parsing.
+	DeepestError ExecutionState
 
 	// Attributes indexed by ref ID and attribute name.
 	attributes map[int]map[string]Cell

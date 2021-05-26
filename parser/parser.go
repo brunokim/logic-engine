@@ -244,6 +244,26 @@ func init() {
 
 // ---- parse functions
 
+func stack(env *wam.Env) string {
+	var b strings.Builder
+	for env != nil {
+		b.WriteString("  - ")
+		clause := env.Continuation.Clause
+		if clause != nil {
+			fmt.Fprintf(&b, " functor: %v\n    ", clause.Functor)
+		}
+		fmt.Fprintf(&b, " vars: %v\n", env.PermanentVars)
+		env = env.Prev
+	}
+	return b.String()
+}
+
+func parseError(m *wam.Machine) error {
+	state := m.DeepestError
+	clause := state.CodePtr.Clause
+	return fmt.Errorf("deepest backtrack at %v:\nargs: %v\nframes:\n%s", clause.Functor, state.Args, stack(state.Env))
+}
+
 // ParseTerm parses a single term.
 func ParseTerm(text string) (logic.Term, error) {
 	var letters []logic.Term
@@ -258,7 +278,7 @@ func ParseTerm(text string) (logic.Term, error) {
 		dsl.Comp("import", dsl.Atom("parser")),
 		dsl.Comp("parse", dsl.List(letters...), tree))
 	if err != nil {
-		return nil, err
+		return nil, parseError(m)
 	}
 	return parseTerm(bindings[tree])
 }
@@ -285,7 +305,7 @@ func ParseClauses(text string) ([]*logic.Clause, error) {
 		dsl.Comp("import", dsl.Atom("parser")),
 		dsl.Comp("parse_kb", dsl.List(letters...), tree))
 	if err != nil {
-		return nil, err
+		return nil, parseError(m)
 	}
 	return parseClauses(bindings[tree])
 }
@@ -312,7 +332,7 @@ func ParseQuery(text string) ([]logic.Term, error) {
 		dsl.Comp("import", dsl.Atom("parser")),
 		dsl.Comp("parse_query", dsl.List(letters...), x))
 	if err != nil {
-		return nil, err
+		return nil, parseError(m)
 	}
 	return parseQuery(bindings[x])
 }

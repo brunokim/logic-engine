@@ -370,19 +370,18 @@ func makeStructFrom(f Functor) *Struct {
 }
 
 func (m *Machine) newChoicePoint(alternative InstrAddr) *ChoicePoint {
-	numArgs := m.CodePtr.Clause.Functor.Arity
 	choicePoint := &ChoicePoint{
 		Prev:             m.ChoicePoint,
 		Continuation:     m.Continuation,
 		NextAlternative:  alternative,
 		AttrTrail:        make(map[*Ref]map[string]Cell),
-		Args:             make([]Cell, numArgs),
+		Args:             m.args(),
 		LastRefID:        m.LastRefID,
 		Env:              m.Env,
 		CutChoice:        m.CutChoice,
 		UnificationFrame: m.UnificationFrame,
+		Depth:            m.Depth,
 	}
-	copy(choicePoint.Args, m.Reg)
 	return choicePoint
 }
 
@@ -425,6 +424,7 @@ func (m *Machine) restoreFromChoicePoint() {
 	m.Env = m.ChoicePoint.Env
 	m.Continuation = m.ChoicePoint.Continuation
 	m.UnificationFrame = m.ChoicePoint.UnificationFrame
+	m.Depth = m.ChoicePoint.Depth
 	m.unwindTrail()
 }
 
@@ -470,6 +470,7 @@ func (m *Machine) call(pkgName string, functor Functor) (InstrAddr, error) {
 	if err != nil {
 		return m.backtrack(err)
 	}
+	m.Depth++
 	m.growRegisters(clause)
 	return InstrAddr{Clause: clause, Pos: 0}, nil
 }
@@ -792,7 +793,20 @@ func (m *Machine) forward() (InstrAddr, error) {
 	return m.CodePtr.inc(), nil
 }
 
+func (m *Machine) args() []Cell {
+	numArgs := m.CodePtr.Clause.Functor.Arity
+	args := make([]Cell, numArgs)
+	copy(args, m.Reg)
+	return args
+}
+
 func (m *Machine) backtrack(err error) (InstrAddr, error) {
+	if m.Depth > m.DeepestError.Depth {
+		m.DeepestError.Depth = m.Depth
+		m.DeepestError.CodePtr = m.CodePtr
+		m.DeepestError.Args = m.args()
+		m.DeepestError.Env = m.Env
+	}
 	m.hasBacktracked = true
 	if m.ChoicePoint == nil {
 		return InstrAddr{}, err
