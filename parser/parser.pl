@@ -113,22 +113,15 @@ comp(comp(Functor, Args)) -->
     atom(atom(Functor)), ['('], ws, terms(Args), ws, [')'].
 
 % List and incomplete lists
-list(list(Terms), ['['|L1], L4) :-
-    ws(L1, L2),
-    terms(Terms, L2, L3),
-    ws(L3, [']'|L4]).
-list(list(Terms, Tail), ['['|L1], L7) :-
-    ws(L1, L2),
-    terms(Terms, L2, L3),
-    ws(L3, ['|'|L4]),
-    ws(L4, L5),
-    term(Tail, L5, L6),
-    ws(L6, [']'|L7]).
+list(list(Terms)) -->
+    ['['], ws, terms(Terms), ws, [']'].
+list(list(Terms, Tail)) -->
+    ['['], ws, terms(Terms), ws, ['|'], ws, term(Tail), ws, [']'].
 
 % Strings: lists of single-rune atoms
-list(list(Terms), ['"'|L1], L2) :-
-    quoted('"', Chars, L1, ['"'|L2]),
-    atoms(Chars, Terms).
+list(list(Terms)) -->
+    ['"'], quoted('"', Chars), ['"'],
+    {atoms(Chars, Terms)}.
 atoms([Ch|Chars], [atom([Ch])|Terms]) :-
     atoms(Chars, Terms).
 atoms([], []).
