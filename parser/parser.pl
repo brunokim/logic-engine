@@ -153,26 +153,25 @@ terms([Term]) -->
 terms([]) --> [].
 
 % Terms
-term(Term, L1, L2) :- comp(Term, L1, L2), !.
-term(Term, L1, L2) :- atom(Term, L1, L2), !.
-term(Term, L1, L2) :- int(Term, L1, L2), !.
-term(Term, L1, L2) :- var(Term, L1, L2), !.
-term(Term, L1, L2) :- list(Term, L1, L2), !.
-term(Term, L1, L2) :- assoc(Term, L1, L2), !.
-term(Term, L1, L2) :- dict(Term, L1, L2).
+term(Term) --> comp(Term), {!}.
+term(Term) --> atom(Term), {!}.
+term(Term) --> int(Term), {!}.
+term(Term) --> var(Term), {!}.
+term(Term) --> list(Term), {!}.
+term(Term) --> assoc(Term), {!}.
+term(Term) --> dict(Term).
 
 % Clause: fact and rule
-clause_head(Term, L1, L2) :- comp(Term, L1, L2).
-clause_head(Term, L1, L2) :- atom(Term, L1, L2).
-clause(clause(Fact), L1, L3) :-
-    clause_head(Fact, L1, L2),
-    ws(L2, ['.'|L3]).
-clause(clause(Head, Body), L1, L6) :-
-    clause_head(Head, L1, L2),
-    ws(L2, [':', '-'|L3]),
-    ws(L3, L4),
-    terms(Body, L4, L5),
-    ws(L5, ['.'|L6]).
+clause_head(Term) --> comp(Term), {!}.
+clause_head(Term) --> atom(Term).
+
+clause(clause(Fact)) -->
+    clause_head(Fact), ws, ['.'].
+clause(clause(Head, Body)) -->
+    clause_head(Head), ws,
+    [':', '-'], ws,
+    terms(Body), ws,
+    ['.'].
 
 % DCGs
 dcg(dcg(Head, Body), L1, L6) :-
