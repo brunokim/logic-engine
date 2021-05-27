@@ -517,11 +517,11 @@ var (
 
 func TestCompileClauses(t *testing.T) {
 	tests := []struct {
-		clauses []*logic.Clause
-		want    map[wam.Functor]*wam.Clause
+		rules []logic.Rule
+		want  map[wam.Functor]*wam.Clause
 	}{
 		{
-			dsl.Clauses(
+			dsl.Rules(
 				dsl.Clause(comp("vowel", atom("a"))),
 				dsl.Clause(comp("vowel", atom("e"))),
 				dsl.Clause(comp("vowel", atom("i"))),
@@ -531,7 +531,7 @@ func TestCompileClauses(t *testing.T) {
 		},
 		{
 
-			dsl.Clauses(
+			dsl.Rules(
 				dsl.Clause(comp("f", atom("a")), comp("a")),
 				dsl.Clause(comp("f", atom("a")), comp("b")),
 				dsl.Clause(comp("f", atom("b"))),
@@ -544,7 +544,7 @@ func TestCompileClauses(t *testing.T) {
 			map[wam.Functor]*wam.Clause{wam.Functor{"f", 1}: fIndex},
 		},
 		{
-			dsl.Clauses(
+			dsl.Rules(
 				dsl.Clause(comp("vowel", atom("a"))),
 				dsl.Clause(comp("vowel", atom("e"))),
 				dsl.Clause(comp("vowel", atom("i"))),
@@ -567,7 +567,7 @@ func TestCompileClauses(t *testing.T) {
 	}
 	// Need to ignore self-referential fields because go-cmp can't handle them.
 	for _, test := range tests {
-		pkg, err := wam.CompilePackage(test.clauses, wam.KeepLabels{})
+		pkg, err := wam.CompilePackage(test.rules, wam.KeepLabels{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -577,7 +577,7 @@ func TestCompileClauses(t *testing.T) {
 			cmpopts.IgnoreFields(instr{}, "Clause"),
 		}
 		if diff := cmp.Diff(test.want, got, opts); diff != "" {
-			t.Errorf("%v: (-want, +got)%s", test.clauses, diff)
+			t.Errorf("%v: (-want, +got)%s", test.rules, diff)
 		}
 	}
 }
@@ -594,7 +594,7 @@ func TestCompilePackage(t *testing.T) {
 	pkg2.ImportedPkgs = []string{"pkg1"}
 	pkg2.Exported[g1] = &wam.Clause{Pkg: pkg2, Functor: g1}
 
-	pkg3, err := wam.CompilePackage([]*logic.Clause{
+	pkg3, err := wam.CompilePackage([]logic.Rule{
 		dsl.Clause(comp("package", atom("pkg3"),
 			list(atom("pkg1"), atom("pkg2")),
 			list(atom("f/1"), atom("g/2")))),

@@ -13,7 +13,7 @@ import (
 var text string
 
 func TestParseSelf(t *testing.T) {
-	got, err := ParseClauses(text)
+	got, err := ParseRules(text)
 	if err != nil {
 		t.Fatalf("got err: %v", err)
 	}

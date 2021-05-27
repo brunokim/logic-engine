@@ -29,11 +29,11 @@ func init() {
 		if err != nil {
 			return err
 		}
-		cs, err := parser.ParseClauses(string(bs))
+		rules, err := parser.ParseRules(string(bs))
 		if err != nil {
 			return err
 		}
-		pkg, err := wam.CompilePackage(cs)
+		pkg, err := wam.CompilePackage(rules)
 		if err != nil {
 			return err
 		}
@@ -79,15 +79,15 @@ func (s Solution) String() string {
 
 // New creates a Solver from parsing and compiling the provided program.
 func New(text string) (*Solver, error) {
-	clauses, err := parser.ParseClauses(text)
+	clauses, err := parser.ParseRules(text)
 	if err != nil {
 		return nil, err
 	}
-	return NewSolverFromClauses(clauses)
+	return NewSolverFromRules(clauses)
 }
 
 // NewFromClauses is like New, with already parsed clauses.
-func NewSolverFromClauses(clauses []*logic.Clause) (*Solver, error) {
+func NewSolverFromRules(rules []logic.Rule) (*Solver, error) {
 	solver := new(Solver)
 	solver.m = wam.NewMachine()
 	for _, pkg := range libPkgs {
@@ -95,7 +95,7 @@ func NewSolverFromClauses(clauses []*logic.Clause) (*Solver, error) {
 			return nil, err
 		}
 	}
-	pkg, err := wam.CompilePackage(clauses)
+	pkg, err := wam.CompilePackage(rules)
 	if err != nil {
 		return nil, err
 	}

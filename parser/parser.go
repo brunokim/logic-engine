@@ -26,7 +26,7 @@ var (
 var (
 	// ParserPkg is the underlying package with already-compiled parsing rules.
 	ParserPkg *wam.Package
-	grammar   = []*logic.Clause{
+	grammar   = []logic.Rule{
 		// Package declaration
 		clause(comp("package", atom("parser"),
 			list(),
@@ -322,8 +322,8 @@ func parseTerm(term logic.Term) (t logic.Term, err error) {
 	return decodeTerm(term), nil
 }
 
-// ParseClauses parses a sequence of facts and rules.
-func ParseClauses(text string) ([]*logic.Clause, error) {
+// ParseRules parses a sequence of facts, rules and DCGs.
+func ParseRules(text string) ([]logic.Rule, error) {
 	var letters []logic.Term
 	for _, ch := range text {
 		letters = append(letters, dsl.Atom(string(ch)))
@@ -337,16 +337,16 @@ func ParseClauses(text string) ([]*logic.Clause, error) {
 	if err != nil {
 		return nil, parseError(m)
 	}
-	return parseClauses(bindings[tree])
+	return parseRules(bindings[tree])
 }
 
-func parseClauses(term logic.Term) (clauses []*logic.Clause, err error) {
+func parseRules(term logic.Term) (rules []logic.Rule, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = r.(error)
 		}
 	}()
-	return decodeClauses(term), nil
+	return decodeRules(term), nil
 }
 
 // ParseQuery parses a sequence of terms.
@@ -378,16 +378,31 @@ func parseQuery(term logic.Term) (terms []logic.Term, err error) {
 
 // ---- decode
 
-func decodeClauses(term logic.Term) []*logic.Clause {
+func decodeRules(term logic.Term) []logic.Rule {
 	if term == logic.EmptyList {
 		return nil
 	}
 	l := expectList(term)
-	clauses := make([]*logic.Clause, len(l.Terms))
+	rules := make([]logic.Rule, len(l.Terms))
 	for i, term := range l.Terms {
-		clauses[i] = decodeClause(term)
+		rules[i] = decodeRule(term)
 	}
-	return clauses
+	return rules
+}
+
+func decodeRule(term logic.Term) logic.Rule {
+	c, ok := term.(*logic.Comp)
+	if !ok {
+		panic(fmt.Errorf("decodeRule: expected comp, got %v", term))
+	}
+	switch c.Functor {
+	case "clause":
+		return decodeClause(term)
+	case "dcg":
+		return decodeDCG(term)
+	default:
+		panic(fmt.Errorf(`decodeRule: expected "clause" or "dcg" functors, got %q`, c.Functor))
+	}
 }
 
 func decodeClause(term logic.Term) *logic.Clause {
@@ -402,6 +417,10 @@ func decodeClause(term logic.Term) *logic.Clause {
 		body = decodeTerms(c.Args[1])
 	}
 	return logic.NewClause(head, body...)
+}
+
+func decodeDCG(term logic.Term) *logic.DCG {
+	panic(fmt.Errorf("decodeDCG: not implemented!"))
 }
 
 func decodeClauseHead(term logic.Term) logic.Term {

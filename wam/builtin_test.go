@@ -34,7 +34,7 @@ func TestInlineUnify(t *testing.T) {
 
 // Disabled test: "soft-cut" if is not implemented.
 func _TestBacktrackingIf(t *testing.T) {
-	pkg, err := wam.CompilePackage([]*logic.Clause{
+	pkg, err := wam.CompilePackage([]logic.Rule{
 		dsl.Clause(comp("test", int_(1))),
 		dsl.Clause(comp("test", int_(2))),
 		dsl.Clause(comp("test", int_(3))),

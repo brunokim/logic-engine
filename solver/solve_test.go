@@ -15,14 +15,13 @@ import (
 )
 
 var (
-	clauses = dsl.Clauses
-	clause  = dsl.Clause
-	atom    = dsl.Atom
-	int_    = dsl.Int
-	var_    = dsl.Var
-	comp    = dsl.Comp
-	list    = dsl.List
-	ilist   = dsl.IList
+	clause = dsl.Clause
+	atom   = dsl.Atom
+	int_   = dsl.Int
+	var_   = dsl.Var
+	comp   = dsl.Comp
+	list   = dsl.List
+	ilist  = dsl.IList
 )
 
 func TestSolve(t *testing.T) {

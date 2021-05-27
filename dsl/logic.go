@@ -95,9 +95,9 @@ func DCGGoals(terms ...logic.Term) logic.DCGTerm {
 	return logic.DCGGoals(terms)
 }
 
-// Clauses builds a list of logic clauses.
-func Clauses(cs ...*logic.Clause) []*logic.Clause {
-	return cs
+// Rules builds a list of logic rules.
+func Rules(rules ...logic.Rule) []logic.Rule {
+	return rules
 }
 
 // ----

@@ -6,11 +6,11 @@ import (
 )
 
 func Fuzz(data []byte) int {
-	clauses, err := parser.ParseClauses(string(data))
+	rules, err := parser.ParseRules(string(data))
 	if err != nil {
 		return 0
 	}
-	_, err = solver.NewSolverFromClauses(clauses)
+	_, err = solver.NewSolverFromRules(rules)
 	if err != nil {
 		panic(err)
 	}

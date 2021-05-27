@@ -105,6 +105,12 @@ type Dict struct {
 	hasVar_ bool
 }
 
+// Rule is the sum type of Clause and DCG.
+type Rule interface {
+	// Normalize rule to a Clause.
+	ToClause() *Clause
+}
+
 // Clause is the representation of a logic rule.
 // Note that Clause is not a Term, so it can't be used within complex terms.
 type Clause struct {
@@ -138,6 +144,8 @@ func (t Atom) isDCGTerm()     {}
 func (t *Comp) isDCGTerm()    {}
 func (t *List) isDCGTerm()    {}
 func (t DCGGoals) isDCGTerm() {}
+
+func (r *Clause) ToClause() *Clause { return r }
 
 // ---- Public vars
 

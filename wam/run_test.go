@@ -891,7 +891,7 @@ func TestCallMeta(t *testing.T) {
 	// p(a).
 	// q(b).
 	// ?- call(p(), X)
-	pkg, err := wam.CompilePackage([]*logic.Clause{
+	pkg, err := wam.CompilePackage([]logic.Rule{
 		dsl.Clause(comp("p", atom("a"))),
 		dsl.Clause(comp("q", atom("b"))),
 	})
@@ -916,7 +916,7 @@ func TestIf(t *testing.T) {
 	// true.
 	// member(X, [H|T]) :- ->(=(X, H), true, member(X, T)).
 	// ?- member(b, [a, c, b]), member(z, [a, c, b]).
-	pkg, err := wam.CompilePackage([]*logic.Clause{
+	pkg, err := wam.CompilePackage([]logic.Rule{
 		dsl.Clause(atom("true")),
 		dsl.Clause(comp("member", var_("X"), ilist(var_("H"), var_("T"))),
 			comp("->",
@@ -944,7 +944,7 @@ func TestNextSolution(t *testing.T) {
 
 	// add(0, S, S).
 	// add(s(A), B, s(S)) :- add(A, B, S).
-	pkg, err := wam.CompilePackage([]*logic.Clause{
+	pkg, err := wam.CompilePackage([]logic.Rule{
 		dsl.Clause(comp("add", int_(0), var_("S"), var_("S"))),
 		dsl.Clause(comp("add", comp("s", var_("A")), var_("B"), comp("s", var_("S"))),
 			comp("add", var_("A"), var_("B"), var_("S"))),
@@ -998,7 +998,7 @@ func TestReset(t *testing.T) {
 	// parent(diana, william).
 	// parent(charles, harry).
 	// parent(diana, harry).
-	pkg, err := wam.CompilePackage([]*logic.Clause{
+	pkg, err := wam.CompilePackage([]logic.Rule{
 		dsl.Clause(comp("parent", atom("charles"), atom("william"))),
 		dsl.Clause(comp("parent", atom("diana"), atom("william"))),
 		dsl.Clause(comp("parent", atom("charles"), atom("harry"))),
@@ -1152,7 +1152,7 @@ func TestUnifyDicts(t *testing.T) {
 }
 
 func TestCallPkg(t *testing.T) {
-	pkg1, err := wam.CompilePackage([]*logic.Clause{
+	pkg1, err := wam.CompilePackage([]logic.Rule{
 		dsl.Clause(comp("package", atom("pkg1"), list(), list(atom("public/1")))),
 		dsl.Clause(comp("public", atom("a"))),
 		dsl.Clause(comp("private", atom("b"))),

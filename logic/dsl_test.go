@@ -8,7 +8,6 @@ var (
 	assoc     = dsl.Assoc
 	atom      = dsl.Atom
 	clause    = dsl.Clause
-	clauses   = dsl.Clauses
 	comp      = dsl.Comp
 	dcg       = dsl.DCG
 	dcg_list  = dsl.DCGList

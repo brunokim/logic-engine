@@ -1229,16 +1229,20 @@ func compileClauses(clauses []*logic.Clause, options ...CompileOption) ([]*Claus
 	return cs, nil
 }
 
-// CompilePackage compiles a list of clauses into a single package.
+// CompilePackage compiles a list of rules into a single package.
 //
 // If the first clause is a fact like `package(pkg_name, [pkg1, pkg2], ['f/2', 'g/1']).`,
 // the package returned defines a namespace, with specified exported functions and imported
 // package names.
 //
 // Otherwise, the package is nameless, and all clauses will be added to the global namespace.
-func CompilePackage(clauses []*logic.Clause, options ...CompileOption) (*Package, error) {
-	if len(clauses) == 0 {
+func CompilePackage(rules []logic.Rule, options ...CompileOption) (*Package, error) {
+	if len(rules) == 0 {
 		return NewPackage(""), nil
+	}
+	clauses := make([]*logic.Clause, len(rules))
+	for i, rule := range rules {
+		clauses[i] = rule.ToClause()
 	}
 	pkgClause := clauses[0]
 	head, ok := pkgClause.Head.(*logic.Comp)
