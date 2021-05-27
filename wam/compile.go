@@ -8,50 +8,7 @@ import (
 	"github.com/brunokim/logic-engine/logic"
 )
 
-// NewMachine creates a new abstract machine.
-func NewMachine() *Machine {
-	m := new(Machine)
-	m.Packages = make(map[string]*Package)
-	m.Packages[""] = NewPackage("") // global namespace
-	m.AddPackage(builtinsPkg)
-	m.attributes = make(map[int]map[string]Cell)
-	m.interrupt = make(chan struct{})
-	return m
-}
-
-// Reset creates a new machine with clean state, copying only the compiled clauses.
-func (m *Machine) Reset() *Machine {
-	cloned := new(Machine)
-	cloned.Packages = m.Packages
-	cloned.Reg = make([]Cell, len(m.Reg))
-	cloned.DebugFilename = m.DebugFilename
-	cloned.IterLimit = m.IterLimit
-	cloned.attributes = make(map[int]map[string]Cell)
-	cloned.interrupt = make(chan struct{})
-	return cloned
-}
-
-// AddPackage appends a package to this machine's package list. It errors out if
-// the package name is duplicated. If the package is nameless, all clauses are added
-// to the global namespace.
-func (m *Machine) AddPackage(pkg *Package) error {
-	if pkg.Name == "" {
-		globalPkg := m.Packages[""]
-		for _, clause := range pkg.Exported {
-			if err := globalPkg.AddExported(clause); err != nil {
-				return errors.New("global: %v", err)
-			}
-		}
-		return nil
-	}
-	if _, ok := m.Packages[pkg.Name]; ok {
-		return errors.New("overwriting package %q", pkg.Name)
-	}
-	m.Packages[pkg.Name] = pkg
-	return nil
-}
-
-// ---- enumerate special cases
+// ---- special goals
 
 var empty = struct{}{}
 
