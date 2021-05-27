@@ -96,23 +96,21 @@ quoted(Delim, [Ch|Chars]) -->
 quoted(_, []) --> [].
 
 % Int
-int(int([Ch|L]), [Ch|L1], L2) :-
-    unicode_digit(Ch),
-    digits(L, L1, L2).
+int(int([Ch|L])) -->
+    [Ch],
+    {unicode_digit(Ch)},
+    digits(L).
 
 % Vars
-var(var([Ch|L]), [Ch|L1], L2) :-
-    unicode_upper(Ch),
-    idents(L, L1, L2).
-var(var(['_'|L]), ['_'|L1], L2) :-
-    idents(L, L1, L2).
+var(var([Ch|L])) -->
+    [Ch],
+    {unicode_upper(Ch)},
+    idents(L).
+var(var(['_'|L])) --> ['_'], idents(L).
 
 % Compound terms
-comp(comp(Functor, Args), L1, L5) :-
-    atom(atom(Functor), L1, ['('|L2]),
-    ws(L2, L3),
-    terms(Args, L3, L4),
-    ws(L4, [')'|L5]).
+comp(comp(Functor, Args)) -->
+    atom(atom(Functor)), ['('], ws, terms(Args), ws, [')'].
 
 % List and incomplete lists
 list(list(Terms), ['['|L1], L4) :-
