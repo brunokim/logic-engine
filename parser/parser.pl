@@ -139,24 +139,18 @@ dict(dict(Assocs, Parent)) -->
     ['{'], ws, assocs(Assocs), ws, ['|'], ws, term(Parent), ws, ['}'].
 
 % Assoc sequence
-assocs([Assoc|Assocs], L1, L5) :-
-    assoc(Assoc, L1, L2),
-    ws(L2, [','|L3]), !,
-    ws(L3, L4),
-    assocs(Assocs, L4, L5).
-assocs([Assoc], L1, L2) :-
-    assoc(Assoc, L1, L2).
-assocs([], L, L).
+assocs([Assoc|Assocs]) -->
+    assoc(Assoc), ws, [','], {!}, ws, assocs(Assocs).
+assocs([Assoc]) -->
+    assoc(Assoc).
+assocs([]) --> [].
 
 % Term sequence
-terms([Term|Terms], L1, L5) :-
-    term(Term, L1, L2),
-    ws(L2, [','|L3]), !,
-    ws(L3, L4),
-    terms(Terms, L4, L5).
-terms([Term], L1, L2) :-
-    term(Term, L1, L2).
-terms([], L, L).
+terms([Term|Terms]) -->
+    term(Term), ws, [','], {!}, ws, terms(Terms).
+terms([Term]) -->
+    term(Term).
+terms([]) --> [].
 
 % Terms
 term(Term, L1, L2) :- comp(Term, L1, L2), !.
