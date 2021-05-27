@@ -127,26 +127,16 @@ atoms([Ch|Chars], [atom([Ch])|Terms]) :-
 atoms([], []).
 
 % Assoc
-assoc(assoc(Key, Val), [':'|L1], L5) :-
+assoc(assoc(Key, Val)) -->
     % Note: we need to have ':' as prefix instead of infix, otherwise we'll have a
     % left recursion.
-    ws(L1, L2),
-    term(Key, L2, L3),
-    ws(L3, L4),
-    term(Val, L4, L5).
+    [':'], ws, term(Key), ws, term(Val).
 
 % Dict and incomplete dict
-dict(dict(Assocs), ['{'|L1], L4) :-
-    ws(L1, L2),
-    assocs(Assocs, L2, L3),
-    ws(L3, ['}'|L4]).
-dict(dict(Assocs, Parent), ['{'|L1], L7) :-
-    ws(L1, L2),
-    assocs(Assocs, L2, L3),
-    ws(L3, ['|'|L4]),
-    ws(L4, L5),
-    term(Parent, L5, L6),
-    ws(L6, ['}'|L7]).
+dict(dict(Assocs)) -->
+    ['{'], ws, assocs(Assocs), ws, ['}'].
+dict(dict(Assocs, Parent)) -->
+    ['{'], ws, assocs(Assocs), ws, ['|'], ws, term(Parent), ws, ['}'].
 
 % Assoc sequence
 assocs([Assoc|Assocs], L1, L5) :-
