@@ -24,14 +24,10 @@ ws --> comment, ws.
 ws --> [].
 
 % Comments
-comment(['%'|L1], L2) :-
-    line(L1, ['\n'|L2]).
-comment(['%'|L1], []) :-
-    line(L1, []).
-line([Ch|L1], L2) :-
-    \=(Ch, '\n'),
-    line(L1, L2).
-line(L, L).
+comment --> ['%'], line, ['\n'].
+comment(['%'|L1], []) :- line(L1, []).  % TODO: use eos here.
+line --> [Ch], {\=(Ch, '\n')}, line.
+line --> [].
 
 % Identifier chars
 ident(Ch) :- unicode_letter(Ch), !.
