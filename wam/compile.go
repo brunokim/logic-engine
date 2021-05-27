@@ -51,6 +51,49 @@ func (m *Machine) AddPackage(pkg *Package) error {
 	return nil
 }
 
+// ---- enumerate special cases
+
+var empty = struct{}{}
+
+var controlFunctors = map[string]struct{}{
+	"and": empty,
+}
+
+var controlIndicators = map[logic.Indicator]struct{}{
+	dsl.Indicator("->", 3):  empty,
+	dsl.Indicator("\\+", 1): empty,
+}
+
+var inlinedFunctors = map[string]struct{}{
+	"call": empty,
+}
+
+var inlinedIndicators = map[logic.Indicator]struct{}{
+	dsl.Indicator("!", 0):        empty,
+	dsl.Indicator("true", 0):     empty,
+	dsl.Indicator("fail", 0):     empty,
+	dsl.Indicator("false", 0):    empty,
+	dsl.Indicator("asm", 1):      empty,
+	dsl.Indicator("import", 1):   empty,
+	dsl.Indicator("=", 2):        empty,
+	dsl.Indicator("@<", 2):       empty,
+	dsl.Indicator("@=<", 2):      empty,
+	dsl.Indicator("@>=", 2):      empty,
+	dsl.Indicator("@>", 2):       empty,
+	dsl.Indicator("==", 2):       empty,
+	dsl.Indicator("\\==", 2):     empty,
+	dsl.Indicator("atom", 1):     empty,
+	dsl.Indicator("int", 1):      empty,
+	dsl.Indicator("ptr", 1):      empty,
+	dsl.Indicator("var", 1):      empty,
+	dsl.Indicator("list", 1):     empty,
+	dsl.Indicator("assoc", 1):    empty,
+	dsl.Indicator("dict", 1):     empty,
+	dsl.Indicator("get_attr", 3): empty,
+	dsl.Indicator("put_attr", 3): empty,
+	dsl.Indicator("del_attr", 2): empty,
+}
+
 // ---- conversion
 
 type goal struct {
@@ -190,6 +233,7 @@ type compileCtx struct {
 	varAddr map[logic.Var]Addr
 	delayed []compound
 	instrs  []Instruction
+	labelID int
 }
 
 func newCompileCtx(clause *Clause, numArgs int) *compileCtx {
@@ -481,7 +525,7 @@ func (ctx *compileCtx) flattenControl(terms0 flatClause) (flatClause, error) {
 	terms := make(flatClause, len(terms0))
 	copy(terms, terms0)
 	var body flatClause
-	labelID := 1
+	ctx.labelID = 1
 	for len(terms) > 0 {
 		g := terms[0]
 		terms = terms[1:]
@@ -489,77 +533,98 @@ func (ctx *compileCtx) flattenControl(terms0 flatClause) (flatClause, error) {
 			body = append(body, g)
 			continue
 		}
-		if g.comp.Functor == "and" {
-			goalArgs, err := toGoals(g.comp.Args)
+		term := g.comp
+		if _, ok := controlFunctors[term.Functor]; ok {
+			goals, err := ctx.controlFunctor(term)
 			if err != nil {
 				return nil, err
 			}
-			terms = append(goalArgs, terms...)
+			terms = append(goals, terms...)
 			continue
 		}
-		switch g.comp.Indicator() {
-		default:
-			body = append(body, g)
-		case dsl.Indicator("\\+", 1):
-			target := g.comp.Args[0]
-			targetID, endID := labelID, labelID+1
-			labelID += 2
-			//
-			targetGoal, err := toGoal(target)
+		if _, ok := controlIndicators[term.Indicator()]; ok {
+			goals, err := ctx.controlIndicator(term)
 			if err != nil {
 				return nil, err
 			}
-			// Ensure that variables referenced within Target are initialized.
-			ctx.instrs = nil
-			for _, x := range logic.Vars(g.comp) {
-				ctx.ensureVar(x)
-			}
-			ctx.clause.Code = append(ctx.clause.Code, ctx.instrs...)
-			// Inline \+(Target) :- ->(Target, false, true).
-			goals := flatClause{
-				asmGoal(comp("try", comp("instr", ptr(ctx.clause), int_(-targetID)))),
-				asmGoal(comp("trust", comp("instr", ptr(ctx.clause), int_(-endID)))),
-				asmGoal(comp("label", int_(targetID))),
-				targetGoal,
-				asmGoal(atom("cut")),
-				asmGoal(atom("fail")),
-				asmGoal(comp("label", int_(endID))),
-			}
 			terms = append(goals, terms...)
-		case dsl.Indicator("->", 3):
-			cond, then_, else_ := g.comp.Args[0], g.comp.Args[1], g.comp.Args[2]
-			thenID, elseID, endID := labelID, labelID+1, labelID+2
-			labelID += 3
-			//
-			condGoal, err1 := toGoal(cond)
-			thenGoal, err2 := toGoal(then_)
-			elseGoal, err3 := toGoal(else_)
-			if !(err1 == nil && err2 == nil && err3 == nil) {
-				return nil, errors.New("cond=%v, then=%v, else=%v", err1, err2, err3)
-			}
-			// Ensure that variables referenced in any branch are initialized.
-			ctx.instrs = nil
-			for _, x := range logic.Vars(g.comp) {
-				ctx.ensureVar(x)
-			}
-			ctx.clause.Code = append(ctx.clause.Code, ctx.instrs...)
-			// Inline cond, then and else branches, adding control instructions to move around.
-			goals := flatClause{
-				asmGoal(comp("try", comp("instr", ptr(ctx.clause), int_(-thenID)))),
-				asmGoal(comp("trust", comp("instr", ptr(ctx.clause), int_(-elseID)))),
-				asmGoal(comp("label", int_(thenID))),
-				condGoal,
-				asmGoal(atom("cut")),
-				thenGoal,
-				asmGoal(comp("jump", comp("instr", ptr(ctx.clause), int_(-endID)))),
-				asmGoal(comp("label", int_(elseID))),
-				elseGoal,
-				asmGoal(comp("label", int_(endID))),
-			}
-			terms = append(goals, terms...)
+			continue
 		}
+		// Default: simply append goal to body.
+		body = append(body, g)
 	}
 	return body, nil
+}
+
+func (ctx *compileCtx) controlFunctor(term *logic.Comp) (flatClause, error) {
+	switch term.Functor {
+	case "and":
+		return toGoals(term.Args)
+	default:
+		panic(fmt.Sprintf("Unimplemented control functor %s (%v)", term.Functor, term))
+	}
+}
+
+func (ctx *compileCtx) controlIndicator(term *logic.Comp) (flatClause, error) {
+	switch term.Indicator() {
+	case dsl.Indicator("\\+", 1):
+		target := term.Args[0]
+		targetID, endID := ctx.labelID, ctx.labelID+1
+		ctx.labelID += 2
+		//
+		targetGoal, err := toGoal(target)
+		if err != nil {
+			return nil, err
+		}
+		// Ensure that variables referenced within Target are initialized.
+		ctx.instrs = nil
+		for _, x := range logic.Vars(term) {
+			ctx.ensureVar(x)
+		}
+		ctx.clause.Code = append(ctx.clause.Code, ctx.instrs...)
+		// Inline \+(Target) :- ->(Target, false, true).
+		return flatClause{
+			asmGoal(comp("try", comp("instr", ptr(ctx.clause), int_(-targetID)))),
+			asmGoal(comp("trust", comp("instr", ptr(ctx.clause), int_(-endID)))),
+			asmGoal(comp("label", int_(targetID))),
+			targetGoal,
+			asmGoal(atom("cut")),
+			asmGoal(atom("fail")),
+			asmGoal(comp("label", int_(endID))),
+		}, nil
+	case dsl.Indicator("->", 3):
+		cond, then_, else_ := term.Args[0], term.Args[1], term.Args[2]
+		thenID, elseID, endID := ctx.labelID, ctx.labelID+1, ctx.labelID+2
+		ctx.labelID += 3
+		//
+		condGoal, err1 := toGoal(cond)
+		thenGoal, err2 := toGoal(then_)
+		elseGoal, err3 := toGoal(else_)
+		if !(err1 == nil && err2 == nil && err3 == nil) {
+			return nil, errors.New("cond err=%v, then err=%v, else err=%v", err1, err2, err3)
+		}
+		// Ensure that variables referenced in any branch are initialized.
+		ctx.instrs = nil
+		for _, x := range logic.Vars(term) {
+			ctx.ensureVar(x)
+		}
+		ctx.clause.Code = append(ctx.clause.Code, ctx.instrs...)
+		// Inline cond, then and else branches, adding control instructions to move around.
+		return flatClause{
+			asmGoal(comp("try", comp("instr", ptr(ctx.clause), int_(-thenID)))),
+			asmGoal(comp("trust", comp("instr", ptr(ctx.clause), int_(-elseID)))),
+			asmGoal(comp("label", int_(thenID))),
+			condGoal,
+			asmGoal(atom("cut")),
+			thenGoal,
+			asmGoal(comp("jump", comp("instr", ptr(ctx.clause), int_(-endID)))),
+			asmGoal(comp("label", int_(elseID))),
+			elseGoal,
+			asmGoal(comp("label", int_(endID))),
+		}, nil
+	default:
+		panic(fmt.Sprintf("Unimplemented control indicator %v (%v)", term.Indicator(), term))
+	}
 }
 
 func (ctx *compileCtx) compileBodyTerm(pos int, g goal) ([]Instruction, error) {
@@ -568,7 +633,18 @@ func (ctx *compileCtx) compileBodyTerm(pos int, g goal) ([]Instruction, error) {
 		return ctx.compileDefaultTerm(g)
 	}
 	term := g.comp
-	if term.Functor == "call" {
+	if _, ok := inlinedFunctors[term.Functor]; ok {
+		return ctx.inlinedFunctor(pos, term)
+	}
+	if _, ok := inlinedIndicators[term.Indicator()]; ok {
+		return ctx.inlinedIndicator(pos, term)
+	}
+	return ctx.compileDefaultTerm(g)
+}
+
+func (ctx *compileCtx) inlinedFunctor(pos int, term *logic.Comp) ([]Instruction, error) {
+	switch term.Functor {
+	case "call":
 		callee := ctx.termAddr(term.Args[0])
 		params := make([]Addr, len(term.Args)-1)
 		for i, param := range term.Args[1:] {
@@ -576,7 +652,12 @@ func (ctx *compileCtx) compileBodyTerm(pos int, g goal) ([]Instruction, error) {
 		}
 		ctx.instrs = append(ctx.instrs, callMeta{Addr: callee, Params: params})
 		return ctx.instrs, nil
+	default:
+		panic(fmt.Sprintf("unimplemented inlined functor %v", term.Functor))
 	}
+}
+
+func (ctx *compileCtx) inlinedIndicator(pos int, term *logic.Comp) ([]Instruction, error) {
 	switch term.Indicator() {
 	case dsl.Indicator("!", 0):
 		if pos == 0 {
@@ -649,7 +730,7 @@ func (ctx *compileCtx) compileBodyTerm(pos int, g goal) ([]Instruction, error) {
 		ctx.instrs = append(ctx.instrs, delAttr{pkg.Name, x})
 		return ctx.instrs, nil
 	default:
-		return ctx.compileDefaultTerm(g)
+		panic(fmt.Sprintf("unimplemented inlined indicator %v", term.Indicator()))
 	}
 }
 
