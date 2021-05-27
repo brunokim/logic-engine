@@ -33,10 +33,9 @@ line --> [].
 ident(Ch) :- unicode_letter(Ch), !.
 ident(Ch) :- unicode_digit(Ch), !.
 ident('_').
-idents([Ch|L], [Ch|L1], L2) :-
-    ident(Ch),
-    idents(L, L1, L2).
-idents([], L, L).
+
+idents([Ch|L]) --> [Ch], {ident(Ch)}, idents(L).
+idents([]) --> [].
 
 % Chars with syntactic meaning
 syntactic_char('(').
@@ -60,16 +59,19 @@ atom_symbol(Ch) :-
 atom_symbol(Ch) :-
     unicode_punct(Ch),
     \+(syntactic_char(Ch)).
-atom_symbols([Ch|L], [Ch|L1], L2) :-
-    atom_symbol(Ch),
-    atom_symbols(L, L1, L2).
-atom_symbols([], L, L).
+
+atom_symbols([Ch|L]) -->
+    [Ch],
+    {atom_symbol(Ch)},
+    atom_symbols(L).
+atom_symbols([]) --> [].
 
 % Digits
-digits([Ch|L], [Ch|L1], L2) :-
-    unicode_digit(Ch),
-    digits(L, L1, L2).
-digits([], L, L).
+digits([Ch|L]) -->
+    [Ch],
+    {unicode_digit(Ch)},
+    digits(L).
+digits([]) --> [].
 
 % Plain atoms
 atom(atom([Ch|L]), [Ch|L1], L2) :-
