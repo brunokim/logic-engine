@@ -22,6 +22,10 @@ func expandAtom(a Atom, l0, l1 Var) *Comp {
 	return NewComp(a.Name, l0, l1)
 }
 
+func expandVar(x Var, l0, l1 Var) *Comp {
+	return NewComp("phrase", x, l0, l1)
+}
+
 // f(a, X) => f(a, X, L0, L1)
 func expandComp(c *Comp, l0, l1 Var) *Comp {
 	return DCGExpandComp(c, l0, l1)
@@ -53,6 +57,8 @@ func (dcg *DCG) ToClause() *Clause {
 		switch t := term.(type) {
 		case Atom:
 			body = append(body, expandAtom(t, currVar(), nextVar()))
+		case Var:
+			body = append(body, expandVar(t, currVar(), nextVar()))
 		case *Comp:
 			body = append(body, expandComp(t, currVar(), nextVar()))
 		case *List:

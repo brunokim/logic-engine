@@ -62,6 +62,13 @@ func TestDCGToClause(t *testing.T) {
 				atom("!"),
 				comp("lowers", var_("Chars"), var_("_L1"), var_("_L2"))),
 		},
+		{
+			// bad_list(Ls) --> Ls.
+			dcg(comp("bad_list", var_("Ls")), var_("Ls")),
+			// bad_list(Ls, _L0, _L1) :- phrase(Ls, _L0, _L1).
+			clause(comp("bad_list", var_("Ls"), var_("_L0"), var_("_L1")),
+				comp("phrase", var_("Ls"), var_("_L0"), var_("_L1"))),
+		},
 	}
 	for _, test := range tests {
 		got := test.dcg.ToClause()

@@ -134,13 +134,14 @@ type DCGGoals []Term
 type DCG struct {
 	// Head is the grammar rule name. May be Atom or Comp.
 	Head Term
-	// Body is the sequence of terminal sequences (lists), nonterminals
-	// (atoms and comps) and goals (braced goals).
+	// Body is the sequence of terminal sequences (vars and lists),
+	// nonterminals (atoms and comps) and goals (braced goals).
 	Body    []DCGTerm
 	hasVar_ bool
 }
 
 func (t Atom) isDCGTerm()     {}
+func (t Var) isDCGTerm()      {}
 func (t *Comp) isDCGTerm()    {}
 func (t *List) isDCGTerm()    {}
 func (t DCGGoals) isDCGTerm() {}

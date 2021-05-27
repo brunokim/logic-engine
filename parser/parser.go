@@ -272,6 +272,7 @@ var (
 
 		dcg(comp("dcg_term", var_("Term")), comp("comp", var_("Term")), dcg_goals(atom("!"))),
 		dcg(comp("dcg_term", var_("Term")), comp("atom", var_("Term")), dcg_goals(atom("!"))),
+		dcg(comp("dcg_term", var_("Term")), comp("var", var_("Term")), dcg_goals(atom("!"))),
 		dcg(comp("dcg_term", var_("Term")), comp("list", var_("Term")), dcg_goals(atom("!"))),
 		dcg(comp("dcg_term", comp("dcg_goals", var_("Terms"))),
 			dcg_list(atom("{")),
@@ -512,6 +513,8 @@ func decodeDCGTerm(term logic.Term) logic.DCGTerm {
 	switch c.Functor {
 	case "atom":
 		return decodeAtom(term)
+	case "var":
+		return decodeVar(term)
 	case "comp":
 		return decodeComp(term)
 	case "list":

@@ -178,6 +178,7 @@ dcg_terms([]) --> [].
 
 dcg_term(Term) --> comp(Term), {!}.
 dcg_term(Term) --> atom(Term), {!}.
+dcg_term(Term) --> var(Term), {!}.
 dcg_term(Term) --> list(Term), {!}.
 dcg_term(dcg_goals(Terms)) -->
     "{", ws, terms(Terms), ws, "}".
