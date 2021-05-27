@@ -197,11 +197,8 @@ dcg_term(dcg_goals(Terms)) -->
     "}".
 
 % Sequence of rules (clauses and DCGs).
-rules([Rule|L], L1, L4) :-
-    rule(Rule, L1, L2),
-    ws(L2, L3),
-    rules(L, L3, L4).
-rules([], L, L).
+rules([Rule|L]) --> rule(Rule), ws, rules(L).
+rules([]) --> [].
 
-rule(Rule, L1, L2) :- clause(Rule, L1, L2), !.
-rule(Rule, L1, L2) :- dcg(Rule, L1, L2).
+rule(Rule) --> clause(Rule), {!}.
+rule(Rule) --> dcg(Rule).

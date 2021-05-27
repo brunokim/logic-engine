@@ -252,29 +252,6 @@ var (
 			atom("ws"),
 			dcg_list(atom("."))),
 		// DCGs
-		/*dcg(dcg(Head, Body)) -->
-		      clause_head(Head), ws,
-		      "-->", ws,
-		      dcg_terms(Body), ws,
-		      ".".
-
-		  dcg_terms([Term|Terms]) -->
-		      dcg_term(Term), ws,
-		      ",", {!}, ws,
-		      dcg_terms(Terms).
-		  dcg_terms([Term]) -->
-		      dcg_term(Term).
-		  dcg_terms([]) --> [].
-
-		  dcg_term(Term) --> comp(Term), {!}.
-		  dcg_term(Term) --> atom(Term), {!}.
-		  dcg_term(Term) --> list(Term), {!}.
-		  dcg_term(dcg_goals(Terms)) -->
-		      "{", ws
-		      terms(Terms), ws,
-		      "}".
-
-		  **/
 		dcg(comp("dcg", comp("dcg", var_("Head"), var_("Body"))),
 			comp("clause_head", var_("Head")),
 			atom("ws"),
@@ -303,15 +280,13 @@ var (
 			atom("ws"),
 			dcg_list(atom("}"))),
 		// Rules
-		clause(comp("rules", ilist(var_("Rule"), var_("L")), var_("L1"), var_("L4")),
-			comp("rule", var_("Rule"), var_("L1"), var_("L2")),
-			comp("ws", var_("L2"), var_("L3")),
-			comp("rules", var_("L"), var_("L3"), var_("L4"))),
-		clause(comp("rules", list(), var_("L"), var_("L"))),
-		clause(comp("rule", var_("Rule"), var_("L1"), var_("L2")),
-			comp("clause", var_("Rule"), var_("L1"), var_("L2")), atom("!")),
-		clause(comp("rule", var_("Rule"), var_("L1"), var_("L2")),
-			comp("dcg", var_("Rule"), var_("L1"), var_("L2"))),
+		dcg(comp("rules", ilist(var_("Rule"), var_("L"))),
+			comp("rule", var_("Rule")),
+			atom("ws"),
+			comp("rules", var_("L"))),
+		dcg(comp("rules", list()), dcg_list()),
+		dcg(comp("rule", var_("Rule")), comp("clause", var_("Rule")), dcg_goals(atom("!"))),
+		dcg(comp("rule", var_("Rule")), comp("dcg", var_("Rule"))),
 	}
 )
 
