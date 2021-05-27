@@ -174,29 +174,27 @@ clause(clause(Head, Body)) -->
     ['.'].
 
 % DCGs
-dcg(dcg(Head, Body), L1, L6) :-
-    clause_head(Head, L1, L2),
-    ws(L2, ['-', '-', '>'|L3]),
-    ws(L3, L4),
-    dcg_terms(Body, L4, L5),
-    ws(L5, ['.'|L6]).
+dcg(dcg(Head, Body)) -->
+    clause_head(Head), ws,
+    "-->", ws,
+    dcg_terms(Body), ws,
+    ".".
 
-dcg_terms([Term|Terms], L1, L5) :-
-    dcg_term(Term, L1, L2),
-    ws(L2, [','|L3]), !,
-    ws(L3, L4),
-    dcg_terms(Terms, L4, L5).
-dcg_terms([Term], L1, L2) :-
-    dcg_term(Term, L1, L2).
-dcg_terms([], L, L).
+dcg_terms([Term|Terms]) -->
+    dcg_term(Term), ws,
+    ",", {!}, ws,
+    dcg_terms(Terms).
+dcg_terms([Term]) -->
+    dcg_term(Term).
+dcg_terms([]) --> [].
 
-dcg_term(Term, L1, L2) :- comp(Term, L1, L2), !.
-dcg_term(Term, L1, L2) :- atom(Term, L1, L2), !.
-dcg_term(Term, L1, L2) :- list(Term, L1, L2), !.
-dcg_term(dcg_goals(Terms), ['{'|L1], L4) :-
-   ws(L1, L2),
-   terms(Terms, L2, L3),
-   ws(L3, ['}'|L4]).
+dcg_term(Term) --> comp(Term), {!}.
+dcg_term(Term) --> atom(Term), {!}.
+dcg_term(Term) --> list(Term), {!}.
+dcg_term(dcg_goals(Terms)) -->
+    "{", ws,
+    terms(Terms), ws,
+    "}".
 
 % Sequence of rules (clauses and DCGs).
 rules([Rule|L], L1, L4) :-
