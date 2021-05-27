@@ -11,6 +11,12 @@
 // A logic program is composed of clauses of the form 'head :- term1, term2.', that
 // must be read as "head holds if term1 and term2 holds". A clause with no terms in
 // the body is called a fact.
+//
+// There is a clause with special syntax called DCG, for Definite Clause Grammar.
+// They are used to describe lists, and have the form
+// 'head --> dcg1, {term1, term2}, dcg2, [literal list].' This is then translated
+// to a regular clause that accepts a difference list that satisfies the grammar and
+// embedded clause restrictions.
 package logic
 
 import (
@@ -108,6 +114,30 @@ type Clause struct {
 	Body    []Term
 	hasVar_ bool
 }
+
+// DCGTerm represents elements that are accepted within a DCG body.
+type DCGTerm interface {
+	fmt.Stringer
+	hasVar() bool
+	isDCGTerm()
+}
+
+// DCGGoals is a list of logic terms present between braces.
+type DCGGoals []Term
+
+type DCG struct {
+	// Head is the grammar rule name. May be Atom or Comp.
+	Head Term
+	// Body is the sequence of terminal sequences (lists), nonterminals
+	// (atoms and comps) and goals (braced goals).
+	Body    []DCGTerm
+	hasVar_ bool
+}
+
+func (t Atom) isDCGTerm()     {}
+func (t *Comp) isDCGTerm()    {}
+func (t *List) isDCGTerm()    {}
+func (t DCGGoals) isDCGTerm() {}
 
 // ---- Public vars
 
@@ -346,6 +376,21 @@ func NewClause(head Term, body ...Term) *Clause {
 	return &Clause{Head: head, Body: body, hasVar_: hasVar}
 }
 
+// NewDCG returns a definite clause grammar with the provided head and terms as body.
+func NewDCG(head Term, body ...DCGTerm) *DCG {
+	var hasVar bool
+	for _, term := range body {
+		if term.hasVar() {
+			hasVar = true
+			break
+		}
+	}
+	if !hasVar {
+		hasVar = head.hasVar()
+	}
+	return &DCG{Head: head, Body: body, hasVar_: hasVar}
+}
+
 // ---- vars()
 
 // Vars returns a set with all term variables, in insertion order.
@@ -441,6 +486,14 @@ func (t *Comp) hasVar() bool  { return t.hasVar_ }
 func (t *List) hasVar() bool  { return t.hasVar_ }
 func (t *Assoc) hasVar() bool { return t.hasVar_ }
 func (t *Dict) hasVar() bool  { return t.hasVar_ }
+func (ts DCGGoals) hasVar() bool {
+	for _, t := range ts {
+		if t.hasVar() {
+			return true
+		}
+	}
+	return false
+}
 
 // ---- Comparisons
 
@@ -754,4 +807,21 @@ func (c *Clause) String() string {
 		body[i] = comp.String()
 	}
 	return fmt.Sprintf("%s :-\n  %s.", head, strings.Join(body, ",\n  "))
+}
+
+func (ts DCGGoals) String() string {
+	strs := make([]string, len(ts))
+	for i, t := range ts {
+		strs[i] = t.String()
+	}
+	return fmt.Sprintf("{%s}", strings.Join(strs, ", "))
+}
+
+func (dcg *DCG) String() string {
+	head := dcg.Head.String()
+	body := make([]string, len(dcg.Body))
+	for i, term := range dcg.Body {
+		body[i] = term.String()
+	}
+	return fmt.Sprintf("%s -->\n  %s.", head, strings.Join(body, ",\n  "))
 }

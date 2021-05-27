@@ -72,6 +72,29 @@ func Clause(head logic.Term, body ...logic.Term) *logic.Clause {
 	return logic.NewClause(head, body...)
 }
 
+// DCG builds a logic DCG.
+func DCG(head logic.Term, body ...logic.DCGTerm) *logic.DCG {
+	return logic.NewDCG(head, body...)
+}
+
+// DCGList builds a list for a DCG body.
+func DCGList(terms ...logic.Term) logic.DCGTerm {
+	if len(terms) == 0 {
+		return logic.EmptyList
+	}
+	return List(terms...).(*logic.List)
+}
+
+// DCGIList builds an incomplete list for a DCG body.
+func DCGIList(terms ...logic.Term) logic.DCGTerm {
+	return IList(terms...).(*logic.List)
+}
+
+// DCGGoals builds a braced list of terms for a DCG body.
+func DCGGoals(terms ...logic.Term) logic.DCGTerm {
+	return logic.DCGGoals(terms)
+}
+
 // Clauses builds a list of logic clauses.
 func Clauses(cs ...*logic.Clause) []*logic.Clause {
 	return cs
