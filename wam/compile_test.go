@@ -288,6 +288,57 @@ func TestCompile(t *testing.T) {
 				comp("put_variable", var_("X1"), var_("X0")),
 				comp("execute", atom("list"), atom("length/1"))),
 		},
+		{
+			// X is temporary, because the whole clause is a single chunk.
+			dsl.Clause(comp("f", var_("X")),
+				comp("!"),
+				comp("g", var_("X"))),
+			wam.DecodeClause(indicator("f", 1),
+				comp("get_variable", var_("X1"), var_("X0")),
+				atom("neck_cut"),
+				comp("put_value", var_("X1"), var_("X0")),
+				comp("execute", atom("g/1"))),
+		},
+		{
+			// X and Y are temporary.
+			dsl.Clause(comp("f", var_("X")),
+				comp("!"),
+				comp("=", comp("s", var_("Y")), var_("X")),
+				comp("g", var_("X"))),
+			wam.DecodeClause(indicator("f", 1),
+				comp("get_variable", var_("X2"), var_("X0")),
+				atom("neck_cut"),
+				comp("put_struct", atom("s/1"), var_("X4")),
+				comp("unify_variable", var_("X3")),
+				comp("=", var_("X4"), var_("X2")),
+				comp("put_value", var_("X2"), var_("X0")),
+				comp("execute", atom("g/1"))),
+		},
+		{
+			// X and Z are temporary, because they are only present in a single chunk each.
+			// Y is present in both chunks.
+			dsl.Clause(comp("f", var_("X")),
+				comp("!"),
+				comp("=", comp("s", var_("Y")), var_("X")),
+				comp("g", var_("X")),
+				comp("=", var_("Z"), int_(1)),
+				comp("h", var_("Y"), var_("Z"))),
+			wam.DecodeClause(indicator("f", 1),
+				comp("allocate", int_(1)),
+				comp("get_variable", var_("X2"), var_("X0")),
+				atom("neck_cut"),
+				comp("put_struct", atom("s/1"), var_("X4")),
+				comp("unify_variable", var_("Y0")),
+				comp("=", var_("X4"), var_("X2")),
+				comp("put_value", var_("X2"), var_("X0")),
+				comp("call", atom("g/1")),
+				comp("put_variable", var_("X3"), var_("X5")),
+				comp("=", var_("X3"), int_(1)),
+				comp("put_value", var_("Y0"), var_("X0")),
+				comp("put_value", var_("X3"), var_("X1")),
+				atom("deallocate"),
+				comp("execute", atom("h/2"))),
+		},
 	}
 	for _, test := range tests {
 		got, err := wam.Compile(test.clause)

@@ -126,35 +126,106 @@ func goalVars(goals flatClause) []logic.Var {
 	return xs
 }
 
-// ----
+// ---- permanent vars
+
+// Group terms into chunks, consisting of a sequence of inline terms ended by a predicate call.
+func getChunks(clause flatClause) ([]flatClause, error) {
+	var chunks []flatClause
+	chunk := flatClause{clause[0]}
+	goals := make(flatClause, len(clause)-1)
+	copy(goals, clause[1:])
+	for len(goals) > 0 {
+		goal := goals[0]
+		goals = goals[1:]
+		// A nil goal.comp may be introduced by control goals to force a chunk to be split.
+		if goal.pkg == "" && goal.comp != nil {
+			term := goal.comp
+			// Control predicates are expanded, add sub-terms to goals.
+			_, isControlFunctor := controlFunctors[term.Functor]
+			_, isControlIndicator := controlIndicators[term.Indicator()]
+			if isControlFunctor || isControlIndicator {
+				subGoals, err := controlGoals(term)
+				if err != nil {
+					return nil, err
+				}
+				goals = append(subGoals, goals...)
+				continue
+			}
+			// Inlined predicates don't manipulate registers, add them to the chunk.
+			_, isInlinedFunctor := inlinedFunctors[term.Functor]
+			_, isInlinedIndicator := inlinedIndicators[term.Indicator()]
+			if (isInlinedFunctor && term.Functor != "call") || isInlinedIndicator {
+				chunk = append(chunk, goal)
+				continue
+			}
+		}
+		// Default case: predicate call should end current chunk.
+		if goal.comp != nil {
+			chunk = append(chunk, goal)
+		}
+		chunks = append(chunks, chunk)
+		chunk = flatClause{}
+	}
+	if len(chunk) > 0 {
+		chunks = append(chunks, chunk)
+	}
+	return chunks, nil
+}
+
+func controlGoals(term *logic.Comp) (flatClause, error) {
+	switch term.Functor {
+	case "and":
+		return toGoals(term.Args)
+	}
+	switch term.Indicator() {
+	case dsl.Indicator("\\+", 1):
+		return toGoals(term.Args)
+	case dsl.Indicator("->", 3):
+		goals, err := toGoals(term.Args)
+		if err != nil {
+			return nil, err
+		}
+		cond, then_, else_ := goals[0], goals[1], goals[2]
+		// Force a chunk to be split after then and else, since we can't guarantee that
+		// either of them will be executed contiguously to the remaining of the body.
+		return flatClause{cond, then_, goal{}, else_, goal{}}, nil
+	}
+	panic(fmt.Sprintf("Unimplemented control goals for %v", term))
+}
+
+func chunkVars(chunk flatClause) map[logic.Var]struct{} {
+	vars := make(map[logic.Var]struct{})
+	for _, goal := range chunk {
+		for _, x := range logic.Vars(goal.comp) {
+			vars[x] = struct{}{}
+		}
+	}
+	return vars
+}
 
 // Compute the permanent vars of a logic clause.
 //
 // A permanent var is a local var in a call that is referenced in more
-// than one body term. They must be stored in the environment stack, or
+// than one chunk. They must be stored in the environment stack, or
 // otherwise they may be overwritten if stored in a register, since a
 // body term may use them in any ways.
-//
-// TODO: ignore cuts (and other builtin calls) that we know to preserve
-// registers. For example, in "f(X) :- !, a(X)." X should not be a
-// permanent variable.
-func permanentVars(clause flatClause) map[logic.Var]struct{} {
+func permanentVars(clause flatClause) (map[logic.Var]struct{}, error) {
+	// Facts don't have permanent vars.
 	if len(clause) < 2 {
-		return map[logic.Var]struct{}{}
+		return map[logic.Var]struct{}{}, nil
 	}
-	seen := make(map[logic.Var]struct{})
+	// Split terms in chunks
+	chunks, err := getChunks(clause)
+	if err != nil {
+		return nil, err
+	}
+	// Add vars in first chunk.
+	seen := chunkVars(chunks[0])
 	perm := make(map[logic.Var]struct{})
-	// Vars in head are considered to be part of the first body term.
-	for _, x := range logic.Vars(clause[0].comp) {
-		seen[x] = struct{}{}
-	}
-	for _, x := range logic.Vars(clause[1].comp) {
-		seen[x] = struct{}{}
-	}
-	// Walk through other clause terms; vars that appear in more than
-	// one term are permanent.
-	for _, c := range clause[2:] {
-		for _, x := range logic.Vars(c.comp) {
+	// Walk through other chunks; vars that appear in more than
+	// one chunk are permanent.
+	for _, chunk := range chunks[1:] {
+		for x := range chunkVars(chunk) {
 			if _, ok := seen[x]; ok {
 				perm[x] = struct{}{}
 			} else {
@@ -163,8 +234,10 @@ func permanentVars(clause flatClause) map[logic.Var]struct{} {
 		}
 	}
 	delete(perm, logic.AnonymousVar)
-	return perm
+	return perm, nil
 }
+
+// ----
 
 func numArgs(clause flatClause) int {
 	max := 0
@@ -429,7 +502,11 @@ func Compile(clause *logic.Clause) (*Clause, error) {
 }
 
 func compile(clause flatClause) (*Clause, error) {
-	c, err := compile0(clause, permanentVars(clause))
+	permVars, err := permanentVars(clause)
+	if err != nil {
+		return nil, err
+	}
+	c, err := compile0(clause, permVars)
 	if err != nil {
 		return nil, err
 	}
