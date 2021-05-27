@@ -29,6 +29,8 @@ call(Fn, A, B, C, D, E, F) :- call(Fn, A, B, C, D, E, F).
 call(Fn, A, B, C, D, E, F, G) :- call(Fn, A, B, C, D, E, F, G).
 call(Fn, A, B, C, D, E, F, G, H) :- call(Fn, A, B, C, D, E, F, G, H).
 
+% Verify attribute machinery.
+
 '$join_attribute'(X, Y, Pkg) :-
     asm(call(X2, 'join_attribute/2')),
     asm(proceed(verify_attributes)).
@@ -36,3 +38,14 @@ call(Fn, A, B, C, D, E, F, G, H) :- call(Fn, A, B, C, D, E, F, G, H).
 '$check_attribute'(Attr, Value, Pkg) :-
     asm(call(X2, 'check_attribute/2')),
     asm(proceed(verify_attributes)).
+
+% DCG utilities.
+
+'$append'([], L, L).
+'$append'([H|T1], L, [H|T2]) :-
+    '$append'(T1, L, T2).
+
+phrase(DCG, List) :-
+    phrase(DCG, List, []).
+phrase(DCG, List, Rest) :-
+    call(DCG, List, Rest).

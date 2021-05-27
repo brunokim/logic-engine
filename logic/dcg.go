@@ -4,6 +4,16 @@ import (
 	"fmt"
 )
 
+// DCGExpandComp expands a DCG goal to be called with the provided initial and final states.
+func DCGExpandComp(c *Comp, l0, l1 Term) *Comp {
+	n := len(c.Args)
+	terms := make([]Term, n+2)
+	copy(terms, c.Args)
+	terms[n] = l0
+	terms[n+1] = l1
+	return NewComp(c.Functor, terms...)
+}
+
 // a => a(L0, L1)
 func expandAtom(a Atom, l0, l1 Var) *Comp {
 	if a == EmptyList {
@@ -14,12 +24,7 @@ func expandAtom(a Atom, l0, l1 Var) *Comp {
 
 // f(a, X) => f(a, X, L0, L1)
 func expandComp(c *Comp, l0, l1 Var) *Comp {
-	n := len(c.Args)
-	terms := make([]Term, n+2)
-	copy(terms, c.Args)
-	terms[n] = l0
-	terms[n+1] = l1
-	return NewComp(c.Functor, terms...)
+	return DCGExpandComp(c, l0, l1)
 }
 
 // [a, b]  =>  L0 = [a, b|L1].

@@ -13,9 +13,7 @@ member_([H|T], E, _) :-
 
 % append(?L1, ?L2, ?L1+L2)
 % L1+L2 is the concatenation of L1 and L2.
-append([], L, L).
-append([H|T1], L, [H|T2]) :-
-    append(T1, L, T2).
+append(L1, L2, L3) :- '$append'(L1, L2, L3).
 
 % append(+ListOfLists, ?List)
 % List is the concatenation of lists in ListOfLists.

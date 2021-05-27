@@ -1,22 +1,16 @@
 package(parser, [], ['parse/2', 'parse_kb/2', 'parse_query/2']).
 
 % Parse term
-parse(Chars, Tree) :-
-    ws(Chars, Ch1),
-    term(Tree, Ch1, Ch2),
-    ws(Ch2, []).
+parse_(Tree) --> ws, term(Tree), ws.
+parse(Chars, Tree) :- phrase(parse_(Tree), Chars).
 
 % Parse knowledge base
-parse_kb(Chars, Rules) :-
-    ws(Chars, Ch1),
-    rules(Rules, Ch1, Ch2),
-    ws(Ch2, []).
+parse_kb_(Rules) --> ws, rules(Rules), ws.
+parse_kb(Chars, Rules) :- phrase(parse_kb_(Rules), Chars).
 
 % Parse query
-parse_query(Chars, Terms) :-
-    ws(Chars, Ch1),
-    terms(Terms, Ch1, Ch2),
-    ws(Ch2, []).
+parse_query_(Terms) --> ws, terms(Terms), ws.
+parse_query(Chars, Terms) :- phrase(parse_query_(Terms), Chars).
 
 % Whitespace
 ws --> [Ch], {unicode_space(Ch), !}, ws.

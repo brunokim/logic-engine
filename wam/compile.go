@@ -17,8 +17,10 @@ var controlFunctors = map[string]struct{}{
 }
 
 var controlIndicators = map[logic.Indicator]struct{}{
-	dsl.Indicator("->", 3):  empty,
-	dsl.Indicator("\\+", 1): empty,
+	dsl.Indicator("->", 3):     empty,
+	dsl.Indicator("\\+", 1):    empty,
+	dsl.Indicator("phrase", 2): empty,
+	dsl.Indicator("phrase", 3): empty,
 }
 
 var inlinedFunctors = map[string]struct{}{
@@ -126,6 +128,17 @@ func goalVars(goals flatClause) []logic.Var {
 	return xs
 }
 
+// ---- DCG utilities
+
+func phrase(dcg logic.Term, list, rest logic.Term) (flatClause, error) {
+	dcgGoal, err := toGoal(dcg)
+	if err != nil {
+		return nil, err
+	}
+	comp := logic.DCGExpandComp(dcgGoal.comp, list, rest)
+	return flatClause{goal{dcgGoal.pkg, comp}}, nil
+}
+
 // ---- permanent vars
 
 // Group terms into chunks, consisting of a sequence of inline terms ended by a predicate call.
@@ -189,6 +202,10 @@ func controlGoals(term *logic.Comp) (flatClause, error) {
 		// Force a chunk to be split after then and else, since we can't guarantee that
 		// either of them will be executed contiguously to the remaining of the body.
 		return flatClause{cond, then_, goal{}, else_, goal{}}, nil
+	case dsl.Indicator("phrase", 2):
+		return phrase(term.Args[0], term.Args[1], dsl.List())
+	case dsl.Indicator("phrase", 3):
+		return phrase(term.Args[0], term.Args[1], term.Args[2])
 	}
 	panic(fmt.Sprintf("Unimplemented control goals for %v", term))
 }
@@ -656,6 +673,10 @@ func (ctx *compileCtx) controlIndicator(term *logic.Comp) (flatClause, error) {
 			elseGoal,
 			asmGoal(comp("label", int_(endID))),
 		}, nil
+	case dsl.Indicator("phrase", 2):
+		return phrase(term.Args[0], term.Args[1], dsl.List())
+	case dsl.Indicator("phrase", 3):
+		return phrase(term.Args[0], term.Args[1], term.Args[2])
 	default:
 		panic(fmt.Sprintf("Unimplemented control indicator %v (%v)", term.Indicator(), term))
 	}
