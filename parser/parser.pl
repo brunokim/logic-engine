@@ -24,7 +24,7 @@ ws --> comment, ws.
 ws --> [].
 
 % Comments
-comment --> ['%'], line, ['\n'].
+comment --> "%", line, "\n".
 comment(['%'|L1], []) :- line(L1, []).  % TODO: use eos here.
 line --> [Ch], {\=(Ch, '\n')}, line.
 line --> [].
@@ -87,8 +87,8 @@ atom(atom(Chars)) -->
 
 % Quoted atoms and strings
 quoted(Delim, [Delim|Chars]) --> ['\\', Delim], quoted(Delim, Chars).
-quoted(Delim, ['\\'|Chars])  --> ['\\', '\\'], quoted(Delim, Chars).
-quoted(Delim, ['\n'|Chars])  --> ['\\', 'n'], quoted(Delim, Chars).
+quoted(Delim, ['\\'|Chars])  --> "\\\\", quoted(Delim, Chars).
+quoted(Delim, ['\n'|Chars])  --> "\\n", quoted(Delim, Chars).
 quoted(Delim, [Ch|Chars]) -->
     [Ch],
     {\=(Ch, Delim), \=(Ch, '\\'), \=(Ch, '\n')},
@@ -106,21 +106,21 @@ var(var([Ch|L])) -->
     [Ch],
     {unicode_upper(Ch)},
     idents(L).
-var(var(['_'|L])) --> ['_'], idents(L).
+var(var(['_'|L])) --> "_", idents(L).
 
 % Compound terms
 comp(comp(Functor, Args)) -->
-    atom(atom(Functor)), ['('], ws, terms(Args), ws, [')'].
+    atom(atom(Functor)), "(", ws, terms(Args), ws, ")".
 
 % List and incomplete lists
 list(list(Terms)) -->
-    ['['], ws, terms(Terms), ws, [']'].
+    "[", ws, terms(Terms), ws, "]".
 list(list(Terms, Tail)) -->
-    ['['], ws, terms(Terms), ws, ['|'], ws, term(Tail), ws, [']'].
+    "[", ws, terms(Terms), ws, "|", ws, term(Tail), ws, "]".
 
 % Strings: lists of single-rune atoms
 list(list(Terms)) -->
-    ['"'], quoted('"', Chars), ['"'],
+    "\"", quoted('"', Chars), "\"",
     {atoms(Chars, Terms)}.
 atoms([Ch|Chars], [atom([Ch])|Terms]) :-
     atoms(Chars, Terms).
@@ -130,24 +130,24 @@ atoms([], []).
 assoc(assoc(Key, Val)) -->
     % Note: we need to have ':' as prefix instead of infix, otherwise we'll have a
     % left recursion.
-    [':'], ws, term(Key), ws, term(Val).
+    ":", ws, term(Key), ws, term(Val).
 
 % Dict and incomplete dict
 dict(dict(Assocs)) -->
-    ['{'], ws, assocs(Assocs), ws, ['}'].
+    "{", ws, assocs(Assocs), ws, "}".
 dict(dict(Assocs, Parent)) -->
-    ['{'], ws, assocs(Assocs), ws, ['|'], ws, term(Parent), ws, ['}'].
+    "{", ws, assocs(Assocs), ws, "|", ws, term(Parent), ws, "}".
 
 % Assoc sequence
 assocs([Assoc|Assocs]) -->
-    assoc(Assoc), ws, [','], {!}, ws, assocs(Assocs).
+    assoc(Assoc), ws, ",", {!}, ws, assocs(Assocs).
 assocs([Assoc]) -->
     assoc(Assoc).
 assocs([]) --> [].
 
 % Term sequence
 terms([Term|Terms]) -->
-    term(Term), ws, [','], {!}, ws, terms(Terms).
+    term(Term), ws, ",", {!}, ws, terms(Terms).
 terms([Term]) -->
     term(Term).
 terms([]) --> [].
@@ -166,19 +166,13 @@ clause_head(Term) --> comp(Term), {!}.
 clause_head(Term) --> atom(Term).
 
 clause(clause(Fact)) -->
-    clause_head(Fact), ws, ['.'].
+    clause_head(Fact), ws, ".".
 clause(clause(Head, Body)) -->
-    clause_head(Head), ws,
-    [':', '-'], ws,
-    terms(Body), ws,
-    ['.'].
+    clause_head(Head), ws, ":-", ws, terms(Body), ws, ".".
 
 % DCGs
 dcg(dcg(Head, Body)) -->
-    clause_head(Head), ws,
-    "-->", ws,
-    dcg_terms(Body), ws,
-    ".".
+    clause_head(Head), ws, "-->", ws, dcg_terms(Body), ws, ".".
 
 dcg_terms([Term|Terms]) -->
     dcg_term(Term), ws,
@@ -192,9 +186,7 @@ dcg_term(Term) --> comp(Term), {!}.
 dcg_term(Term) --> atom(Term), {!}.
 dcg_term(Term) --> list(Term), {!}.
 dcg_term(dcg_goals(Terms)) -->
-    "{", ws,
-    terms(Terms), ws,
-    "}".
+    "{", ws, terms(Terms), ws, "}".
 
 % Sequence of rules (clauses and DCGs).
 rules([Rule|L]) --> rule(Rule), ws, rules(L).
