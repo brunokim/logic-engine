@@ -86,16 +86,15 @@ dif(X, Y) :-
     \==(X, Y),
     dif_compounds(X, Y, _).
 
-% TODO: there's a bug when allocating vars to registers when using ->/3, and/n
-% or other control predicates, because there is a single functor and all variables
-% are then considered temporary.
-dif_compounds(X, Y, Or) :- unifiable(X, Y, Unifier), !, dif_comp2(Unifier, Or).
-% X is different from Y, succeed Or node.
-dif_compounds(_, _, Or) :- or_succeed(Or).
-% X=Y, remove this association from Or node.
-dif_comp2(Unifier, Or) :- ==(Unifier, []), !, or_one_fail(Or).
-% X \= Y, add relations to X, Y and Or.
-dif_comp2(Unifier, Or) :- append_edges(Unifier, Or).
+dif_compounds(X, Y, Or) :-
+    ->(unifiable(X, Y, Unifier),
+        ->(==(Unifier, []),
+            % X=Y, remove this association from Or node.
+            or_one_fail(Or),
+            % X \= Y, add relations to X, Y and Or.
+            append_edges(Unifier, Or)),
+        % X is different from Y, succeed Or node.
+        or_succeed(Or)).
 
 append_edges(Unifier, Or) :-
     ->(get_attr(dif, Or, dif_node(L2)),
