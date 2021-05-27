@@ -86,18 +86,14 @@ atom(atom(Chars)) -->
     "'", quoted('\'', Chars), "'".
 
 % Quoted atoms and strings
-quoted(Delim, [Delim|Chars], ['\\', Delim|L1], L2) :-
-    quoted(Delim, Chars, L1, L2).
-quoted(Delim, ['\\'|Chars], ['\\', '\\'|L1], L2) :-
-    quoted(Delim, Chars, L1, L2).
-quoted(Delim, ['\n'|Chars], ['\\', 'n'|L1], L2) :-
-    quoted(Delim, Chars, L1, L2).
-quoted(Delim, [Ch|Chars], [Ch|L1], L2) :-
-    \=(Ch, Delim),
-    \=(Ch, '\\'),
-    \=(Ch, '\n'),
-    quoted(Delim, Chars, L1, L2).
-quoted(_, [], L, L).
+quoted(Delim, [Delim|Chars]) --> ['\\', Delim], quoted(Delim, Chars).
+quoted(Delim, ['\\'|Chars])  --> ['\\', '\\'], quoted(Delim, Chars).
+quoted(Delim, ['\n'|Chars])  --> ['\\', 'n'], quoted(Delim, Chars).
+quoted(Delim, [Ch|Chars]) -->
+    [Ch],
+    {\=(Ch, Delim), \=(Ch, '\\'), \=(Ch, '\n')},
+    quoted(Delim, Chars).
+quoted(_, []) --> [].
 
 % Int
 int(int([Ch|L]), [Ch|L1], L2) :-
