@@ -7,9 +7,9 @@ parse(Chars, Tree) :-
     ws(Ch2, []).
 
 % Parse knowledge base
-parse_kb(Chars, Clauses) :-
+parse_kb(Chars, Rules) :-
     ws(Chars, Ch1),
-    clauses(Clauses, Ch1, Ch2),
+    rules(Rules, Ch1, Ch2),
     ws(Ch2, []).
 
 % Parse query
@@ -207,9 +207,37 @@ clause(clause(Head, Body), L1, L6) :-
     terms(Body, L4, L5),
     ws(L5, ['.'|L6]).
 
-% Clause list
-clauses([Clause|L], L1, L4) :-
-    clause(Clause, L1, L2),
+% DCGs
+dcg(dcg(Head, Body), L1, L6) :-
+    clause_head(Head, L1, L2),
+    ws(L2, ['-', '-', '>'|L3]),
+    ws(L3, L4),
+    dcg_terms(Body, L4, L5),
+    ws(L5, ['.'|L6]).
+
+dcg_terms([Term|Terms], L1, L5) :-
+    dcg_term(Term, L1, L2),
+    ws(L2, [','|L3]), !,
+    ws(L3, L4),
+    dcg_terms(Terms, L4, L5).
+dcg_terms([Term], L1, L2) :-
+    dcg_term(Term, L1, L2).
+dcg_terms([], L, L).
+
+dcg_term(Term, L1, L2) :- comp(Term, L1, L2), !.
+dcg_term(Term, L1, L2) :- atom(Term, L1, L2), !.
+dcg_term(Term, L1, L2) :- list(Term, L1, L2), !.
+dcg_term(dcg_goals(Terms), ['{'|L1], L4) :-
+   ws(L1, L2),
+   terms(Terms, L2, L3),
+   ws(L3, ['}'|L4]).
+
+% Sequence of rules (clauses and DCGs).
+rules([Rule|L], L1, L4) :-
+    rule(Rule, L1, L2),
     ws(L2, L3),
-    clauses(L, L3, L4).
-clauses([], L, L).
+    rules(L, L3, L4).
+rules([], L, L).
+
+rule(Rule, L1, L2) :- clause(Rule, L1, L2), !.
+rule(Rule, L1, L2) :- dcg(Rule, L1, L2).
