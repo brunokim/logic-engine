@@ -74,14 +74,16 @@ digits([Ch|L]) -->
 digits([]) --> [].
 
 % Plain atoms
-atom(atom([Ch|L]), [Ch|L1], L2) :-
-    unicode_lower(Ch), !,
-    idents(L, L1, L2).
-atom(atom([Ch|L]), [Ch|L1], L2) :-
-    atom_symbol(Ch), !,
-    atom_symbols(L, L1, L2).
-atom(atom(Chars), ['\''|L1], L2) :-
-    quoted('\'', Chars, L1, ['\''|L2]).
+atom(atom([Ch|L])) -->
+    [Ch],
+    {unicode_lower(Ch), !},
+    idents(L).
+atom(atom([Ch|L])) -->
+    [Ch],
+    {atom_symbol(Ch), !},
+    atom_symbols(L).
+atom(atom(Chars)) -->
+    "'", quoted('\'', Chars), "'".
 
 % Quoted atoms and strings
 quoted(Delim, [Delim|Chars], ['\\', Delim|L1], L2) :-
