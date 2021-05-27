@@ -18,7 +18,7 @@ full Prolog environment, which necessarily involve some ser-/deserialization.
 - [x] Last-call optimization
 - [x] Dicts
 - [x] Prolog parser
-- [ ] DCGs
+- [X] DCGs
 - [X] Attributed variables
 - [X] Packages
 - [ ] Go integration
