@@ -21,5 +21,6 @@ var (
 		cmpopts.IgnoreUnexported(logic.Assoc{}),
 		cmpopts.IgnoreUnexported(logic.Dict{}),
 		cmpopts.IgnoreUnexported(logic.Clause{}),
+		cmpopts.IgnoreUnexported(logic.DCG{}),
 	}
 )

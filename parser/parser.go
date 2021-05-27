@@ -15,12 +15,15 @@ import (
 )
 
 var (
-	var_   = dsl.Var
-	comp   = dsl.Comp
-	atom   = dsl.Atom
-	list   = dsl.List
-	ilist  = dsl.IList
-	clause = dsl.Clause
+	var_      = dsl.Var
+	comp      = dsl.Comp
+	atom      = dsl.Atom
+	list      = dsl.List
+	ilist     = dsl.IList
+	clause    = dsl.Clause
+	dcg       = dsl.DCG
+	dcg_goals = dsl.DCGGoals
+	dcg_list  = dsl.DCGList
 )
 
 var (
@@ -47,13 +50,12 @@ var (
 			comp("terms", var_("Terms"), var_("Ch1"), var_("Ch2")),
 			comp("ws", var_("Ch2"), list())),
 		// Whitespace
-		clause(comp("ws", ilist(var_("Ch"), var_("L1")), var_("L2")),
-			comp("unicode_space", var_("Ch")), atom("!"),
-			comp("ws", var_("L1"), var_("L2"))),
-		clause(comp("ws", var_("L1"), var_("L3")),
-			comp("comment", var_("L1"), var_("L2")),
-			comp("ws", var_("L2"), var_("L3"))),
-		clause(comp("ws", var_("L"), var_("L"))),
+		dcg(atom("ws"),
+			dcg_list(var_("Ch")),
+			dcg_goals(comp("unicode_space", var_("Ch")), atom("!")),
+			atom("ws")),
+		dcg(atom("ws"), atom("comment"), atom("ws")),
+		dcg(atom("ws"), atom("[]")),
 		// Comments
 		clause(comp("comment", ilist(atom("%"), var_("L1")), var_("L2")),
 			comp("line", var_("L1"), ilist(atom("\n"), var_("L2")))),
@@ -420,7 +422,10 @@ func decodeClause(term logic.Term) *logic.Clause {
 }
 
 func decodeDCG(term logic.Term) *logic.DCG {
-	panic(fmt.Errorf("decodeDCG: not implemented!"))
+	c := expectComp(term, "dcg", 2)
+	head := decodeClauseHead(c.Args[0])
+	body := decodeDCGTerms(c.Args[1])
+	return logic.NewDCG(head, body...)
 }
 
 func decodeClauseHead(term logic.Term) logic.Term {
@@ -460,6 +465,41 @@ func decodeTerm(term logic.Term) logic.Term {
 		return decodeDict(term)
 	default:
 		panic(fmt.Errorf("unknown functor %q", c.Functor))
+	}
+}
+
+func decodeDCGTerms(term logic.Term) []logic.DCGTerm {
+	if term == logic.EmptyList {
+		return nil
+	}
+	l := expectList(term)
+	terms := make([]logic.DCGTerm, len(l.Terms))
+	for i, t := range l.Terms {
+		terms[i] = decodeDCGTerm(t)
+	}
+	return terms
+}
+
+func decodeDCGTerm(term logic.Term) logic.DCGTerm {
+	c, ok := term.(*logic.Comp)
+	if !ok {
+		panic(fmt.Errorf("decodeDCGTerms: expected comp, got %v", term))
+	}
+	switch c.Functor {
+	case "atom":
+		return decodeAtom(term)
+	case "comp":
+		return decodeComp(term)
+	case "list":
+		l := decodeList(term)
+		if l == logic.EmptyList {
+			return logic.EmptyList
+		}
+		return l.(*logic.List)
+	case "dcg_goals":
+		return decodeDCGGoals(term)
+	default:
+		panic(fmt.Errorf("decodeDCGTerms: unknown functor %q", c.Functor))
 	}
 }
 
@@ -559,6 +599,12 @@ func decodeString(term logic.Term) string {
 		chars[i] = a.Name
 	}
 	return strings.Join(chars, "")
+}
+
+func decodeDCGGoals(term logic.Term) logic.DCGGoals {
+	c := expectComp(term, "dcg_goals", 1)
+	terms := decodeTerms(c.Args[0])
+	return logic.DCGGoals(terms)
 }
 
 // ---- expect

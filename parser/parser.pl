@@ -19,13 +19,9 @@ parse_query(Chars, Terms) :-
     ws(Ch2, []).
 
 % Whitespace
-ws([Ch|L1], L2) :-
-    unicode_space(Ch), !,
-    ws(L1, L2).
-ws(L1, L3) :-
-    comment(L1, L2),
-    ws(L2, L3).
-ws(L, L).
+ws --> [Ch], {unicode_space(Ch), !}, ws.
+ws --> comment, ws.
+ws --> [].
 
 % Comments
 comment(['%'|L1], L2) :-
