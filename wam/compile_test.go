@@ -12,6 +12,10 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 )
 
+func emptyBuiltinFunc(m *wam.Machine, addrs []wam.Addr) (wam.InstrAddr, error) {
+	return wam.InstrAddr{}, nil
+}
+
 func TestCompile(t *testing.T) {
 	tests := []struct {
 		clause *logic.Clause
@@ -339,13 +343,47 @@ func TestCompile(t *testing.T) {
 				atom("deallocate"),
 				comp("execute", atom("h/2"))),
 		},
+		{
+			// Even though the whole if body is inline, Y is present in different branches,
+			// which are different chunks, and thus is permanent. X is temporary.
+			dsl.Clause(comp("f_aux", var_("X")),
+				comp("->", comp("\\==", var_("X"), atom("[]")),
+					comp("=", var_("Y"), var_("X")),
+					comp("=", var_("Y"), list(int_(42)))),
+				comp("f", var_("Y"))),
+			wam.DecodeClause(indicator("f_aux", 1),
+				comp("allocate", int_(1)),
+				comp("get_variable", var_("X3"), var_("X0")),
+				comp("put_variable", var_("Y0"), var_("X4")),
+				comp("try", comp("instr", ptr(nil), int_(-1))),
+				comp("trust", comp("instr", ptr(nil), int_(-2))),
+				comp("label", int_(1)),
+				comp("builtin", atom("\\=="), ptr(emptyBuiltinFunc), var_("X3"), atom("[]")),
+				atom("cut"),
+				comp("=", var_("Y0"), var_("X3")),
+				comp("jump", comp("instr", ptr(nil), int_(-3))),
+				comp("label", int_(2)),
+				comp("put_pair", atom("list"), var_("X5")),
+				comp("unify_constant", int_(42)),
+				comp("unify_constant", atom("[]")),
+				comp("=", var_("Y0"), var_("X5")),
+				comp("label", int_(3)),
+				comp("put_value", var_("Y0"), var_("X0")),
+				atom("deallocate"),
+				comp("execute", atom("f/1"))),
+		},
 	}
 	for _, test := range tests {
 		got, err := wam.Compile(test.clause)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if diff := cmp.Diff(test.want, got, cmpopts.EquateEmpty()); diff != "" {
+		opts := cmp.Options{
+			cmpopts.EquateEmpty(),
+			cmpopts.IgnoreFields(instr{}, "Clause"),
+			cmpopts.IgnoreFields(wam.DecodeInstruction(comp("builtin", atom("b"), ptr(emptyBuiltinFunc))), "Func"),
+		}
+		if diff := cmp.Diff(test.want, got, opts); diff != "" {
 			t.Errorf("%v: (-want, +got)%s", test.clause, diff)
 		}
 	}
