@@ -904,7 +904,7 @@ func bindingsToSlice(bs map[*Ref]Cell) []Binding {
 }
 
 func (m *Machine) tryUnify(a1, a2 Cell) (InstrAddr, error) {
-	bindings, hasAttr, err := m.unifyBindings(a1, a2)
+	bound, hasAttr, err := m.unifyBindings(a1, a2)
 	if err != nil {
 		return m.backtrack(err)
 	}
@@ -913,7 +913,9 @@ func (m *Machine) tryUnify(a1, a2 Cell) (InstrAddr, error) {
 		return m.forward()
 	}
 	// Undo bindings.
-	for x := range bindings {
+	bindings := make(map[*Ref]Cell)
+	for _, x := range bound {
+		bindings[x] = x.Cell
 		x.Cell = nil
 	}
 	return m.setupVerifyAttributes(bindings)
@@ -940,18 +942,17 @@ func (err *unifyError) Error() string {
 }
 
 type unifyCtx struct {
-	stack    []Cell
-	bindings map[*Ref]Cell
-	anyAttr  bool
+	stack   []Cell
+	bound   []*Ref
+	anyAttr bool
 }
 
 // unify executes a depth-first traversal of cells, binding unbound refs to the other
 // cell, or comparing them for equality.
-func (m *Machine) unifyBindings(a1, a2 Cell) (map[*Ref]Cell, bool, error) {
+func (m *Machine) unifyBindings(a1, a2 Cell) ([]*Ref, bool, error) {
 	ctx := &unifyCtx{
-		stack:    []Cell{a1, a2},
-		bindings: make(map[*Ref]Cell),
-		anyAttr:  false,
+		stack:   []Cell{a1, a2},
+		anyAttr: false,
 	}
 	// Collect bindings.
 	for len(ctx.stack) > 0 {
@@ -963,7 +964,7 @@ func (m *Machine) unifyBindings(a1, a2 Cell) (map[*Ref]Cell, bool, error) {
 			return nil, false, err
 		}
 	}
-	return ctx.bindings, ctx.anyAttr, nil
+	return ctx.bound, ctx.anyAttr, nil
 }
 
 func (m *Machine) unifyStep(ctx *unifyCtx, a1, a2 Cell) error {
@@ -979,7 +980,7 @@ func (m *Machine) unifyStep(ctx *unifyCtx, a1, a2 Cell) error {
 		// Some of them is a ref. Bind them.
 		x, cell := bindOrder(c1, c2)
 		m.bindRef(x, cell)
-		ctx.bindings[x] = cell
+		ctx.bound = append(ctx.bound, x)
 		if _, ok := m.attributes[x.id]; ok {
 			ctx.anyAttr = true
 		}

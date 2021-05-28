@@ -184,20 +184,16 @@ func makeComparisonPredicate(pred comparisonPredicate) func(*Machine, []Addr) (I
 
 func builtinUnifiable(m *Machine, args []Addr) (InstrAddr, error) {
 	x, y, unifier := m.get(args[0]), m.get(args[1]), m.get(args[2])
-	bindings, _, err := m.unifyBindings(x, y)
+	bound, _, err := m.unifyBindings(x, y)
 	if err != nil {
 		// Unification failed.
 		return m.backtrack(err)
 	}
-	// Undo bindings.
-	for x := range bindings {
+	// Undo bindings, and store them in assocs
+	assocs := make([]*Pair, len(bound))
+	for i, x := range bound {
+		assocs[i] = assocPair(x, x.Cell)
 		x.Cell = nil
-	}
-	assocs := make([]*Pair, len(bindings))
-	i := 0
-	for x, value := range bindings {
-		assocs[i] = assocPair(x, value)
-		i++
 	}
 	// Sort in descending order, because list will be built backwards.
 	sort.Slice(assocs, func(i, j int) bool {

@@ -112,3 +112,29 @@ func TestParse(t *testing.T) {
 		}
 	}
 }
+
+func BenchmarkParseRules(b *testing.B) {
+	for n := 0; n < b.N; n++ {
+		parser.ParseRules(`
+            a --> b, {X, f(f(f(f(f(u))))), !}, g(p), [r, s].
+            a(Z) --> [].
+
+            p(a).
+            p( b).
+            p(c   ).
+            p(  d ) .
+            p(e, f).
+            p(e ,f).
+            p( e,f ).
+
+            q :- q0, 'a$a$'(), 'foo', _123, bar_123(_X0, p(A, Bx)).
+            q(Y) :-
+               :list append([:a 10], [:b 2], Y),
+               dict_entries({:a 10, :b 2}, Y).
+
+            incomplete -->
+                [a, b|[c, d |[e, f| L]]],
+                d({:a A|{:b B| {:c C |D}}}).
+        `)
+	}
+}
