@@ -417,7 +417,6 @@ func (m *Machine) newChoicePoint(alternative InstrAddr) *ChoicePoint {
 		Prev:             m.ChoicePoint,
 		Continuation:     m.Continuation,
 		NextAlternative:  alternative,
-		AttrTrail:        make(map[*Ref]map[string]Cell),
 		Args:             m.args(),
 		LastRefID:        m.LastRefID,
 		Env:              m.Env,
@@ -1196,6 +1195,9 @@ func (m *Machine) trail(ref *Ref) {
 func (m *Machine) trailAttribute(ref *Ref, name string) {
 	if m.ChoicePoint == nil {
 		return
+	}
+	if m.ChoicePoint.AttrTrail == nil {
+		m.ChoicePoint.AttrTrail = make(map[*Ref]map[string]Cell)
 	}
 	trail, ok := m.ChoicePoint.AttrTrail[ref]
 	if !ok {
