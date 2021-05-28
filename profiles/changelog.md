@@ -7,7 +7,8 @@ there are attributes to verify first. This was done with a map, but is feasible 
 a slice instead.
 
 Memory: 78.51 MiB -> 25.50 MiB
-CPU (mallocgc contribution): 0.10 s -> 0.09 s
+CPU (mallocgc contribution): 0.10s -> 0.09s
+Total: 13.292s
 
 ## Lazy AttrTrail
 
@@ -16,7 +17,8 @@ CPU (mallocgc contribution): 0.10 s -> 0.09 s
 initialized for every choicepoint, but now it is lazily initialized on first write.
 
 Memory: 123.51 MiB -> 95.01 MiB
-CPU: 0.17 s -> 0.07 s
+CPU: 0.17s -> 0.07s
+Total: 13.184s
 
 ## Optimized instr
 
@@ -24,7 +26,8 @@ CPU: 0.17 s -> 0.07 s
 during `isValid` and another for `instr()`. By inlining the checks, we got some good
 results on timing -- and not only on this function *shrug*.
 
-CPU: 1.28 s -> 0.79 s
+CPU: 1.28s -> 0.79s
+Total: 12.379s
 
 ## getClause cache
 
@@ -33,4 +36,5 @@ Assuming that, once a clause is found it won't change due to importing (since ne
 packages are consulted last), we can use a cache to return the computation result
 quickly.
 
-CPU: 0.89 s -> 0.64 s
+CPU: 0.89s -> 0.64s
+Total: 12.183s
