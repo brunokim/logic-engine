@@ -877,6 +877,14 @@ type Machine struct {
 
 	// Debugging info: annotate calls that failed.
 	hasBacktracked bool
+
+	// getClause cache.
+	getClauseCache map[getClauseCacheKey]*Clause
+}
+
+type getClauseCacheKey struct {
+	pkg     *Package
+	functor Functor
 }
 
 func asCells(xs []*Ref) []Cell {

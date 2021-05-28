@@ -23,6 +23,7 @@ func NewMachine() *Machine {
 	m.AddPackage(builtinsPkg)
 	m.attributes = make(map[int]map[string]Cell)
 	m.interrupt = make(chan struct{})
+	m.getClauseCache = make(map[getClauseCacheKey]*Clause)
 	return m
 }
 
@@ -35,6 +36,7 @@ func (m *Machine) Reset() *Machine {
 	cloned.IterLimit = m.IterLimit
 	cloned.attributes = make(map[int]map[string]Cell)
 	cloned.interrupt = make(chan struct{})
+	cloned.getClauseCache = m.getClauseCache
 	return cloned
 }
 
@@ -470,7 +472,17 @@ func (m *Machine) restoreFromChoicePoint() {
 	m.unwindTrail()
 }
 
-func (m *Machine) getClause(pkg *Package, functor Functor) (*Clause, error) {
+func (m *Machine) getClause(pkg *Package, functor Functor) (clause *Clause, err error) {
+	// Check cache.
+	key := getClauseCacheKey{pkg, functor}
+	if clause, ok := m.getClauseCache[key]; ok {
+		return clause, nil
+	}
+	defer func() {
+		if err == nil {
+			m.getClauseCache[key] = clause
+		}
+	}()
 	// Search package's own symbols.
 	if pkg != nil {
 		if clause, ok := pkg.Internal[functor]; ok {

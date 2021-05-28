@@ -25,3 +25,12 @@ during `isValid` and another for `instr()`. By inlining the checks, we got some 
 results on timing -- and not only on this function *shrug*.
 
 CPU: 1.28 s -> 0.79 s
+
+## getClause cache
+
+`Machine.getClause` performs several map accesses until it finds the correct clause.
+Assuming that, once a clause is found it won't change due to importing (since new
+packages are consulted last), we can use a cache to return the computation result
+quickly.
+
+CPU: 0.89 s -> 0.64 s
