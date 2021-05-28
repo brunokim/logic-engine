@@ -581,10 +581,14 @@ func (ia InstrAddr) pos() int {
 }
 
 func (ia InstrAddr) instr() Instruction {
-	if !ia.isValid() {
+	if ia.Clause == nil {
 		return nil
 	}
-	return ia.Clause.Code[ia.pos()]
+	pos := ia.pos()
+	if pos < 0 || pos >= len(ia.Clause.Code) {
+		return nil
+	}
+	return ia.Clause.Code[pos]
 }
 
 func (ia InstrAddr) inc() InstrAddr {

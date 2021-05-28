@@ -17,3 +17,11 @@ initialized for every choicepoint, but now it is lazily initialized on first wri
 
 Memory: 123.51 MiB -> 95.01 MiB
 CPU: 0.17 s -> 0.07 s
+
+## Optimized instr
+
+`InstrAddr.instr` is called at every loop, but it's calculating `pos()` twice: one
+during `isValid` and another for `instr()`. By inlining the checks, we got some good
+results on timing -- and not only on this function *shrug*.
+
+CPU: 1.28 s -> 0.79 s
