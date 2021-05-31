@@ -2,6 +2,7 @@ package wam
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/brunokim/logic-engine/dsl"
 	"github.com/brunokim/logic-engine/errors"
@@ -51,6 +52,18 @@ var inlinedIndicators = map[logic.Indicator]struct{}{
 	dsl.Indicator("get_attr", 3): empty,
 	dsl.Indicator("put_attr", 3): empty,
 	dsl.Indicator("del_attr", 2): empty,
+}
+
+// ---- var sets
+
+type varset map[logic.Var]struct{}
+
+func varOccurs(goal *logic.Comp) varset {
+	set := make(varset)
+	for _, x := range logic.Vars(goal) {
+		set[x] = empty
+	}
+	return set
 }
 
 // ---- conversion
@@ -115,13 +128,13 @@ func toGoals(terms []logic.Term) (flatClause, error) {
 
 func goalVars(goals flatClause) []logic.Var {
 	var xs []logic.Var
-	m := make(map[logic.Var]struct{})
+	m := make(varset)
 	for _, goal := range goals {
 		for _, x := range logic.Vars(goal.comp) {
 			if _, ok := m[x]; ok {
 				continue
 			}
-			m[x] = struct{}{}
+			m[x] = empty
 			xs = append(xs, x)
 		}
 	}
@@ -141,6 +154,22 @@ func phrase(dcg logic.Term, list, rest logic.Term) (flatClause, error) {
 
 // ---- permanent vars
 
+func isControl(term *logic.Comp) bool {
+	_, isControlFunctor := controlFunctors[term.Functor]
+	_, isControlIndicator := controlIndicators[term.Indicator()]
+	return isControlFunctor || isControlIndicator
+}
+
+func isInlined(term *logic.Comp) bool {
+	_, isInlinedFunctor := inlinedFunctors[term.Functor]
+	_, isInlinedIndicator := inlinedIndicators[term.Indicator()]
+	return isInlinedFunctor || isInlinedIndicator
+}
+
+func isSpecial(term *logic.Comp) bool {
+	return isControl(term) || isInlined(term)
+}
+
 // Group terms into chunks, consisting of a sequence of inline terms ended by a predicate call.
 func getChunks(clause flatClause) ([]flatClause, error) {
 	var chunks []flatClause
@@ -154,9 +183,7 @@ func getChunks(clause flatClause) ([]flatClause, error) {
 		if goal.pkg == "" && goal.comp != nil {
 			term := goal.comp
 			// Control predicates are expanded, add sub-terms to goals.
-			_, isControlFunctor := controlFunctors[term.Functor]
-			_, isControlIndicator := controlIndicators[term.Indicator()]
-			if isControlFunctor || isControlIndicator {
+			if isControl(term) {
 				subGoals, err := controlGoals(term)
 				if err != nil {
 					return nil, err
@@ -165,9 +192,7 @@ func getChunks(clause flatClause) ([]flatClause, error) {
 				continue
 			}
 			// Inlined predicates don't manipulate registers, add them to the chunk.
-			_, isInlinedFunctor := inlinedFunctors[term.Functor]
-			_, isInlinedIndicator := inlinedIndicators[term.Indicator()]
-			if (isInlinedFunctor && term.Functor != "call") || isInlinedIndicator {
+			if isInlined(term) && term.Functor != "call" {
 				chunk = append(chunk, goal)
 				continue
 			}
@@ -176,7 +201,9 @@ func getChunks(clause flatClause) ([]flatClause, error) {
 		if goal.comp != nil {
 			chunk = append(chunk, goal)
 		}
-		chunks = append(chunks, chunk)
+		if len(chunk) > 0 {
+			chunks = append(chunks, chunk)
+		}
 		chunk = flatClause{}
 	}
 	if len(chunk) > 0 {
@@ -210,11 +237,11 @@ func controlGoals(term *logic.Comp) (flatClause, error) {
 	panic(fmt.Sprintf("Unimplemented control goals for %v", term))
 }
 
-func chunkVars(chunk flatClause) map[logic.Var]struct{} {
-	vars := make(map[logic.Var]struct{})
+func chunkVars(chunk flatClause) varset {
+	vars := make(varset)
 	for _, goal := range chunk {
 		for _, x := range logic.Vars(goal.comp) {
-			vars[x] = struct{}{}
+			vars[x] = empty
 		}
 	}
 	return vars
@@ -226,32 +253,157 @@ func chunkVars(chunk flatClause) map[logic.Var]struct{} {
 // than one chunk. They must be stored in the environment stack, or
 // otherwise they may be overwritten if stored in a register, since a
 // body term may use them in any ways.
-func permanentVars(clause flatClause) (map[logic.Var]struct{}, error) {
+func permanentVars(clause flatClause) (varset, []flatClause, error) {
 	// Facts don't have permanent vars.
 	if len(clause) < 2 {
-		return map[logic.Var]struct{}{}, nil
+		return varset{}, nil, nil
 	}
 	// Split terms in chunks
 	chunks, err := getChunks(clause)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Add vars in first chunk.
 	seen := chunkVars(chunks[0])
-	perm := make(map[logic.Var]struct{})
+	perm := make(varset)
 	// Walk through other chunks; vars that appear in more than
 	// one chunk are permanent.
 	for _, chunk := range chunks[1:] {
 		for x := range chunkVars(chunk) {
 			if _, ok := seen[x]; ok {
-				perm[x] = struct{}{}
+				perm[x] = empty
 			} else {
-				seen[x] = struct{}{}
+				seen[x] = empty
 			}
 		}
 	}
 	delete(perm, logic.AnonymousVar)
-	return perm, nil
+	return perm, chunks, nil
+}
+
+// regset is a set of register addresses, implemented as a sorted array.
+type regset []RegAddr
+
+func (r regset) index(reg RegAddr) (int, bool) {
+	i := sort.Search(len(r), func(i int) bool { return r[i] >= reg })
+	return i, i < len(r) && r[i] == reg
+}
+
+func (r regset) has(reg RegAddr) bool {
+	_, ok := r.index(reg)
+	return ok
+}
+
+func (r regset) add(reg RegAddr) regset {
+	i, ok := r.index(reg)
+	if ok {
+		return r
+	}
+	r = append(r, -1)
+	copy(r[i+1:], r[i:])
+	r[i] = reg
+	return r
+}
+
+type registerAllocation struct {
+	use      regset
+	noUse    regset
+	conflict regset
+}
+
+func chunkAllocationSets(pos int, chunk flatClause, temps varset) map[logic.Var]*registerAllocation {
+	sets := make(map[logic.Var]*registerAllocation)
+	for x := range temps {
+		sets[x] = &registerAllocation{}
+	}
+	// 0. Annotate which register is used by which temp.
+	usedRegsPerTemp := func(goal *logic.Comp) map[logic.Var]regset {
+		used := make(map[logic.Var]regset)
+		for i, arg := range goal.Args {
+			x, ok := arg.(logic.Var)
+			if !ok {
+				continue
+			}
+			if _, ok = temps[x]; !ok {
+				continue
+			}
+			used[x] = used[x].add(RegAddr(i))
+		}
+		return used
+	}
+	var numLastGoalRegs int
+	var headUsed, lastGoalUsed map[logic.Var]regset
+	// Analyze head, if this is the first chunk.
+	if pos == 0 {
+		head := chunk[0].comp
+		headUsed = usedRegsPerTemp(head)
+	}
+	// Analyze last goal, if it's not an inlined goal.
+	n := len(chunk)
+	if n == 0 {
+		fmt.Println(pos, chunk, temps)
+	}
+	lastGoal := chunk[n-1].comp
+	if n > 1 && !isSpecial(lastGoal) {
+		numLastGoalRegs = len(lastGoal.Args)
+		lastGoalUsed = usedRegsPerTemp(lastGoal)
+	}
+	// 1. Compute USE set
+	for x := range temps {
+		for _, reg := range headUsed[x] {
+			sets[x].use = sets[x].use.add(reg)
+		}
+		for _, reg := range lastGoalUsed[x] {
+			sets[x].use = sets[x].use.add(reg)
+		}
+	}
+	// 2. Compute NOUSE set
+	var allUsedRegs regset
+	for _, regs := range lastGoalUsed {
+		for _, reg := range regs {
+			allUsedRegs.add(reg)
+		}
+	}
+	for x := range temps {
+		for _, reg := range allUsedRegs {
+			if !sets[x].use.has(reg) {
+				sets[x].noUse = sets[x].noUse.add(reg)
+			}
+		}
+	}
+	// 3. Compute CONFLICT set
+	lastGoalVars := varOccurs(lastGoal)
+	for x := range temps {
+		if _, ok := lastGoalVars[x]; !ok {
+			continue
+		}
+		for i := 0; i < numLastGoalRegs; i++ {
+			reg := RegAddr(i)
+			if !lastGoalUsed[x].has(reg) {
+				sets[x].conflict = sets[x].conflict.add(reg)
+			}
+		}
+	}
+	return sets
+}
+
+// Compute USE, NOUSE and CONFLICT register sets for each temporary variable.
+func tempAllocationSets(chunks []flatClause, permVars varset) map[logic.Var]*registerAllocation {
+	tempSets := make(map[logic.Var]*registerAllocation)
+	for i, chunk := range chunks {
+		// Get chunk temporary variables.
+		xs := chunkVars(chunk)
+		temps := make(varset)
+		for x := range xs {
+			if _, ok := permVars[x]; !ok {
+				temps[x] = empty
+			}
+		}
+		for x, sets := range chunkAllocationSets(i, chunk, temps) {
+			tempSets[x] = sets
+		}
+	}
+	return tempSets
 }
 
 // ----
@@ -274,21 +426,23 @@ type compound struct {
 
 // compileCtx wraps all the state necessary to compile a single clause.
 type compileCtx struct {
-	clause  *Clause
-	topReg  RegAddr
-	seen    map[logic.Var]struct{}
-	varAddr map[logic.Var]Addr
-	delayed []compound
-	instrs  []Instruction
-	labelID int
+	clause   *Clause
+	topReg   RegAddr
+	seen     varset
+	varAddr  map[logic.Var]Addr
+	tempSets map[logic.Var]*registerAllocation
+	delayed  []compound
+	instrs   []Instruction
+	labelID  int
 }
 
-func newCompileCtx(clause *Clause, numArgs int) *compileCtx {
+func newCompileCtx(clause *Clause, numArgs int, tempSets map[logic.Var]*registerAllocation) *compileCtx {
 	return &compileCtx{
-		clause:  clause,
-		topReg:  RegAddr(numArgs),
-		seen:    make(map[logic.Var]struct{}),
-		varAddr: make(map[logic.Var]Addr),
+		clause:   clause,
+		topReg:   RegAddr(numArgs),
+		seen:     make(varset),
+		varAddr:  make(map[logic.Var]Addr),
+		tempSets: tempSets,
 	}
 }
 
@@ -298,14 +452,18 @@ func (ctx *compileCtx) nextReg() RegAddr {
 	return addr
 }
 
+func (ctx *compileCtx) addr(x logic.Var) Addr {
+	return ctx.varAddr[x]
+}
+
 // ---- get/unify/put variables
 
 func (ctx *compileCtx) getVar(x logic.Var, regAddr RegAddr) Instruction {
 	if _, ok := ctx.seen[x]; ok {
-		return getValue{ctx.varAddr[x], regAddr}
+		return getValue{ctx.addr(x), regAddr}
 	}
-	ctx.seen[x] = struct{}{}
-	return getVariable{ctx.varAddr[x], regAddr}
+	ctx.seen[x] = empty
+	return getVariable{ctx.addr(x), regAddr}
 }
 
 func (ctx *compileCtx) unifyVar(x logic.Var) Instruction {
@@ -313,10 +471,10 @@ func (ctx *compileCtx) unifyVar(x logic.Var) Instruction {
 		return unifyVoid{}
 	}
 	if _, ok := ctx.seen[x]; ok {
-		return unifyValue{ctx.varAddr[x]}
+		return unifyValue{ctx.addr(x)}
 	}
-	ctx.seen[x] = struct{}{}
-	return unifyVariable{ctx.varAddr[x]}
+	ctx.seen[x] = empty
+	return unifyVariable{ctx.addr(x)}
 }
 
 func (ctx *compileCtx) putVar(x logic.Var, regAddr RegAddr) Instruction {
@@ -324,10 +482,10 @@ func (ctx *compileCtx) putVar(x logic.Var, regAddr RegAddr) Instruction {
 		return putVariable{ctx.nextReg(), regAddr}
 	}
 	if _, ok := ctx.seen[x]; ok {
-		return putValue{ctx.varAddr[x], regAddr}
+		return putValue{ctx.addr(x), regAddr}
 	}
-	ctx.seen[x] = struct{}{}
-	return putVariable{ctx.varAddr[x], regAddr}
+	ctx.seen[x] = empty
+	return putVariable{ctx.addr(x), regAddr}
 }
 
 // ---- get terms
@@ -487,8 +645,8 @@ func (ctx *compileCtx) ensureVar(x logic.Var) {
 	if _, ok := ctx.seen[x]; ok {
 		return
 	}
-	ctx.seen[x] = struct{}{}
-	ctx.instrs = append(ctx.instrs, putVariable{ctx.varAddr[x], ctx.nextReg()})
+	ctx.seen[x] = empty
+	ctx.instrs = append(ctx.instrs, putVariable{ctx.addr(x), ctx.nextReg()})
 }
 
 func (ctx *compileCtx) termAddr(term logic.Term) Addr {
@@ -519,11 +677,11 @@ func Compile(clause *logic.Clause) (*Clause, error) {
 }
 
 func compile(clause flatClause) (*Clause, error) {
-	permVars, err := permanentVars(clause)
+	permVars, chunks, err := permanentVars(clause)
 	if err != nil {
 		return nil, err
 	}
-	c, err := compile0(clause, permVars)
+	c, err := compile0(clause, chunks, permVars)
 	if err != nil {
 		return nil, err
 	}
@@ -543,11 +701,11 @@ func compileQuery(query []logic.Term) (*Clause, error) {
 	}
 	// All vars in a query are made permanent, so we can retrieve them at the end
 	// for display.
-	permVars := make(map[logic.Var]struct{})
+	permVars := make(varset)
 	for _, x := range goalVars(dummy) {
-		permVars[x] = struct{}{}
+		permVars[x] = empty
 	}
-	c, err := compile0(dummy, permVars)
+	c, err := compile0(dummy, nil, permVars)
 	if err != nil {
 		return nil, err
 	}
@@ -805,10 +963,10 @@ func (ctx *compileCtx) compileDefaultTerm(g goal) ([]Instruction, error) {
 	return ctx.instrs, nil
 }
 
-func compile0(clause flatClause, permVars map[logic.Var]struct{}) (*Clause, error) {
+func compile0(clause flatClause, chunks []flatClause, permVars varset) (*Clause, error) {
 	functor := toFunctor(clause[0].comp.Indicator())
 	c := &Clause{Functor: functor}
-	ctx := newCompileCtx(c, numArgs(clause))
+	ctx := newCompileCtx(c, numArgs(clause), tempAllocationSets(chunks, permVars))
 	// Designate address for each var (either in a register or on the stack)
 	currStack := 0
 	for _, x := range goalVars(clause) {
@@ -927,7 +1085,7 @@ func optimizeLabels(code []Instruction) []Instruction {
 			if instrAddr.Pos >= 0 {
 				continue
 			}
-			pending[len(buf)] = struct{}{}
+			pending[len(buf)] = empty
 		}
 		buf = append(buf, instr)
 	}
@@ -1187,7 +1345,7 @@ func reachableClauses(clauses ...*Clause) []*Clause {
 			continue
 		}
 		order = append(order, clause)
-		seen[clause] = struct{}{}
+		seen[clause] = empty
 		for _, instr := range clause.Code {
 			for _, instrAddr := range instructionPointers(instr) {
 				clause := instrAddr.Clause
@@ -1217,7 +1375,7 @@ func (KeepLabels) isCompileOption() {}
 func compileClauses(clauses []*logic.Clause, options ...CompileOption) ([]*Clause, error) {
 	opts := make(map[CompileOption]struct{})
 	for _, opt := range options {
-		opts[opt] = struct{}{}
+		opts[opt] = empty
 	}
 	// Group clauses by functor and compile each group.
 	m := make(map[logic.Indicator][]flatClause)
@@ -1317,7 +1475,7 @@ func CompilePackage(rules []logic.Rule, options ...CompileOption) (*Package, err
 		if err != nil {
 			return nil, errors.New("exported #%d: %v", i+1, err)
 		}
-		exportedFunctors[fn] = struct{}{}
+		exportedFunctors[fn] = empty
 	}
 	compiled, err := compileClauses(clauses[1:], options...)
 	if err != nil {
