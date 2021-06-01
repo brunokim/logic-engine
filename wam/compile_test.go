@@ -114,14 +114,14 @@ func TestCompile(t *testing.T) {
 			dsl.Clause(comp("query"),
 				comp("make", comp("p", var_("Z"), comp("h", var_("Z"), var_("W")), comp("f", var_("W"))))),
 			wam.DecodeClause(indicator("query", 0),
-				comp("put_struct", atom("h/2"), var_("X3")),
-				comp("unify_variable", var_("X1")),
+				comp("put_struct", atom("h/2"), var_("X1")),
 				comp("unify_variable", var_("X2")),
+				comp("unify_variable", var_("X3")),
 				comp("put_struct", atom("f/1"), var_("X4")),
-				comp("unify_value", var_("X2")),
-				comp("put_struct", atom("p/3"), var_("X0")),
-				comp("unify_value", var_("X1")),
 				comp("unify_value", var_("X3")),
+				comp("put_struct", atom("p/3"), var_("X0")),
+				comp("unify_value", var_("X2")),
+				comp("unify_value", var_("X1")),
 				comp("unify_value", var_("X4")),
 				comp("execute", atom("make/1"))),
 		},
@@ -202,26 +202,26 @@ func TestCompile(t *testing.T) {
 						var_("_")))),
 			wam.DecodeClause(indicator("query", 0),
 				// a:1
-				comp("put_pair", atom("assoc"), var_("X6")),
+				comp("put_pair", atom("assoc"), var_("X4")),
 				comp("unify_constant", atom("a")),
 				comp("unify_constant", int_(1)),
 				// b:2
-				comp("put_pair", atom("assoc"), var_("X8")),
+				comp("put_pair", atom("assoc"), var_("X6")),
 				comp("unify_constant", atom("b")),
 				comp("unify_constant", int_(2)),
 				// {b:2|P1}
-				comp("put_pair", atom("dict"), var_("X7")),
-				comp("unify_value", var_("X8")),
-				comp("unify_variable", var_("X2")), // P1=X2
-				// {a:1, b:2|P1}
 				comp("put_pair", atom("dict"), var_("X5")),
 				comp("unify_value", var_("X6")),
-				comp("unify_value", var_("X7")),
-				// p({...}, P1, P2)
-				comp("put_struct", atom("p/3"), var_("X4")),
+				comp("unify_variable", var_("X7")), // P1=X7
+				// {a:1, b:2|P1}
+				comp("put_pair", atom("dict"), var_("X3")),
+				comp("unify_value", var_("X4")),
 				comp("unify_value", var_("X5")),
-				comp("unify_value", var_("X2")),
-				comp("unify_variable", var_("X3")), // P2=X3
+				// p({...}, P1, P2)
+				comp("put_struct", atom("p/3"), var_("X2")),
+				comp("unify_value", var_("X3")),
+				comp("unify_value", var_("X7")),
+				comp("unify_variable", var_("X8")), // P2=X8
 				// a:1
 				comp("put_pair", atom("assoc"), var_("X11")),
 				comp("unify_constant", atom("a")),
@@ -233,7 +233,7 @@ func TestCompile(t *testing.T) {
 				// {c:3|P2}
 				comp("put_pair", atom("dict"), var_("X12")),
 				comp("unify_value", var_("X13")),
-				comp("unify_value", var_("X3")),
+				comp("unify_value", var_("X8")),
 				// {a:1, c:3|P2}
 				comp("put_pair", atom("dict"), var_("X10")),
 				comp("unify_value", var_("X11")),
@@ -244,7 +244,7 @@ func TestCompile(t *testing.T) {
 				comp("unify_void"),
 				comp("unify_void"),
 				// =(..., ...)
-				comp("=", var_("X4"), var_("X9")),
+				comp("=", var_("X2"), var_("X9")),
 				comp("proceed", atom("run"))),
 		},
 		// query :- f(g(h(W), W, Z), g(h(Z))).
@@ -255,16 +255,16 @@ func TestCompile(t *testing.T) {
 					comp("g", comp("h", var_("Z"))))),
 			wam.DecodeClause(indicator("query", 0),
 				// h(W)
-				comp("put_struct", atom("h/1"), var_("X4")),
-				comp("unify_variable", var_("X2")), // W=X2
+				comp("put_struct", atom("h/1"), var_("X2")),
+				comp("unify_variable", var_("X3")), // W=X3
 				// g(., W, Z)
 				comp("put_struct", atom("g/3"), var_("X0")),
-				comp("unify_value", var_("X4")),
 				comp("unify_value", var_("X2")),
-				comp("unify_variable", var_("X3")), // Z=X3
+				comp("unify_value", var_("X3")),
+				comp("unify_variable", var_("X4")), // Z=X4
 				// h(Z)
 				comp("put_struct", atom("h/1"), var_("X5")),
-				comp("unify_value", var_("X3")),
+				comp("unify_value", var_("X4")),
 				// g(.)
 				comp("put_struct", atom("g/1"), var_("X1")),
 				comp("unify_value", var_("X5")),
@@ -276,13 +276,13 @@ func TestCompile(t *testing.T) {
 			wam.DecodeClause(indicator("add", 3),
 				comp("get_variable", var_("X3"), var_("X0")), // Set = X3
 				comp("get_pair", atom("dict"), var_("X1")),   // {X:X|Set)
-				comp("unify_variable", var_("X5")),
+				comp("unify_variable", var_("X4")),
 				comp("unify_value", var_("X3")),
-				comp("get_variable", var_("X4"), var_("X2")), // X = X5
+				comp("get_variable", var_("X5"), var_("X2")), // X = X5
 				// X:X
-				comp("get_pair", atom("assoc"), var_("X5")),
-				comp("unify_value", var_("X4")),
-				comp("unify_value", var_("X4")),
+				comp("get_pair", atom("assoc"), var_("X4")),
+				comp("unify_value", var_("X5")),
+				comp("unify_value", var_("X5")),
 				comp("proceed", atom("run"))),
 		},
 		{
@@ -312,9 +312,9 @@ func TestCompile(t *testing.T) {
 			wam.DecodeClause(indicator("f", 1),
 				comp("get_variable", var_("X2"), var_("X0")),
 				atom("neck_cut"),
-				comp("put_struct", atom("s/1"), var_("X4")),
-				comp("unify_variable", var_("X3")),
-				comp("=", var_("X4"), var_("X2")),
+				comp("put_struct", atom("s/1"), var_("X3")),
+				comp("unify_variable", var_("X4")),
+				comp("=", var_("X3"), var_("X2")),
 				comp("put_value", var_("X2"), var_("X0")),
 				comp("execute", atom("g/1"))),
 		},
@@ -331,15 +331,15 @@ func TestCompile(t *testing.T) {
 				comp("allocate", int_(1)),
 				comp("get_variable", var_("X2"), var_("X0")),
 				atom("neck_cut"),
-				comp("put_struct", atom("s/1"), var_("X4")),
+				comp("put_struct", atom("s/1"), var_("X3")),
 				comp("unify_variable", var_("Y0")),
-				comp("=", var_("X4"), var_("X2")),
+				comp("=", var_("X3"), var_("X2")),
 				comp("put_value", var_("X2"), var_("X0")),
 				comp("call", atom("g/1")),
-				comp("put_variable", var_("X3"), var_("X5")),
-				comp("=", var_("X3"), int_(1)),
+				comp("put_variable", var_("X4"), var_("X5")),
+				comp("=", var_("X4"), int_(1)),
 				comp("put_value", var_("Y0"), var_("X0")),
-				comp("put_value", var_("X3"), var_("X1")),
+				comp("put_value", var_("X4"), var_("X1")),
 				atom("deallocate"),
 				comp("execute", atom("h/2"))),
 		},

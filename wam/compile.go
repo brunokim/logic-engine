@@ -453,7 +453,15 @@ func (ctx *compileCtx) nextReg() RegAddr {
 }
 
 func (ctx *compileCtx) addr(x logic.Var) Addr {
-	return ctx.varAddr[x]
+	if x == logic.AnonymousVar {
+		panic(fmt.Sprintf("Trying to read address from anonymous var"))
+	}
+	if addr, ok := ctx.varAddr[x]; ok {
+		return addr
+	}
+	reg := ctx.nextReg()
+	ctx.varAddr[x] = reg
+	return reg
 }
 
 // ---- get/unify/put variables
@@ -659,7 +667,7 @@ func (ctx *compileCtx) termAddr(term logic.Term) Addr {
 		return ConstantAddr{toConstant(t)}
 	case logic.Var:
 		ctx.ensureVar(t)
-		return ctx.varAddr[t]
+		return ctx.addr(t)
 	}
 	addr := ctx.nextReg()
 	ctx.instrs = append(ctx.instrs, ctx.putTerm(term, addr)...)
@@ -967,14 +975,13 @@ func compile0(clause flatClause, chunks []flatClause, permVars varset) (*Clause,
 	functor := toFunctor(clause[0].comp.Indicator())
 	c := &Clause{Functor: functor}
 	ctx := newCompileCtx(c, numArgs(clause), tempAllocationSets(chunks, permVars))
-	// Designate address for each var (either in a register or on the stack)
+	// Designate address for permanent vars on the stack.
 	currStack := 0
 	for _, x := range goalVars(clause) {
+		// Need to iterate over all vars for a deterministic iteration order.
 		if _, ok := permVars[x]; ok {
 			ctx.varAddr[x] = StackAddr(currStack)
 			currStack++
-		} else if x != logic.AnonymousVar {
-			ctx.varAddr[x] = ctx.nextReg()
 		}
 	}
 	// Compile clause head
