@@ -1,4 +1,4 @@
-package wam_test
+package solver_test
 
 import (
 	"errors"

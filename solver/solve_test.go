@@ -22,6 +22,7 @@ var (
 	comp   = dsl.Comp
 	list   = dsl.List
 	ilist  = dsl.IList
+	assoc  = dsl.Assoc
 )
 
 func TestSolve(t *testing.T) {
