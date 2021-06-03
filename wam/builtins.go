@@ -40,8 +40,14 @@ var (
 )
 
 var (
-	failClause = &Clause{builtinsPkg, Functor{"fail", 0}, 0, []Instruction{fail{}}}
-	preamble   = []logic.Rule{
+	failClause = &Clause{
+		Pkg:          builtinsPkg,
+		Functor:      Functor{"fail", 0},
+		NumRegisters: 0,
+		Vars:         nil,
+		Code:         []Instruction{fail{}},
+	}
+	preamble = []logic.Rule{
 		// This function can't be moved to base.pl because it's used by the parser.
 		dsl.Clause(comp("\\=", var_("X"), var_("Y")),
 			comp("\\+", comp("=", var_("X"), var_("Y")))),
@@ -125,7 +131,12 @@ func builtinUnicodeIter(m *Machine, args []Addr) (InstrAddr, error) {
 }
 
 func builtinUnicodeIterPredicate() *Clause {
-	c := &Clause{Pkg: builtinsPkg, Functor: Functor{"unicode_iter", 3}, NumRegisters: 3}
+	c := &Clause{
+		Pkg:          builtinsPkg,
+		Functor:      Functor{"unicode_iter", 3},
+		NumRegisters: 3,
+		Vars:         map[Addr]logic.Var{RegAddr(0): dsl.Var("Ch")},
+	}
 	c.Code = []Instruction{
 		tryMeElse{InstrAddr{c, 1}},
 		builtin{"unicode_iter", nil, builtinUnicodeIter},
@@ -163,6 +174,7 @@ func builtinComparisonPredicate(pred comparisonPredicate) *Clause {
 		Pkg:          builtinsPkg,
 		Functor:      pred.functor,
 		NumRegisters: 2,
+		Vars:         map[Addr]logic.Var{RegAddr(0): dsl.Var("X"), RegAddr(1): dsl.Var("Y")},
 		Code: []Instruction{
 			builtinComparisonInstruction(pred, RegAddr(0), RegAddr(1)),
 			proceed{},
@@ -229,6 +241,7 @@ func builtinTypeCheckPredicate(pred typeCheckPredicate) *Clause {
 		Pkg:          builtinsPkg,
 		Functor:      Functor{pred.name, 1},
 		NumRegisters: 1,
+		Vars:         map[Addr]logic.Var{RegAddr(0): dsl.Var("X")},
 		Code: []Instruction{
 			builtinTypeCheckInstruction(pred, RegAddr(0)),
 			proceed{},

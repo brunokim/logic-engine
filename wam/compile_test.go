@@ -381,6 +381,7 @@ func TestCompile(t *testing.T) {
 		opts := cmp.Options{
 			cmpopts.EquateEmpty(),
 			cmpopts.IgnoreFields(instr{}, "Clause"),
+			cmpopts.IgnoreFields(wam.Clause{}, "Vars"),
 			cmpopts.IgnoreFields(wam.DecodeInstruction(comp("builtin", atom("b"), ptr(emptyBuiltinFunc))), "Func"),
 		}
 		if diff := cmp.Diff(test.want, got, opts); diff != "" {
@@ -623,7 +624,7 @@ func TestCompilePackage(t *testing.T) {
 		test_helpers.IgnoreUnexported,
 		// TODO: somehow test that Pkg field is as expected. cmp does not support
 		// recursive references.
-		cmpopts.IgnoreFields(wam.Clause{}, "Pkg", "NumRegisters", "Code"),
+		cmpopts.IgnoreFields(wam.Clause{}, "Pkg", "NumRegisters", "Vars", "Code"),
 	}
 	if diff := cmp.Diff(want, pkg3, opts...); diff != "" {
 		t.Errorf("(-want, +got):\n%s", diff)

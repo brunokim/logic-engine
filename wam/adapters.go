@@ -36,13 +36,14 @@ func fromConstant(c Constant) logic.Term {
 	}
 }
 
-func fromCells(xs []logic.Var, cells []Cell) map[logic.Var]logic.Term {
+func fromCells(xs map[Addr]logic.Var, cells []Cell) map[logic.Var]logic.Term {
 	ctx := new(convertCtx)
 	ctx.parents = make(map[Cell]struct{})
 	ctx.looping = make(map[Cell]logic.Var)
 	ctx.bindings = make(map[logic.Var]logic.Term)
-	for i, x := range xs {
-		ctx.looping[cells[i]] = x
+	for i, cell := range cells {
+		addr := StackAddr(i)
+		ctx.looping[cell] = xs[addr]
 	}
 	for _, cell := range cells {
 		ctx.fromCell(cell)

@@ -503,6 +503,7 @@ type Clause struct {
 	Pkg          *Package
 	Functor      Functor
 	NumRegisters int
+	Vars         map[Addr]logic.Var
 	Code         []Instruction
 }
 
@@ -868,8 +869,8 @@ type Machine struct {
 	// interrupt checks for a signal that the current operation should be aborted.
 	interrupt chan struct{}
 
-	// Keep variables of original query between RunQuery/NextSolution calls.
-	xs []logic.Var
+	// Keep addr-var mapping of original query vars between RunQuery/NextSolution calls.
+	topLevelVars map[Addr]logic.Var
 
 	// Optimization for debugging: keep encoder between calls.
 	encoder             *machineEncoder

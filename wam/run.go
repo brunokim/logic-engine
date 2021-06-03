@@ -63,22 +63,12 @@ func (m *Machine) AddPackage(pkg *Package) error {
 // RunQuery executes the given logic query, returning all bindings that satisfy the query
 // and compiled clauses simultaneously.
 func (m *Machine) RunQuery(query ...logic.Term) (map[logic.Var]logic.Term, error) {
-	seen := make(map[logic.Var]struct{})
-	m.xs = nil
-	for _, c := range query {
-		for _, x := range logic.Vars(c) {
-			if _, ok := seen[x]; ok {
-				continue
-			}
-			seen[x] = struct{}{}
-			m.xs = append(m.xs, x)
-		}
-	}
 	c, err := compileQuery(query)
 	if err != nil {
 		return nil, err
 	}
 	m.Packages[""].Exported[Functor{}] = c
+	m.topLevelVars = c.Vars
 	return m.runOnce()
 }
 
@@ -86,13 +76,13 @@ func (m *Machine) runOnce() (map[logic.Var]logic.Term, error) {
 	if err := m.Run(); err != nil {
 		return nil, err
 	}
-	if len(m.xs) == 0 {
+	if len(m.topLevelVars) == 0 {
 		return map[logic.Var]logic.Term{}, nil
 	}
 	if m.Env == nil {
 		return nil, errors.New("nil env at the end of execution")
 	}
-	return fromCells(m.xs, m.Env.PermanentVars), nil
+	return fromCells(m.topLevelVars, m.Env.PermanentVars), nil
 }
 
 var debugFilenameRE = regexp.MustCompile(`(.*?)(-(\d+))?.jsonl`)

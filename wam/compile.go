@@ -428,20 +428,23 @@ type compound struct {
 type compileCtx struct {
 	clause   *Clause
 	topReg   RegAddr
-	seen     varset
-	varAddr  map[logic.Var]Addr
+	topStack StackAddr
+	register map[logic.Var]Addr
+	content  map[Addr]logic.Var
+	permVars varset
 	tempSets map[logic.Var]*registerAllocation
 	delayed  []compound
 	instrs   []Instruction
 	labelID  int
 }
 
-func newCompileCtx(clause *Clause, numArgs int, tempSets map[logic.Var]*registerAllocation) *compileCtx {
+func newCompileCtx(clause *Clause, numArgs int, permVars varset, tempSets map[logic.Var]*registerAllocation) *compileCtx {
 	return &compileCtx{
 		clause:   clause,
 		topReg:   RegAddr(numArgs),
-		seen:     make(varset),
-		varAddr:  make(map[logic.Var]Addr),
+		register: make(map[logic.Var]Addr),
+		content:  make(map[Addr]logic.Var),
+		permVars: permVars,
 		tempSets: tempSets,
 	}
 }
@@ -452,48 +455,61 @@ func (ctx *compileCtx) nextReg() RegAddr {
 	return addr
 }
 
+func (ctx *compileCtx) nextStack() StackAddr {
+	addr := ctx.topStack
+	ctx.topStack++
+	return addr
+}
+
+func (ctx *compileCtx) nextAddr(x logic.Var) Addr {
+	var addr Addr
+	if _, ok := ctx.permVars[x]; ok {
+		addr = ctx.nextStack()
+	} else {
+		addr = ctx.nextReg()
+	}
+	ctx.register[x] = addr
+	ctx.content[addr] = x
+	return addr
+}
+
 func (ctx *compileCtx) addr(x logic.Var) Addr {
 	if x == logic.AnonymousVar {
 		panic(fmt.Sprintf("Trying to read address from anonymous var"))
 	}
-	if addr, ok := ctx.varAddr[x]; ok {
+	if addr, ok := ctx.register[x]; ok {
 		return addr
 	}
-	reg := ctx.nextReg()
-	ctx.varAddr[x] = reg
-	return reg
+	return ctx.nextAddr(x)
 }
 
 // ---- get/unify/put variables
 
 func (ctx *compileCtx) getVar(x logic.Var, regAddr RegAddr) Instruction {
-	if _, ok := ctx.seen[x]; ok {
-		return getValue{ctx.addr(x), regAddr}
+	if addr, ok := ctx.register[x]; ok {
+		return getValue{addr, regAddr}
 	}
-	ctx.seen[x] = empty
-	return getVariable{ctx.addr(x), regAddr}
+	return getVariable{ctx.nextAddr(x), regAddr}
 }
 
 func (ctx *compileCtx) unifyVar(x logic.Var) Instruction {
 	if x == logic.AnonymousVar {
 		return unifyVoid{}
 	}
-	if _, ok := ctx.seen[x]; ok {
-		return unifyValue{ctx.addr(x)}
+	if addr, ok := ctx.register[x]; ok {
+		return unifyValue{addr}
 	}
-	ctx.seen[x] = empty
-	return unifyVariable{ctx.addr(x)}
+	return unifyVariable{ctx.nextAddr(x)}
 }
 
 func (ctx *compileCtx) putVar(x logic.Var, regAddr RegAddr) Instruction {
 	if x == logic.AnonymousVar {
 		return putVariable{ctx.nextReg(), regAddr}
 	}
-	if _, ok := ctx.seen[x]; ok {
-		return putValue{ctx.addr(x), regAddr}
+	if addr, ok := ctx.register[x]; ok {
+		return putValue{addr, regAddr}
 	}
-	ctx.seen[x] = empty
-	return putVariable{ctx.addr(x), regAddr}
+	return putVariable{ctx.nextAddr(x), regAddr}
 }
 
 // ---- get terms
@@ -650,11 +666,10 @@ func (ctx *compileCtx) ensureVar(x logic.Var) {
 	if x == logic.AnonymousVar {
 		return
 	}
-	if _, ok := ctx.seen[x]; ok {
+	if _, ok := ctx.register[x]; ok {
 		return
 	}
-	ctx.seen[x] = empty
-	ctx.instrs = append(ctx.instrs, putVariable{ctx.addr(x), ctx.nextReg()})
+	ctx.instrs = append(ctx.instrs, putVariable{ctx.nextAddr(x), ctx.nextReg()})
 }
 
 func (ctx *compileCtx) termAddr(term logic.Term) Addr {
@@ -974,16 +989,7 @@ func (ctx *compileCtx) compileDefaultTerm(g goal) ([]Instruction, error) {
 func compile0(clause flatClause, chunks []flatClause, permVars varset) (*Clause, error) {
 	functor := toFunctor(clause[0].comp.Indicator())
 	c := &Clause{Functor: functor}
-	ctx := newCompileCtx(c, numArgs(clause), tempAllocationSets(chunks, permVars))
-	// Designate address for permanent vars on the stack.
-	currStack := 0
-	for _, x := range goalVars(clause) {
-		// Need to iterate over all vars for a deterministic iteration order.
-		if _, ok := permVars[x]; ok {
-			ctx.varAddr[x] = StackAddr(currStack)
-			currStack++
-		}
-	}
+	ctx := newCompileCtx(c, numArgs(clause), permVars, tempAllocationSets(chunks, permVars))
 	// Compile clause head
 	for i, term := range clause[0].comp.Args {
 		c.Code = append(c.Code, ctx.getTerm(term, RegAddr(i))...)
@@ -1012,11 +1018,12 @@ func compile0(clause flatClause, chunks []flatClause, permVars varset) (*Clause,
 		c.Code = append(c.Code, proceed{Run})
 	}
 	// If call requires an environment, add an allocate-deallocate pair to the clause.
-	if currStack > 0 || requiresEnv(c.Code) {
-		c.Code = append([]Instruction{allocate{currStack}}, c.Code...)
+	if ctx.topStack > 0 || requiresEnv(c.Code) {
+		c.Code = append([]Instruction{allocate{int(ctx.topStack)}}, c.Code...)
 		c.Code = append(c.Code, deallocate{})
 	}
 	c.NumRegisters = int(ctx.topReg)
+	c.Vars = ctx.content
 	return c, nil
 }
 
