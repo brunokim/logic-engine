@@ -38,3 +38,9 @@ quickly.
 
 * CPU: 0.89s -> 0.64s
 * Total: 12.183s
+
+## Compiler tweaks
+
+This change wasn't supposed to introduce any performance optimizations, so it may as well
+be a fluke from my testbench. Still, it may be important to compare with future runs, that
+indeed seek to improve performance.
