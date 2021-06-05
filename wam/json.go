@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+
+	"github.com/brunokim/logic-engine/logic"
 )
 
 func (i RegAddr) MarshalText() ([]byte, error) {
@@ -234,10 +236,19 @@ func (enc *machineEncoder) clauses_() []interface{} {
 		s[i] = map[string]interface{}{
 			"Functor":      clause.Functor,
 			"NumRegisters": clause.NumRegisters,
+			"Vars":         enc.regvarmap(clause.Vars),
 			"Code":         enc.instructions(clause.Code),
 		}
 	}
 	return s
+}
+
+func (enc *machineEncoder) regvarmap(vars map[Addr]logic.Var) map[string]string {
+	m := make(map[string]string)
+	for addr, x := range vars {
+		m[addr.String()] = x.String()
+	}
+	return m
 }
 
 func (enc *machineEncoder) instructions(ins []Instruction) []interface{} {
