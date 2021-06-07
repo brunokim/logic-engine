@@ -20,6 +20,7 @@ func TestCompile(t *testing.T) {
 	tests := []struct {
 		clause *logic.Clause
 		want   *wam.Clause
+		opts   []wam.CompileOption
 	}{
 		{
 			dsl.Clause(comp("=", var_("X"), var_("X"))),
@@ -27,6 +28,7 @@ func TestCompile(t *testing.T) {
 				comp("get_variable", var_("X2"), var_("X0")),
 				comp("get_value", var_("X2"), var_("X1")),
 				comp("proceed", atom("run"))),
+			nil,
 		},
 		{
 			dsl.Clause(comp("nat", comp("s", var_("X"))),
@@ -37,6 +39,7 @@ func TestCompile(t *testing.T) {
 				comp("put_value", var_("X1"), var_("X0")),
 				comp("execute", atom("nat/1")),
 			),
+			nil,
 		},
 		{
 			dsl.Clause(comp("take-1", var_("H"), list(var_("H")), ilist(var_("H"), var_("_")))),
@@ -49,6 +52,7 @@ func TestCompile(t *testing.T) {
 				comp("unify_value", var_("X3")),
 				comp("unify_void"),
 				comp("proceed", atom("run"))),
+			nil,
 		},
 		{
 			dsl.Clause(comp("f", var_("X"), var_("Y")),
@@ -68,6 +72,7 @@ func TestCompile(t *testing.T) {
 				comp("put_value", var_("Y1"), var_("X1")),
 				comp("deallocate"),
 				comp("execute", atom("h/2"))),
+			nil,
 		},
 		{
 			dsl.Clause(comp("mul", int_(0), var_("_"), int_(0))),
@@ -75,6 +80,7 @@ func TestCompile(t *testing.T) {
 				comp("get_constant", int_(0), var_("X0")),
 				comp("get_constant", int_(0), var_("X2")),
 				comp("proceed", atom("run"))),
+			nil,
 		},
 		{
 			dsl.Clause(comp("non-empty", ilist(var_("_"), var_("_")))),
@@ -83,6 +89,7 @@ func TestCompile(t *testing.T) {
 				comp("unify_void"),
 				comp("unify_void"),
 				comp("proceed", atom("run"))),
+			nil,
 		},
 		{
 			dsl.Clause(comp(">=3", comp("s", comp("s", comp("s", var_("_")))))),
@@ -94,6 +101,7 @@ func TestCompile(t *testing.T) {
 				comp("get_struct", atom("s/1"), var_("X2")),
 				comp("unify_void"),
 				comp("proceed", atom("run"))),
+			nil,
 		},
 		{
 			dsl.Clause(comp("f", list(comp("g", atom("a")), comp("h", atom("b"))))),
@@ -109,6 +117,7 @@ func TestCompile(t *testing.T) {
 				comp("get_struct", atom("h/1"), var_("X3")),
 				comp("unify_constant", atom("b")),
 				comp("proceed", atom("run"))),
+			nil,
 		},
 		{
 			dsl.Clause(comp("query"),
@@ -124,6 +133,7 @@ func TestCompile(t *testing.T) {
 				comp("unify_value", var_("X1")),
 				comp("unify_value", var_("X4")),
 				comp("execute", atom("make/1"))),
+			nil,
 		},
 		{
 			dsl.Clause(comp("mul", var_("A"), comp("s", var_("B")), comp("s", var_("P"))),
@@ -148,6 +158,7 @@ func TestCompile(t *testing.T) {
 				comp("put_value", var_("Y1"), var_("X2")),
 				comp("deallocate"),
 				comp("execute", atom("add/3"))),
+			nil,
 		},
 		{
 			dsl.Clause(comp("if*", var_("Cond"), var_("Then"), var_("Else")),
@@ -165,6 +176,7 @@ func TestCompile(t *testing.T) {
 				comp("cut"),
 				comp("deallocate"),
 				comp("execute_meta", var_("Y0"), list())),
+			nil,
 		},
 		{
 			dsl.Clause(comp("term", var_("Term"), var_("L1"), var_("L2")),
@@ -185,6 +197,7 @@ func TestCompile(t *testing.T) {
 				comp("cut"),
 				comp("deallocate"),
 				comp("proceed", atom("run"))),
+			nil,
 		},
 		// query :- =(
 		//   p({a:1, b:2|P1}, P1, P2),
@@ -246,6 +259,7 @@ func TestCompile(t *testing.T) {
 				// =(..., ...)
 				comp("=", var_("X2"), var_("X9")),
 				comp("proceed", atom("run"))),
+			nil,
 		},
 		// query :- f(g(h(W), W, Z), g(h(Z))).
 		{
@@ -270,6 +284,7 @@ func TestCompile(t *testing.T) {
 				comp("unify_value", var_("X5")),
 				// :- f(., .).
 				comp("execute", atom("f/2"))),
+			nil,
 		},
 		{
 			dsl.Clause(comp("add", var_("Set"), idict(var_("X"), var_("X"), var_("Set")), var_("X"))),
@@ -284,6 +299,7 @@ func TestCompile(t *testing.T) {
 				comp("unify_value", var_("X5")),
 				comp("unify_value", var_("X5")),
 				comp("proceed", atom("run"))),
+			nil,
 		},
 		{
 			dsl.Clause(comp("f"),
@@ -291,6 +307,7 @@ func TestCompile(t *testing.T) {
 			wam.DecodeClause(indicator("f", 0),
 				comp("put_variable", var_("X1"), var_("X0")),
 				comp("execute", atom("list"), atom("length/1"))),
+			nil,
 		},
 		{
 			// X is temporary, because the whole clause is a single chunk.
@@ -302,6 +319,7 @@ func TestCompile(t *testing.T) {
 				atom("neck_cut"),
 				comp("put_value", var_("X1"), var_("X0")),
 				comp("execute", atom("g/1"))),
+			nil,
 		},
 		{
 			// X and Y are temporary.
@@ -317,6 +335,7 @@ func TestCompile(t *testing.T) {
 				comp("=", var_("X3"), var_("X2")),
 				comp("put_value", var_("X2"), var_("X0")),
 				comp("execute", atom("g/1"))),
+			nil,
 		},
 		{
 			// X and Z are temporary, because they are only present in a single chunk each.
@@ -342,6 +361,7 @@ func TestCompile(t *testing.T) {
 				comp("put_value", var_("X4"), var_("X1")),
 				atom("deallocate"),
 				comp("execute", atom("h/2"))),
+			nil,
 		},
 		{
 			// Even though the whole if body is inline, Y is present in different branches,
@@ -371,10 +391,11 @@ func TestCompile(t *testing.T) {
 				comp("put_value", var_("Y0"), var_("X0")),
 				atom("deallocate"),
 				comp("execute", atom("f/1"))),
+			nil,
 		},
 	}
 	for _, test := range tests {
-		got, err := wam.Compile(test.clause)
+		got, err := wam.Compile(test.clause, test.opts...)
 		if err != nil {
 			t.Fatal(err)
 		}

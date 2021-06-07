@@ -281,6 +281,8 @@ func permanentVars(clause flatClause) (varset, []flatClause, error) {
 	return perm, chunks, nil
 }
 
+// ---- regset
+
 // regset is a set of register addresses, implemented as a sorted array.
 type regset []RegAddr
 
@@ -304,6 +306,18 @@ func (r regset) add(reg RegAddr) regset {
 	r[i] = reg
 	return r
 }
+
+func (r regset) remove(reg RegAddr) regset {
+	i, ok := r.index(reg)
+	if !ok {
+		return r
+	}
+	copy(r[i:], r[i+1:])
+	r = r[:len(r)-1]
+	return r
+}
+
+// ---- register allocation
 
 type registerAllocation struct {
 	use      regset
@@ -403,7 +417,7 @@ func tempAllocationSets(chunks []flatClause, permVars varset) map[logic.Var]*reg
 	return tempSets
 }
 
-// ----
+// ---- clause compiler ctx
 
 func numArgs(clause flatClause) int {
 	max := 0
@@ -425,6 +439,7 @@ type compound struct {
 type compileClauseCtx struct {
 	pkgCtx   *compilePkgCtx
 	clause   *Clause
+	freeRegs regset
 	topReg   RegAddr
 	topStack StackAddr
 	register map[logic.Var]Addr
@@ -437,9 +452,14 @@ type compileClauseCtx struct {
 }
 
 func newCompileClauseCtx(pkgCtx *compilePkgCtx, clause *Clause, numArgs int, permVars varset, tempSets map[logic.Var]*registerAllocation) *compileClauseCtx {
+	freeRegs := make(regset, numArgs)
+	for i := 0; i < numArgs; i++ {
+		freeRegs[i] = RegAddr(i)
+	}
 	return &compileClauseCtx{
 		pkgCtx:   pkgCtx,
 		clause:   clause,
+		freeRegs: freeRegs,
 		topReg:   RegAddr(numArgs),
 		register: make(map[logic.Var]Addr),
 		content:  make(map[Addr]logic.Var),
@@ -460,6 +480,36 @@ func (ctx *compileClauseCtx) nextStack() StackAddr {
 	return addr
 }
 
+func (ctx *compileClauseCtx) allocReg(x logic.Var) RegAddr {
+	alloc, ok := ctx.tempSets[x]
+	if !ok {
+		panic(fmt.Sprintf("Temp variable %v doesn't have a allocation sets", x))
+	}
+	var addr RegAddr = -1
+	for _, reg := range ctx.freeRegs {
+		// 1. Reserve a free register from the USE set.
+		if alloc.use.has(reg) {
+			addr = reg
+			break
+		}
+		// 2. Reserve a register if it doesn't add a conflict with another var (NOUSE set)
+		// or parameter (CONFLICT set).
+		if alloc.noUse.has(reg) {
+			continue
+		}
+		if alloc.conflict.has(reg) {
+			continue
+		}
+		addr = reg
+		break
+	}
+	if addr >= 0 {
+		ctx.freeRegs = ctx.freeRegs.remove(addr)
+		return addr
+	}
+	return ctx.nextReg()
+}
+
 func (ctx *compileClauseCtx) nextAddr(x logic.Var) Addr {
 	if x == logic.AnonymousVar {
 		panic(fmt.Sprintf("Trying to allocate register for anonymous var"))
@@ -468,7 +518,11 @@ func (ctx *compileClauseCtx) nextAddr(x logic.Var) Addr {
 	if _, ok := ctx.permVars[x]; ok {
 		addr = ctx.nextStack()
 	} else {
-		addr = ctx.nextReg()
+		if _, ok := ctx.pkgCtx.opts[UseConflictAvoidanceAllocationStrategy{}]; ok {
+			addr = ctx.allocReg(x)
+		} else {
+			addr = ctx.nextReg()
+		}
 	}
 	ctx.register[x] = addr
 	ctx.content[addr] = x
@@ -683,12 +737,18 @@ func (ctx *compileClauseCtx) termAddr(term logic.Term) Addr {
 
 // ---- compiling terms
 
-func Compile(clause *logic.Clause) (*Clause, error) {
+// Compile compiles a single clause in isolation. Useful for testing; it's necessary
+// to use CompilePackage to make use of clause indexing for clauses with same functor.
+func Compile(clause *logic.Clause, options ...CompileOption) (*Clause, error) {
 	goals, err := flatten(clause)
 	if err != nil {
 		return nil, err
 	}
-	return newCompilePkgCtx(nil).compile(goals)
+	opts := make(map[CompileOption]struct{})
+	for _, opt := range options {
+		opts[opt] = empty
+	}
+	return newCompilePkgCtx(opts).compile(goals)
 }
 
 func (ctx *compilePkgCtx) compile(clause flatClause) (*Clause, error) {
@@ -1335,6 +1395,8 @@ func addChoiceLinks(clauses []*Clause) {
 	}
 }
 
+// ----
+
 func reachableClauses(clauses ...*Clause) []*Clause {
 	// Copy items in reverse order to stack
 	stack := make([]*Clause, len(clauses))
@@ -1365,6 +1427,8 @@ func reachableClauses(clauses ...*Clause) []*Clause {
 	return order
 }
 
+// ----
+
 // Option to control compilation.
 type CompileOption interface {
 	isCompileOption()
@@ -1374,7 +1438,14 @@ type CompileOption interface {
 // references to a concrete position in code.
 type KeepLabels struct{}
 
-func (KeepLabels) isCompileOption() {}
+// Compile option to use conflict-avoidance allocation strategy for allocating registers
+// in clauses. Without this, we use a very conservative approach where registers are
+// reserved for parameter passing, and even temporary variables are allocated to registers
+// outside those used for parameters.
+type UseConflictAvoidanceAllocationStrategy struct{}
+
+func (KeepLabels) isCompileOption()                             {}
+func (UseConflictAvoidanceAllocationStrategy) isCompileOption() {}
 
 type compilePkgCtx struct {
 	opts map[CompileOption]struct{}
