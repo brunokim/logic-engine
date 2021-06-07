@@ -275,7 +275,7 @@ func TestCompile(t *testing.T) {
 			dsl.Clause(comp("add", var_("Set"), idict(var_("X"), var_("X"), var_("Set")), var_("X"))),
 			wam.DecodeClause(indicator("add", 3),
 				comp("get_variable", var_("X3"), var_("X0")), // Set = X3
-				comp("get_pair", atom("dict"), var_("X1")),   // {X:X|Set)
+				comp("get_pair", atom("dict"), var_("X1")),   // {X:X|Set}
 				comp("unify_variable", var_("X4")),
 				comp("unify_value", var_("X3")),
 				comp("get_variable", var_("X5"), var_("X2")), // X = X5

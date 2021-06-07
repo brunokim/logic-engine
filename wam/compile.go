@@ -340,9 +340,6 @@ func chunkAllocationSets(pos int, chunk flatClause, temps varset) map[logic.Var]
 	}
 	// Analyze last goal, if it's not an inlined goal.
 	n := len(chunk)
-	if n == 0 {
-		fmt.Println(pos, chunk, temps)
-	}
 	lastGoal := chunk[n-1].comp
 	if n > 1 && !isSpecial(lastGoal) {
 		numLastGoalRegs = len(lastGoal.Args)
@@ -462,6 +459,9 @@ func (ctx *compileCtx) nextStack() StackAddr {
 }
 
 func (ctx *compileCtx) nextAddr(x logic.Var) Addr {
+	if x == logic.AnonymousVar {
+		panic(fmt.Sprintf("Trying to allocate register for anonymous var"))
+	}
 	var addr Addr
 	if _, ok := ctx.permVars[x]; ok {
 		addr = ctx.nextStack()
@@ -471,16 +471,6 @@ func (ctx *compileCtx) nextAddr(x logic.Var) Addr {
 	ctx.register[x] = addr
 	ctx.content[addr] = x
 	return addr
-}
-
-func (ctx *compileCtx) addr(x logic.Var) Addr {
-	if x == logic.AnonymousVar {
-		panic(fmt.Sprintf("Trying to read address from anonymous var"))
-	}
-	if addr, ok := ctx.register[x]; ok {
-		return addr
-	}
-	return ctx.nextAddr(x)
 }
 
 // ---- get/unify/put variables
@@ -682,7 +672,7 @@ func (ctx *compileCtx) termAddr(term logic.Term) Addr {
 		return ConstantAddr{toConstant(t)}
 	case logic.Var:
 		ctx.ensureVar(t)
-		return ctx.addr(t)
+		return ctx.register[t]
 	}
 	addr := ctx.nextReg()
 	ctx.instrs = append(ctx.instrs, ctx.putTerm(term, addr)...)
