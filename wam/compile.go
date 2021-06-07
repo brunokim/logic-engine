@@ -556,10 +556,14 @@ func (ctx *compileClauseCtx) putVar(x logic.Var, regAddr RegAddr) Instruction {
 	if x == logic.AnonymousVar {
 		return putVariable{ctx.nextReg(), regAddr}
 	}
-	if addr, ok := ctx.register[x]; ok {
-		return putValue{addr, regAddr}
+	addr, ok := ctx.register[x]
+	if !ok {
+		return putVariable{ctx.nextAddr(x), regAddr}
 	}
-	return putVariable{ctx.nextAddr(x), regAddr}
+	if addr == regAddr {
+		return nil
+	}
+	return putValue{addr, regAddr}
 }
 
 // ---- get terms
@@ -639,7 +643,11 @@ func (ctx *compileClauseCtx) putTerm(term logic.Term, addr RegAddr) []Instructio
 	case logic.Int:
 		return []Instruction{putConstant{toConstant(t), addr}}
 	case logic.Var:
-		return []Instruction{ctx.putVar(t, addr)}
+		instr := ctx.putVar(t, addr)
+		if instr == nil {
+			return []Instruction{}
+		}
+		return []Instruction{instr}
 	case *logic.Comp:
 		instrs := make([]Instruction, len(t.Args)+1)
 		instrs[0] = putStruct{toFunctor(t.Indicator()), addr}

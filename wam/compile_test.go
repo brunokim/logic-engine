@@ -34,11 +34,10 @@ func TestCompile(t *testing.T) {
 				comp("nat", var_("X"))),
 			wam.DecodeClause(indicator("nat", 1),
 				comp("get_struct", atom("s/1"), var_("X0")),
-				comp("unify_variable", var_("X1")),
-				comp("put_value", var_("X1"), var_("X0")),
+				comp("unify_variable", var_("X0")),
 				comp("execute", atom("nat/1")),
 			),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			dsl.Clause(comp("take-1", var_("H"), list(var_("H")), ilist(var_("H"), var_("_")))),
