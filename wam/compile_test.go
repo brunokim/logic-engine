@@ -177,20 +177,11 @@ func TestCompile(t *testing.T) {
 				atom("!")),
 			wam.DecodeClause(indicator("term", 3),
 				comp("allocate", int_(0)),
-				// head
-				comp("get_variable", var_("X3"), var_("X0")),
-				comp("get_variable", var_("X4"), var_("X1")),
-				comp("get_variable", var_("X5"), var_("X2")),
-				// atom(...)
-				comp("put_value", var_("X3"), var_("X0")),
-				comp("put_value", var_("X4"), var_("X1")),
-				comp("put_value", var_("X5"), var_("X2")),
 				comp("call", atom("atom/3")),
-				// cut
 				comp("cut"),
 				comp("deallocate"),
 				comp("proceed", atom("run"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		// query :- =(
 		//   p({a:1, b:2|P1}, P1, P2),

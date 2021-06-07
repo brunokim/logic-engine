@@ -415,6 +415,10 @@ func DecodeClause(functor logic.Indicator, instructions ...logic.Term) *Clause {
 		instrs[i] = DecodeInstruction(instruction)
 	}
 	max := maxReg(instrs)
+	numParams := RegAddr(functor.Arity - 1)
+	if max < numParams {
+		max = numParams
+	}
 	return &Clause{
 		Functor:      toFunctor(functor),
 		NumRegisters: int(max) + 1,
