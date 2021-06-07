@@ -25,10 +25,9 @@ func TestCompile(t *testing.T) {
 		{
 			dsl.Clause(comp("=", var_("X"), var_("X"))),
 			wam.DecodeClause(indicator("=", 2),
-				comp("get_variable", var_("X2"), var_("X0")),
-				comp("get_value", var_("X2"), var_("X1")),
+				comp("get_value", var_("X0"), var_("X1")),
 				comp("proceed", atom("run"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			dsl.Clause(comp("nat", comp("s", var_("X"))),

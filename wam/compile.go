@@ -256,7 +256,7 @@ func chunkVars(chunk flatClause) varset {
 func permanentVars(clause flatClause) (varset, []flatClause, error) {
 	// Facts don't have permanent vars.
 	if len(clause) < 2 {
-		return varset{}, nil, nil
+		return varset{}, []flatClause{clause}, nil
 	}
 	// Split terms in chunks
 	chunks, err := getChunks(clause)
@@ -535,7 +535,11 @@ func (ctx *compileClauseCtx) getVar(x logic.Var, regAddr RegAddr) Instruction {
 	if addr, ok := ctx.register[x]; ok {
 		return getValue{addr, regAddr}
 	}
-	return getVariable{ctx.nextAddr(x), regAddr}
+	addr := ctx.nextAddr(x)
+	if addr == regAddr {
+		return nil
+	}
+	return getVariable{addr, regAddr}
 }
 
 func (ctx *compileClauseCtx) unifyVar(x logic.Var) Instruction {
@@ -570,7 +574,11 @@ func (ctx *compileClauseCtx) getTerm(term logic.Term, addr RegAddr) []Instructio
 		if t == logic.AnonymousVar {
 			return []Instruction{}
 		}
-		return []Instruction{ctx.getVar(t, addr)}
+		instr := ctx.getVar(t, addr)
+		if instr == nil {
+			return []Instruction{}
+		}
+		return []Instruction{instr}
 	case *logic.Comp:
 		instrs := make([]Instruction, len(t.Args)+1)
 		instrs[0] = getStruct{toFunctor(t.Indicator()), addr}
