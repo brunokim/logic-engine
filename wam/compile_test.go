@@ -209,7 +209,7 @@ func TestCompile(t *testing.T) {
 				// {b:2|P1}
 				comp("put_pair", atom("dict"), var_("X5")),
 				comp("unify_value", var_("X6")),
-				comp("unify_variable", var_("X7")), // P1=X7
+				comp("unify_variable", var_("X0")), // P1=X0
 				// {a:1, b:2|P1}
 				comp("put_pair", atom("dict"), var_("X3")),
 				comp("unify_value", var_("X4")),
@@ -217,33 +217,33 @@ func TestCompile(t *testing.T) {
 				// p({...}, P1, P2)
 				comp("put_struct", atom("p/3"), var_("X2")),
 				comp("unify_value", var_("X3")),
-				comp("unify_value", var_("X7")),
-				comp("unify_variable", var_("X8")), // P2=X8
+				comp("unify_value", var_("X0")),
+				comp("unify_variable", var_("X1")), // P2=X1
 				// a:1
-				comp("put_pair", atom("assoc"), var_("X11")),
+				comp("put_pair", atom("assoc"), var_("X9")),
 				comp("unify_constant", atom("a")),
 				comp("unify_constant", int_(1)),
 				// c:3
-				comp("put_pair", atom("assoc"), var_("X13")),
+				comp("put_pair", atom("assoc"), var_("X11")),
 				comp("unify_constant", atom("c")),
 				comp("unify_constant", int_(3)),
 				// {c:3|P2}
-				comp("put_pair", atom("dict"), var_("X12")),
-				comp("unify_value", var_("X13")),
-				comp("unify_value", var_("X8")),
-				// {a:1, c:3|P2}
 				comp("put_pair", atom("dict"), var_("X10")),
 				comp("unify_value", var_("X11")),
-				comp("unify_value", var_("X12")),
+				comp("unify_value", var_("X1")),
+				// {a:1, c:3|P2}
+				comp("put_pair", atom("dict"), var_("X8")),
+				comp("unify_value", var_("X9")),
 				// p({...}, _, _)
-				comp("put_struct", atom("p/3"), var_("X9")),
 				comp("unify_value", var_("X10")),
+				comp("put_struct", atom("p/3"), var_("X7")),
+				comp("unify_value", var_("X8")),
 				comp("unify_void"),
 				comp("unify_void"),
 				// =(..., ...)
-				comp("=", var_("X2"), var_("X9")),
+				comp("=", var_("X2"), var_("X7")),
 				comp("proceed", atom("run"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		// query :- f(g(h(W), W, Z), g(h(Z))).
 		{
@@ -268,22 +268,22 @@ func TestCompile(t *testing.T) {
 				comp("unify_value", var_("X5")),
 				// :- f(., .).
 				comp("execute", atom("f/2"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
+			// add(Set, {X:X|Set}, X).
 			dsl.Clause(comp("add", var_("Set"), idict(var_("X"), var_("X"), var_("Set")), var_("X"))),
 			wam.DecodeClause(indicator("add", 3),
-				comp("get_variable", var_("X3"), var_("X0")), // Set = X3
-				comp("get_pair", atom("dict"), var_("X1")),   // {X:X|Set}
-				comp("unify_variable", var_("X4")),
-				comp("unify_value", var_("X3")),
-				comp("get_variable", var_("X5"), var_("X2")), // X = X5
+				comp("get_pair", atom("dict"), var_("X1")), // {X:X|Set}
+				comp("unify_variable", var_("X3")),
+				comp("unify_value", var_("X0")),              // Set = X0
+				comp("get_variable", var_("X1"), var_("X2")), // X = X1
 				// X:X
-				comp("get_pair", atom("assoc"), var_("X4")),
-				comp("unify_value", var_("X5")),
-				comp("unify_value", var_("X5")),
+				comp("get_pair", atom("assoc"), var_("X3")),
+				comp("unify_value", var_("X1")),
+				comp("unify_value", var_("X1")),
 				comp("proceed", atom("run"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			dsl.Clause(comp("f"),
@@ -291,7 +291,7 @@ func TestCompile(t *testing.T) {
 			wam.DecodeClause(indicator("f", 0),
 				comp("put_variable", var_("X1"), var_("X0")),
 				comp("execute", atom("list"), atom("length/1"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			// X is temporary, because the whole clause is a single chunk.
@@ -299,11 +299,9 @@ func TestCompile(t *testing.T) {
 				comp("!"),
 				comp("g", var_("X"))),
 			wam.DecodeClause(indicator("f", 1),
-				comp("get_variable", var_("X1"), var_("X0")),
 				atom("neck_cut"),
-				comp("put_value", var_("X1"), var_("X0")),
 				comp("execute", atom("g/1"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			// X and Y are temporary.
@@ -312,14 +310,12 @@ func TestCompile(t *testing.T) {
 				comp("=", comp("s", var_("Y")), var_("X")),
 				comp("g", var_("X"))),
 			wam.DecodeClause(indicator("f", 1),
-				comp("get_variable", var_("X2"), var_("X0")),
 				atom("neck_cut"),
-				comp("put_struct", atom("s/1"), var_("X3")),
-				comp("unify_variable", var_("X4")),
-				comp("=", var_("X3"), var_("X2")),
-				comp("put_value", var_("X2"), var_("X0")),
+				comp("put_struct", atom("s/1"), var_("X2")),
+				comp("unify_variable", var_("X1")),
+				comp("=", var_("X2"), var_("X0")),
 				comp("execute", atom("g/1"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			// X and Z are temporary, because they are only present in a single chunk each.
@@ -332,20 +328,17 @@ func TestCompile(t *testing.T) {
 				comp("h", var_("Y"), var_("Z"))),
 			wam.DecodeClause(indicator("f", 1),
 				comp("allocate", int_(1)),
-				comp("get_variable", var_("X2"), var_("X0")),
 				atom("neck_cut"),
-				comp("put_struct", atom("s/1"), var_("X3")),
+				comp("put_struct", atom("s/1"), var_("X2")),
 				comp("unify_variable", var_("Y0")),
-				comp("=", var_("X3"), var_("X2")),
-				comp("put_value", var_("X2"), var_("X0")),
+				comp("=", var_("X2"), var_("X0")),
 				comp("call", atom("g/1")),
-				comp("put_variable", var_("X4"), var_("X5")),
-				comp("=", var_("X4"), int_(1)),
+				comp("put_variable", var_("X1"), var_("X3")), // TODO: reset registers every chunk
+				comp("=", var_("X1"), int_(1)),
 				comp("put_value", var_("Y0"), var_("X0")),
-				comp("put_value", var_("X4"), var_("X1")),
 				atom("deallocate"),
 				comp("execute", atom("h/2"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			// Even though the whole if body is inline, Y is present in different branches,
@@ -357,25 +350,24 @@ func TestCompile(t *testing.T) {
 				comp("f", var_("Y"))),
 			wam.DecodeClause(indicator("f_aux", 1),
 				comp("allocate", int_(1)),
-				comp("get_variable", var_("X3"), var_("X0")),
-				comp("put_variable", var_("Y0"), var_("X4")),
+				comp("put_variable", var_("Y0"), var_("X3")),
 				comp("try", comp("instr", ptr(nil), int_(-1))),
 				comp("trust", comp("instr", ptr(nil), int_(-2))),
 				comp("label", int_(1)),
-				comp("builtin", atom("\\=="), ptr(emptyBuiltinFunc), var_("X3"), atom("[]")),
+				comp("builtin", atom("\\=="), ptr(emptyBuiltinFunc), var_("X0"), atom("[]")),
 				atom("cut"),
-				comp("=", var_("Y0"), var_("X3")),
+				comp("=", var_("Y0"), var_("X0")),
 				comp("jump", comp("instr", ptr(nil), int_(-3))),
 				comp("label", int_(2)),
-				comp("put_pair", atom("list"), var_("X5")),
+				comp("put_pair", atom("list"), var_("X4")),
 				comp("unify_constant", int_(42)),
 				comp("unify_constant", atom("[]")),
-				comp("=", var_("Y0"), var_("X5")),
+				comp("=", var_("Y0"), var_("X4")),
 				comp("label", int_(3)),
 				comp("put_value", var_("Y0"), var_("X0")),
 				atom("deallocate"),
 				comp("execute", atom("f/1"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 	}
 	for _, test := range tests {
