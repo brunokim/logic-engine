@@ -40,17 +40,17 @@ func TestCompile(t *testing.T) {
 			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
+			// 'take-1'(H, [H], [H|_]).
 			dsl.Clause(comp("take-1", var_("H"), list(var_("H")), ilist(var_("H"), var_("_")))),
 			wam.DecodeClause(indicator("take-1", 3),
-				comp("get_variable", var_("X3"), var_("X0")),
 				comp("get_pair", atom("list"), var_("X1")),
-				comp("unify_value", var_("X3")),
+				comp("unify_value", var_("X0")),
 				comp("unify_constant", atom("[]")),
 				comp("get_pair", atom("list"), var_("X2")),
-				comp("unify_value", var_("X3")),
+				comp("unify_value", var_("X0")),
 				comp("unify_void"),
 				comp("proceed", atom("run"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			dsl.Clause(comp("f", var_("X"), var_("Y")),
@@ -59,10 +59,8 @@ func TestCompile(t *testing.T) {
 			wam.DecodeClause(indicator("f", 2),
 				comp("allocate", int_(2)),
 				// head
-				comp("get_variable", var_("X2"), var_("X0")),
 				comp("get_variable", var_("Y0"), var_("X1")),
 				// body 1
-				comp("put_value", var_("X2"), var_("X0")),
 				comp("put_variable", var_("Y1"), var_("X1")),
 				comp("call", atom("g/2")),
 				// body 2
@@ -70,7 +68,7 @@ func TestCompile(t *testing.T) {
 				comp("put_value", var_("Y1"), var_("X1")),
 				comp("deallocate"),
 				comp("execute", atom("h/2"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			dsl.Clause(comp("mul", int_(0), var_("_"), int_(0))),
@@ -78,7 +76,7 @@ func TestCompile(t *testing.T) {
 				comp("get_constant", int_(0), var_("X0")),
 				comp("get_constant", int_(0), var_("X2")),
 				comp("proceed", atom("run"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			dsl.Clause(comp("non-empty", ilist(var_("_"), var_("_")))),
@@ -87,7 +85,7 @@ func TestCompile(t *testing.T) {
 				comp("unify_void"),
 				comp("unify_void"),
 				comp("proceed", atom("run"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			dsl.Clause(comp(">=3", comp("s", comp("s", comp("s", var_("_")))))),
@@ -99,7 +97,7 @@ func TestCompile(t *testing.T) {
 				comp("get_struct", atom("s/1"), var_("X2")),
 				comp("unify_void"),
 				comp("proceed", atom("run"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			dsl.Clause(comp("f", list(comp("g", atom("a")), comp("h", atom("b"))))),
@@ -115,7 +113,7 @@ func TestCompile(t *testing.T) {
 				comp("get_struct", atom("h/1"), var_("X3")),
 				comp("unify_constant", atom("b")),
 				comp("proceed", atom("run"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			dsl.Clause(comp("query"),
@@ -131,7 +129,7 @@ func TestCompile(t *testing.T) {
 				comp("unify_value", var_("X1")),
 				comp("unify_value", var_("X4")),
 				comp("execute", atom("make/1"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			dsl.Clause(comp("mul", var_("A"), comp("s", var_("B")), comp("s", var_("P"))),
@@ -140,13 +138,11 @@ func TestCompile(t *testing.T) {
 			wam.DecodeClause(indicator("mul", 3),
 				comp("allocate", int_(3)),
 				// head
-				comp("get_variable", var_("X3"), var_("X0")),
 				comp("get_struct", atom("s/1"), var_("X1")),
 				comp("unify_variable", var_("Y0")),
 				comp("get_struct", atom("s/1"), var_("X2")),
 				comp("unify_variable", var_("Y1")),
 				// body 1
-				comp("put_value", var_("X3"), var_("X0")),
 				comp("put_value", var_("Y0"), var_("X1")),
 				comp("put_variable", var_("Y2"), var_("X2")),
 				comp("call", atom("mul/3")),
@@ -156,7 +152,7 @@ func TestCompile(t *testing.T) {
 				comp("put_value", var_("Y1"), var_("X2")),
 				comp("deallocate"),
 				comp("execute", atom("add/3"))),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			dsl.Clause(comp("if*", var_("Cond"), var_("Then"), var_("Else")),
@@ -166,15 +162,14 @@ func TestCompile(t *testing.T) {
 			wam.DecodeClause(indicator("if*", 3),
 				comp("allocate", int_(1)),
 				// head
-				comp("get_variable", var_("X3"), var_("X0")),
 				comp("get_variable", var_("Y0"), var_("X1")),
-				comp("get_variable", var_("X4"), var_("X2")),
+				comp("get_variable", var_("X1"), var_("X2")), // TODO: singleton vars
 				// body
-				comp("call_meta", var_("X3"), list()),
+				comp("call_meta", var_("X0"), list()),
 				comp("cut"),
 				comp("deallocate"),
 				comp("execute_meta", var_("Y0"), list())),
-			nil,
+			[]wam.CompileOption{wam.UseConflictAvoidanceAllocationStrategy{}},
 		},
 		{
 			dsl.Clause(comp("term", var_("Term"), var_("L1"), var_("L2")),
