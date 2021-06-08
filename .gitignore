@@ -5,6 +5,8 @@
 
 parse_only
 !parse_only/
+repl
+!repl/
 
 fuzz/*/
 
