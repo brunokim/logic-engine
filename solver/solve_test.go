@@ -26,7 +26,8 @@ var (
 )
 
 func TestSolve(t *testing.T) {
-	s, err := solver.New(`
+	s := solver.New()
+	err := s.Consult(`
         nat(0).
         nat(s(X)) :- nat(X).
     `)
@@ -58,7 +59,8 @@ func TestSolve(t *testing.T) {
 
 func TestSolve_All(t *testing.T) {
 	succ := func(t logic.Term) logic.Term { return comp("s", t) }
-	s, err := solver.New(`
+	s := solver.New()
+	err := s.Consult(`
         add(0, S, S).
         add(s(A), B, s(S)) :-
             add(A, B, S).
@@ -84,7 +86,8 @@ func TestSolve_All(t *testing.T) {
 }
 
 func TestSolve_Cancel(t *testing.T) {
-	s, err := solver.New("loop :- loop.")
+	s := solver.New()
+	err := s.Consult("loop :- loop.")
 	if err != nil {
 		t.Fatalf("New, got err: %v", err)
 	}
@@ -135,10 +138,7 @@ func TestSolve_Lib(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		s, err := solver.New("")
-		if err != nil {
-			t.Fatal(err)
-		}
+		s := solver.New()
 		var got []solver.Solution
 		solutions, _ := s.Query("import(lists), " + test.query)
 		for solution := range solutions {

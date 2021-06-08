@@ -77,32 +77,37 @@ func (s Solution) String() string {
 	return b.String()
 }
 
-// New creates a Solver from parsing and compiling the provided program.
-func New(text string) (*Solver, error) {
-	clauses, err := parser.ParseRules(text)
-	if err != nil {
-		return nil, err
-	}
-	return NewSolverFromRules(clauses)
-}
-
-// NewFromClauses is like New, with already parsed clauses.
-func NewSolverFromRules(rules []logic.Rule) (*Solver, error) {
+// New creates a Solver with builtin packages.
+func New() *Solver {
 	solver := new(Solver)
 	solver.m = wam.NewMachine()
 	for _, pkg := range libPkgs {
 		if err := solver.m.AddPackage(pkg); err != nil {
-			return nil, err
+			panic(fmt.Errorf("Unexpected error adding builtin pkg: %v", err))
 		}
 	}
+	return solver
+}
+
+// Consult parses and compiles the provided program into the solver.
+func (s *Solver) Consult(text string) error {
+	clauses, err := parser.ParseRules(text)
+	if err != nil {
+		return err
+	}
+	return s.ConsultRules(clauses)
+}
+
+// ConsultRules is like Consult, with already parsed clauses.
+func (s *Solver) ConsultRules(rules []logic.Rule) error {
 	pkg, err := wam.CompilePackage(rules)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if err := solver.m.AddPackage(pkg); err != nil {
-		return nil, err
+	if err := s.m.AddPackage(pkg); err != nil {
+		return err
 	}
-	return solver, nil
+	return nil
 }
 
 // SetIterLimit sets a maximum number of iterations to the internal machine.

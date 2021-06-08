@@ -10,7 +10,8 @@ func Fuzz(data []byte) int {
 	if err != nil {
 		return 0
 	}
-	_, err = solver.NewSolverFromRules(rules)
+	s := solver.New()
+	err = s.ConsultRules(rules)
 	if err != nil {
 		panic(err)
 	}

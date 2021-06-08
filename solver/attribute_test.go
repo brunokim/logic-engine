@@ -24,7 +24,8 @@ func firstSolution(solutions <-chan solver.Solution, cancel func()) (solver.Solu
 // ----
 
 func TestCheckAttribute(t *testing.T) {
-	s, err := solver.New(`
+	s := solver.New()
+	err := s.Consult(`
         package(range, [], ['in_range/3']).
 
         in_range(X, Min, Max) :-
@@ -68,7 +69,8 @@ func TestCheckAttribute(t *testing.T) {
 }
 
 func TestAttributeBacktrack(t *testing.T) {
-	s, err := solver.New(`
+	s := solver.New()
+	err := s.Consult(`
         package(range, [], ['test/1']).
 
         test_value(1).
@@ -124,7 +126,8 @@ func TestAttributeBacktrack(t *testing.T) {
 }
 
 func TestDeleteAttribute(t *testing.T) {
-	s, err := solver.New(`
+	s := solver.New()
+	err := s.Consult(`
         package(only, [], []).
 
         join_attribute(X, Y) :-
@@ -163,10 +166,7 @@ func TestDeleteAttribute(t *testing.T) {
 }
 
 func TestDif(t *testing.T) {
-	s, err := solver.New(``)
-	if err != nil {
-		t.Fatal(err)
-	}
+	s := solver.New()
 	s.SetDebug("debugtest/attribute-dif.jsonl")
 	s.SetIterLimit(1000)
 
