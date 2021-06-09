@@ -894,7 +894,7 @@ func TestCallMeta(t *testing.T) {
 	pkg, err := wam.CompilePackage([]logic.Rule{
 		dsl.Clause(comp("p", atom("a"))),
 		dsl.Clause(comp("q", atom("b"))),
-	})
+	}, wam.UseConflictAvoidanceAllocationStrategy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -923,7 +923,7 @@ func TestIf(t *testing.T) {
 				comp("=", var_("X"), var_("H")),
 				atom("true"),
 				comp("member", var_("X"), var_("T")))),
-	})
+	}, wam.UseConflictAvoidanceAllocationStrategy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -948,7 +948,7 @@ func TestNextSolution(t *testing.T) {
 		dsl.Clause(comp("add", int_(0), var_("S"), var_("S"))),
 		dsl.Clause(comp("add", comp("s", var_("A")), var_("B"), comp("s", var_("S"))),
 			comp("add", var_("A"), var_("B"), var_("S"))),
-	})
+	}, wam.UseConflictAvoidanceAllocationStrategy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1003,7 +1003,7 @@ func TestReset(t *testing.T) {
 		dsl.Clause(comp("parent", atom("diana"), atom("william"))),
 		dsl.Clause(comp("parent", atom("charles"), atom("harry"))),
 		dsl.Clause(comp("parent", atom("diana"), atom("harry"))),
-	})
+	}, wam.UseConflictAvoidanceAllocationStrategy{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1156,7 +1156,7 @@ func TestCallPkg(t *testing.T) {
 		dsl.Clause(comp("package", atom("pkg1"), list(), list(atom("public/1")))),
 		dsl.Clause(comp("public", atom("a"))),
 		dsl.Clause(comp("private", atom("b"))),
-	})
+	}, wam.UseConflictAvoidanceAllocationStrategy{})
 	if err != nil {
 		t.Fatal(err)
 	}
