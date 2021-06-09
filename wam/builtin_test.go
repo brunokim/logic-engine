@@ -39,7 +39,7 @@ func _TestBacktrackingIf(t *testing.T) {
 		dsl.Clause(comp("test", int_(2))),
 		dsl.Clause(comp("test", int_(3))),
 		dsl.Clause(comp("test", int_(4))),
-	})
+	}, wam.UseConflictAvoidanceAllocationStrategy{})
 	if err != nil {
 		t.Fatal(err)
 	}
