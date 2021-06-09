@@ -154,20 +154,48 @@ func phrase(dcg logic.Term, list, rest logic.Term) (flatClause, error) {
 
 // ---- permanent vars
 
-func isControl(term *logic.Comp) bool {
-	_, isControlFunctor := controlFunctors[term.Functor]
-	_, isControlIndicator := controlIndicators[term.Indicator()]
-	return isControlFunctor || isControlIndicator
+// Compute the permanent vars of a logic clause.
+//
+// A permanent var is a local var in a call that is referenced in more
+// than one chunk. They must be stored in the environment stack, or
+// otherwise they may be overwritten if stored in a register, since a
+// body term may use them in any ways.
+func permanentVars(clause flatClause) (varset, []flatClause, error) {
+	// Facts don't have permanent vars.
+	if len(clause) < 2 {
+		return varset{}, []flatClause{clause}, nil
+	}
+	// Split terms in chunks
+	chunks, err := getChunks(clause)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Add vars in first chunk.
+	seen := chunkVars(chunks[0])
+	perm := make(varset)
+	// Walk through other chunks; vars that appear in more than
+	// one chunk are permanent.
+	for _, chunk := range chunks[1:] {
+		for x := range chunkVars(chunk) {
+			if _, ok := seen[x]; ok {
+				perm[x] = empty
+			} else {
+				seen[x] = empty
+			}
+		}
+	}
+	delete(perm, logic.AnonymousVar)
+	return perm, chunks, nil
 }
 
-func isInlined(term *logic.Comp) bool {
-	_, isInlinedFunctor := inlinedFunctors[term.Functor]
-	_, isInlinedIndicator := inlinedIndicators[term.Indicator()]
-	return isInlinedFunctor || isInlinedIndicator
-}
-
-func isSpecial(term *logic.Comp) bool {
-	return isControl(term) || isInlined(term)
+func chunkVars(chunk flatClause) varset {
+	vars := make(varset)
+	for _, goal := range chunk {
+		for _, x := range logic.Vars(goal.comp) {
+			vars[x] = empty
+		}
+	}
+	return vars
 }
 
 // Group terms into chunks, consisting of a sequence of inline terms ended by a predicate call.
@@ -237,48 +265,20 @@ func controlGoals(term *logic.Comp) (flatClause, error) {
 	panic(fmt.Sprintf("Unimplemented control goals for %v", term))
 }
 
-func chunkVars(chunk flatClause) varset {
-	vars := make(varset)
-	for _, goal := range chunk {
-		for _, x := range logic.Vars(goal.comp) {
-			vars[x] = empty
-		}
-	}
-	return vars
+func isControl(term *logic.Comp) bool {
+	_, isControlFunctor := controlFunctors[term.Functor]
+	_, isControlIndicator := controlIndicators[term.Indicator()]
+	return isControlFunctor || isControlIndicator
 }
 
-// Compute the permanent vars of a logic clause.
-//
-// A permanent var is a local var in a call that is referenced in more
-// than one chunk. They must be stored in the environment stack, or
-// otherwise they may be overwritten if stored in a register, since a
-// body term may use them in any ways.
-func permanentVars(clause flatClause) (varset, []flatClause, error) {
-	// Facts don't have permanent vars.
-	if len(clause) < 2 {
-		return varset{}, []flatClause{clause}, nil
-	}
-	// Split terms in chunks
-	chunks, err := getChunks(clause)
-	if err != nil {
-		return nil, nil, err
-	}
-	// Add vars in first chunk.
-	seen := chunkVars(chunks[0])
-	perm := make(varset)
-	// Walk through other chunks; vars that appear in more than
-	// one chunk are permanent.
-	for _, chunk := range chunks[1:] {
-		for x := range chunkVars(chunk) {
-			if _, ok := seen[x]; ok {
-				perm[x] = empty
-			} else {
-				seen[x] = empty
-			}
-		}
-	}
-	delete(perm, logic.AnonymousVar)
-	return perm, chunks, nil
+func isInlined(term *logic.Comp) bool {
+	_, isInlinedFunctor := inlinedFunctors[term.Functor]
+	_, isInlinedIndicator := inlinedIndicators[term.Indicator()]
+	return isInlinedFunctor || isInlinedIndicator
+}
+
+func isSpecial(term *logic.Comp) bool {
+	return isControl(term) || isInlined(term)
 }
 
 // ---- regset
@@ -767,19 +767,6 @@ func Compile(clause *logic.Clause, options ...CompileOption) (*Clause, error) {
 	return newCompilePkgCtx(opts).compile(goals)
 }
 
-func (ctx *compilePkgCtx) compile(clause flatClause) (*Clause, error) {
-	permVars, chunks, err := permanentVars(clause)
-	if err != nil {
-		return nil, err
-	}
-	c, err := ctx.compile0(clause, chunks, permVars)
-	if err != nil {
-		return nil, err
-	}
-	c.Code = optimizeLastCall(c.Code)
-	return c, nil
-}
-
 func compileQuery(query []logic.Term) (*Clause, error) {
 	dummy := make(flatClause, len(query)+1)
 	dummy[0] = goal{"", logic.NewComp("dummy")}
@@ -1054,140 +1041,6 @@ func (ctx *compileClauseCtx) compileDefaultTerm(g goal) ([]Instruction, error) {
 	return ctx.instrs, nil
 }
 
-func (pkgCtx *compilePkgCtx) compile0(clause flatClause, chunks []flatClause, permVars varset) (*Clause, error) {
-	functor := toFunctor(clause[0].comp.Indicator())
-	c := &Clause{Functor: functor}
-	ctx := newCompileClauseCtx(pkgCtx, c, numArgs(clause), permVars, tempAllocationSets(chunks, permVars))
-	// Compile clause head
-	for i, term := range clause[0].comp.Args {
-		c.Code = append(c.Code, ctx.getTerm(term, RegAddr(i))...)
-	}
-	for len(ctx.delayed) > 0 {
-		buf := ctx.delayed
-		ctx.delayed = nil
-		for _, compound := range buf {
-			c.Code = append(c.Code, ctx.getTerm(compound.t, compound.addr)...)
-		}
-	}
-	// Compile clause body
-	body, err := ctx.flattenControl(clause[1:])
-	if err != nil {
-		return nil, err
-	}
-	for i, term := range body {
-		instrs, err := ctx.compileBodyTerm(i, term)
-		if err != nil {
-			return nil, err
-		}
-		c.Code = append(c.Code, instrs...)
-	}
-	// Add "proceed" instruction for facts and when a body doesn't end with a call.
-	if requiresProceed(c.Code) {
-		c.Code = append(c.Code, proceed{Run})
-	}
-	// If call requires an environment, add an allocate-deallocate pair to the clause.
-	if ctx.topStack > 0 || requiresEnv(c.Code) {
-		c.Code = append([]Instruction{allocate{int(ctx.topStack)}}, c.Code...)
-		c.Code = append(c.Code, deallocate{})
-	}
-	c.NumRegisters = int(ctx.topReg)
-	c.Vars = ctx.content
-	return c, nil
-}
-
-// If instructions don't end with call, adds a proceed instruction.
-func requiresProceed(code []Instruction) bool {
-	n := len(code)
-	if n == 0 {
-		return true
-	}
-	_, isLastCall := code[n-1].(call)
-	_, isLastCallMeta := code[n-1].(callMeta)
-	_, isLastProceed := code[n-1].(proceed)
-	return !(isLastCall || isLastCallMeta || isLastProceed)
-}
-
-func requiresEnv(code []Instruction) bool {
-	for i, instr := range code {
-		switch instr.(type) {
-		case cut:
-			return true
-		case call:
-			if i < len(code)-1 {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func optimizeLastCall(code []Instruction) []Instruction {
-	// If code ends with deallocate, swap it with the previous instruction,
-	// that may be either call or callMeta.
-	{
-		n := len(code)
-		dealloc, isdeallocate := code[n-1].(deallocate)
-		if isdeallocate {
-			code[n-2], code[n-1] = dealloc, code[n-2]
-		}
-	}
-	// If code ends with call, change it for execute
-	{
-		n := len(code)
-		call, isCall := code[n-1].(call)
-		if isCall {
-			code[n-1] = execute{Pkg: call.Pkg, Functor: call.Functor}
-		}
-	}
-	// If code ends with callMeta, change it for executeMeta
-	{
-		n := len(code)
-		call, isCallMeta := code[n-1].(callMeta)
-		if isCallMeta {
-			code[n-1] = executeMeta{call.Addr, call.Params}
-		}
-	}
-	return code
-}
-
-// ASSUMPTION: labels are only used for jumping around within a clause.
-// ASSUMPTION: labels are only used with try/retry/trust/jump/switch instructions.
-func optimizeLabels(code []Instruction) []Instruction {
-	var buf []Instruction
-	labelPos := make(map[int]int)
-	pending := make(map[int]struct{})
-	// Remove labels from code and store their positions.
-	// Also save the location of instructions that reference labels.
-	for _, instr := range code {
-		if l, ok := instr.(label); ok {
-			labelPos[l.ID] = len(buf)
-			continue
-		}
-		for _, instrAddr := range instructionPointers(instr) {
-			if instrAddr.Pos >= 0 {
-				continue
-			}
-			pending[len(buf)] = empty
-		}
-		buf = append(buf, instr)
-	}
-	// Replace relative references with absolute references.
-	for i, instr := range buf {
-		buf[i] = replaceInstructionPointer(instr, func(instrAddr InstrAddr) InstrAddr {
-			if instrAddr.Pos >= 0 {
-				return instrAddr
-			}
-			labelID := -instrAddr.Pos
-			pos, ok := labelPos[labelID]
-			if !ok {
-				panic(fmt.Sprintf("Unknown label %d", labelID))
-			}
-			return InstrAddr{instrAddr.Clause, pos}
-		})
-	}
-	return buf
-}
-
 // ---- indexing
 
 // Create level-1 index of clauses, based on their first arg.
@@ -1409,6 +1262,153 @@ func addChoiceLinks(clauses []*Clause) {
 		}
 		clause.Code = append([]Instruction{instr}, clause.Code...)
 	}
+}
+
+func (ctx *compilePkgCtx) compile(clause flatClause) (*Clause, error) {
+	permVars, chunks, err := permanentVars(clause)
+	if err != nil {
+		return nil, err
+	}
+	c, err := ctx.compile0(clause, chunks, permVars)
+	if err != nil {
+		return nil, err
+	}
+	c.Code = optimizeLastCall(c.Code)
+	return c, nil
+}
+
+func (pkgCtx *compilePkgCtx) compile0(clause flatClause, chunks []flatClause, permVars varset) (*Clause, error) {
+	functor := toFunctor(clause[0].comp.Indicator())
+	c := &Clause{Functor: functor}
+	ctx := newCompileClauseCtx(pkgCtx, c, numArgs(clause), permVars, tempAllocationSets(chunks, permVars))
+	// Compile clause head
+	for i, term := range clause[0].comp.Args {
+		c.Code = append(c.Code, ctx.getTerm(term, RegAddr(i))...)
+	}
+	for len(ctx.delayed) > 0 {
+		buf := ctx.delayed
+		ctx.delayed = nil
+		for _, compound := range buf {
+			c.Code = append(c.Code, ctx.getTerm(compound.t, compound.addr)...)
+		}
+	}
+	// Compile clause body
+	body, err := ctx.flattenControl(clause[1:])
+	if err != nil {
+		return nil, err
+	}
+	for i, term := range body {
+		instrs, err := ctx.compileBodyTerm(i, term)
+		if err != nil {
+			return nil, err
+		}
+		c.Code = append(c.Code, instrs...)
+	}
+	// Add "proceed" instruction for facts and when a body doesn't end with a call.
+	if requiresProceed(c.Code) {
+		c.Code = append(c.Code, proceed{Run})
+	}
+	// If call requires an environment, add an allocate-deallocate pair to the clause.
+	if ctx.topStack > 0 || requiresEnv(c.Code) {
+		c.Code = append([]Instruction{allocate{int(ctx.topStack)}}, c.Code...)
+		c.Code = append(c.Code, deallocate{})
+	}
+	c.NumRegisters = int(ctx.topReg)
+	c.Vars = ctx.content
+	return c, nil
+}
+
+// If instructions don't end with call, adds a proceed instruction.
+func requiresProceed(code []Instruction) bool {
+	n := len(code)
+	if n == 0 {
+		return true
+	}
+	_, isLastCall := code[n-1].(call)
+	_, isLastCallMeta := code[n-1].(callMeta)
+	_, isLastProceed := code[n-1].(proceed)
+	return !(isLastCall || isLastCallMeta || isLastProceed)
+}
+
+func requiresEnv(code []Instruction) bool {
+	for i, instr := range code {
+		switch instr.(type) {
+		case cut:
+			return true
+		case call:
+			if i < len(code)-1 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func optimizeLastCall(code []Instruction) []Instruction {
+	// If code ends with deallocate, swap it with the previous instruction,
+	// that may be either call or callMeta.
+	{
+		n := len(code)
+		dealloc, isdeallocate := code[n-1].(deallocate)
+		if isdeallocate {
+			code[n-2], code[n-1] = dealloc, code[n-2]
+		}
+	}
+	// If code ends with call, change it for execute
+	{
+		n := len(code)
+		call, isCall := code[n-1].(call)
+		if isCall {
+			code[n-1] = execute{Pkg: call.Pkg, Functor: call.Functor}
+		}
+	}
+	// If code ends with callMeta, change it for executeMeta
+	{
+		n := len(code)
+		call, isCallMeta := code[n-1].(callMeta)
+		if isCallMeta {
+			code[n-1] = executeMeta{call.Addr, call.Params}
+		}
+	}
+	return code
+}
+
+// ASSUMPTION: labels are only used for jumping around within a clause.
+// ASSUMPTION: labels are only used with try/retry/trust/jump/switch instructions.
+func optimizeLabels(code []Instruction) []Instruction {
+	var buf []Instruction
+	labelPos := make(map[int]int)
+	pending := make(map[int]struct{})
+	// Remove labels from code and store their positions.
+	// Also save the location of instructions that reference labels.
+	for _, instr := range code {
+		if l, ok := instr.(label); ok {
+			labelPos[l.ID] = len(buf)
+			continue
+		}
+		for _, instrAddr := range instructionPointers(instr) {
+			if instrAddr.Pos >= 0 {
+				continue
+			}
+			pending[len(buf)] = empty
+		}
+		buf = append(buf, instr)
+	}
+	// Replace relative references with absolute references.
+	for i, instr := range buf {
+		buf[i] = replaceInstructionPointer(instr, func(instrAddr InstrAddr) InstrAddr {
+			if instrAddr.Pos >= 0 {
+				return instrAddr
+			}
+			labelID := -instrAddr.Pos
+			pos, ok := labelPos[labelID]
+			if !ok {
+				panic(fmt.Sprintf("Unknown label %d", labelID))
+			}
+			return InstrAddr{instrAddr.Clause, pos}
+		})
+	}
+	return buf
 }
 
 // ----
