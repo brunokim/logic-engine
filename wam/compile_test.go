@@ -600,7 +600,7 @@ func TestCompilePackage(t *testing.T) {
 		dsl.Clause(comp("g", var_("A"), var_("B")),
 			comp("g", var_("A"), var_("B"), int_(3))),
 		dsl.Clause(comp("g", int_(1), int_(2), var_("_"))),
-	})
+	}, wam.UseConflictAvoidanceAllocationStrategy{})
 	if err != nil {
 		t.Fatal(err)
 	}
