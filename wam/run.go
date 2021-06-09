@@ -115,10 +115,9 @@ func (m *Machine) NextSolution() (map[logic.Var]logic.Term, error) {
 	return m.runOnce()
 }
 
-// Interrupt signals the machine to shutdown, and blocks until it has received
-// the signal.
+// Interrupt signals the machine to shutdown.
 func (m *Machine) Interrupt() {
-	m.interrupt <- struct{}{}
+	close(m.interrupt)
 }
 
 func (m *Machine) growRegisters(clause *Clause) {
