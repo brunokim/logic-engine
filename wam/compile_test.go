@@ -462,8 +462,8 @@ var (
 	fList1 = wam.DecodeClause(indicator("f", 1),
 		comp("retry_me_else", comp("instr", ptr(fStructG2), int_(0))),
 		comp("get_pair", atom("list"), var_("X0")),
+		comp("unify_variable", var_("X0")),
 		comp("unify_variable", var_("X1")),
-		comp("unify_variable", var_("X2")),
 		comp("proceed", atom("run")))
 	fStructG2 = wam.DecodeClause(indicator("f", 1),
 		comp("retry_me_else", comp("instr", ptr(fList2), int_(0))),
@@ -565,7 +565,7 @@ func TestCompileClauses(t *testing.T) {
 	}
 	// Need to ignore self-referential fields because go-cmp can't handle them.
 	for _, test := range tests {
-		pkg, err := wam.CompilePackage(test.rules, wam.KeepLabels{})
+		pkg, err := wam.CompilePackage(test.rules, wam.KeepLabels{}, wam.UseConflictAvoidanceAllocationStrategy{})
 		if err != nil {
 			t.Fatal(err)
 		}
