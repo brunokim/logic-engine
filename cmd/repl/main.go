@@ -18,6 +18,7 @@ import (
 var (
 	consultFiles = flag.String("consult-files", "", "Comma-separated files to consult, in order")
 	query        = flag.String("query", "", "Initial query to issue")
+	interactive  = flag.Bool("interactive", true, "Whether the REPL is interactive")
 )
 
 type inputState int
@@ -35,6 +36,9 @@ type ctx struct {
 
 func main() {
 	flag.Parse()
+	if !*interactive && len(*query) == 0 {
+		log.Fatal("No query provided for non-interactive REPL")
+	}
 
 	ctx := ctx{}
 	ctx.interrupt = make(chan os.Signal, 1)
@@ -80,8 +84,19 @@ func (ctx ctx) mainLoop() {
 	var solutions <-chan solver.Solution
 	var cancel func()
 	if len(*query) > 0 {
-		solutions, cancel = ctx.solver.Query(*query)
+		solutions, cancel = ctx.solver.Query(fixQuery(*query))
 		state = enumerateSolutions
+	}
+	if !*interactive {
+		hasSolutions := false
+		for solution := range solutions {
+			hasSolutions = true
+			printSolution(solution, true)
+		}
+		if !hasSolutions {
+			printSolution(nil, false)
+		}
+		return
 	}
 	for {
 		switch state {
@@ -124,8 +139,11 @@ func (ctx ctx) readQuery() (string, bool) {
 	}
 	query := strings.Join(lines, " ")
 	ctx.readline.SaveHistory(query)
-	query = query[:len(query)-1] + "," // Change final '.' to ',' for successful parsing.
-	return query, false
+	return fixQuery(query), false
+}
+
+func fixQuery(query string) string {
+	return query[:len(query)-1] + "," // Change final '.' to ',' for successful parsing.
 }
 
 func (ctx ctx) solutionState(solutions <-chan solver.Solution, cancel func()) bool {
@@ -135,14 +153,8 @@ func (ctx ctx) solutionState(solutions <-chan solver.Solution, cancel func()) bo
 	}
 	select {
 	case solution, ok := <-solutions:
-		if !ok {
-			fmt.Println("false.")
+		if isClose := printSolution(solution, ok); isClose {
 			return true
-		}
-		if len(solution) == 0 {
-			fmt.Println("true")
-		} else {
-			fmt.Println(solution)
 		}
 		if isClose := ctx.readCommand(); isClose {
 			cancel()
@@ -153,6 +165,19 @@ func (ctx ctx) solutionState(solutions <-chan solver.Solution, cancel func()) bo
 		cancel()
 		return true
 	}
+}
+
+func printSolution(solution solver.Solution, ok bool) bool {
+	if !ok {
+		fmt.Println("false.")
+		return true
+	}
+	if len(solution) == 0 {
+		fmt.Println("true")
+	} else {
+		fmt.Println(solution)
+	}
+	return false
 }
 
 func (ctx ctx) readCommand() bool {
