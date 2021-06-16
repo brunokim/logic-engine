@@ -1,16 +1,21 @@
 from collections import defaultdict
 
+
 def is_var(term):
     return isinstance(term, str) and term and (term[0].isupper() or term[0] == '_')
+
 
 def is_atom(term):
     return isinstance(term, str) and not is_var(term)
 
+
 def is_comp(term):
     return isinstance(term, tuple) and term and is_atom(term[0])
 
+
 def is_clause(term):
     return isinstance(term, list) and term and all(is_comp(t) for t in term)
+
 
 def indicator(comp):
     return (comp[0], len(comp)-1)
@@ -43,8 +48,9 @@ inlined = {
     ('=<', 2),
     ('>=', 2),
     ('==', 2),
-    ('\=', 2),
+    ('\\=', 2),
 }
+
 
 def is_inlined(term):
     if not is_comp(term):
@@ -120,7 +126,7 @@ def chunk_sets(chunk, temps, is_head):
             if arg != x:
                 conflict[x].append(i)
 
-    return {'num_args': num_args,'use': use, 'nouse': nouse, 'conflict': conflict}
+    return {'num_args': num_args, 'use': use, 'nouse': nouse, 'conflict': conflict}
 
 
 class ClauseCompiler:
@@ -133,9 +139,11 @@ class ClauseCompiler:
         self.chunks = d['chunks']
 
         self.perm_addrs = None
+        self.temp_addrs = None
 
     def compile(self):
         self.perm_addrs = {}
+        self.temp_addrs = {}
         for i, chunk in enumerate(self.chunks):
             chunk_compiler = ChunkCompiler(chunk, i == 0, self)
             yield from chunk_compiler.compile()
@@ -144,20 +152,18 @@ class ClauseCompiler:
         if x not in self.perms:
             raise ValueError(f"{x} is not a permanent variable: {self.perms}")
         if x in self.perm_addrs:
-            index = self.perm_addrs[x]
-            is_new = False
-        else:
-            index = len(self.perm_addrs)
-            self.perm_addrs[x] = index
-            is_new = True
-        return f'Y{index}', is_new
+            return self.perm_addrs[x], False
+        index = len(self.perm_addrs)
+        addr = f'Y{index}'
+        self.perm_addrs[x] = addr
+        return addr, True
 
 
 class ChunkCompiler:
     def __init__(self, chunk, is_head, clause_compiler):
         self.chunk = chunk
         self.is_head = is_head
-        self.clause_compiler = clause_compiler
+        self.parent = clause_compiler
 
         d = chunk_sets(chunk, clause_compiler.temps, is_head)
         self.num_args = d['num_args']
@@ -165,41 +171,46 @@ class ChunkCompiler:
         self.nouse = d['nouse']
         self.conflict = d['conflict']
 
-        self.free_regs = None
         self.instructions = None
-        self.temp_addrs = None
+        self.delayed_comps = None
 
     def compile(self):
-        self.free_regs = []
         self.instructions = []
-        self.temp_addrs = {}
 
         chunk = self.chunk
         if self.is_head:
             head = chunk[0]
             chunk = chunk[1:]
-            for i, arg in enumerate(head[1:]):
-                self.get_term(arg, i)
+            self.compile_head(head)
 
         for goal in chunk[:-1]:
             instr = [goal[0]]
             for arg in goal[1:]:
-                addr, is_new = self.term_addr(arg)
+                addr, _ = self.term_addr(arg)
                 instr.append(addr)
             self.instructions.append(tuple(instr))
 
-        if len(chunk) > 1:
-            goal = chunk[-1]
-            for i, arg in enumerate(goal[1:]):
-                self.put_term(arg, i)
-            self.instructions.append(('call', indicator(goal)))
+        if chunk:
+            last_goal = chunk[-1]
+            for i, arg in enumerate(last_goal[1:]):
+                self.put_term(arg, f'X{i}')
+            self.instructions.append(('call', indicator(last_goal)))
 
         yield from self.instructions
 
-    def get_term(self, term, reg_index):
-        reg = f'X{reg_index}'
+    def compile_head(self, head):
+        self.delayed_comps = []
+        for i, arg in enumerate(head[1:]):
+            self.get_term(arg, f'X{i}')
+        while len(self.delayed_comps):
+            delayed = self.delayed_comps.copy()
+            self.delayed_comps = []
+            for comp, addr in delayed:
+                self.get_term(comp, addr)
+
+    def get_term(self, term, reg):
         if is_var(term):
-            addr, is_new = self.term_addr(term)
+            addr, is_new = self.temp_addr(term)
             instr = 'get_var' if is_new else 'get_val'
             self.instructions.append((instr, addr, reg))
         elif is_comp(term):
@@ -211,48 +222,76 @@ class ChunkCompiler:
 
     def unify_arg(self, term):
         if is_var(term):
-            addr, is_new = self.term_addr(term)
+            addr, is_new = self.temp_addr(term)
             instr = 'unify_var' if is_new else 'unify_val'
             self.instructions.append((instr, addr))
         elif is_comp(term):
-            pass
+            addr, _ = self.temp_addr(term)
+            self.delayed_comps.append((term, addr))
+            self.instructions.append(('unify_var', addr))
         else:
             self.instructions.append(('unify_const', term))
 
-    def term_addr(self, term):
-        if is_var(term) and term in self.clause_compiler.perms:
-            return self.clause_compiler.perm_addr(term)
-        return self.temp_addr(term)
-
     def put_term(self, term, reg):
-        pass
+        if is_var(term):
+            addr, is_new = self.term_addr(term)
+            instr = 'put_var' if is_new else 'put_val'
+            self.instructions.append((instr, addr, reg))
+        elif is_comp(term):
+            self.instructions.append(('put_struct', indicator(term), reg))
+            delayed_vars = []
+            for arg in term[1:]:
+                if is_var(arg):
+                    delayed_vars.append(arg)
+                elif is_comp(arg):
+                    addr, _ = self.term_addr(arg)
+                    self.instructions.append(('unify_val', addr))
+                else:
+                    self.unify_arg(arg)
+            for x in delayed_vars:
+                self.unify_arg(x)
+        else:
+            self.instructions.append(('put_const', term, reg))
+
+    def term_addr(self, term):
+        if is_var(term):
+            if term in self.parent.perms:
+                return self.parent.perm_addr(term)
+            return self.temp_addr(term)
+        if is_comp(term):
+            addr, is_new = self.temp_addr(term)
+            if not is_new:
+                return addr, False
+            self.put_term(term, addr)
+            return addr, True
+        return term, False
 
     def temp_addr(self, x):
-        if x in self.temp_addrs:
-            index = self.temp_addrs[x]
-            is_new = False
-        else:
-            index = len(self.temp_addrs) + self.num_args
-            self.temp_addrs[x] = index
-            is_new = True
-        return f'X{index}', is_new
+        if x in self.parent.temp_addrs:
+            return self.parent.temp_addrs[x], False
+        index = len(self.parent.temp_addrs) + self.num_args
+        addr = f'X{index}'
+        self.parent.temp_addrs[x] = addr
+        return addr, True
 
 
 def main():
     term = ('f', 'X', 'a', 1, ('g', 'Y', 'X'))
     print(f"{term} vars: {list(gen_vars(term))}")
     clause1 = [('member', 'E', ('.', 'H', 'T')), ('member_', 'T', 'E', 'H')]
-    clause2 = [('mul', 'A', 'B', 'P'), 
-        ('=', ('s', 'B1'), 'B'),
-        ('mul', 'A', 'B1', 'P1'),
-        ('add', 'B1', 'P1', 'P'),
-    ]
+    clause2 = [('mul', 'A', 'B', 'P'),
+               ('=', ('s', 'B1'), 'B'),
+               ('mul', 'A', 'B1', 'P1'),
+               ('add', 'B1', 'P1', 'P'),
+               ]
     clause3 = [('p', 'X', ('f', 'X'), 'Y', 'W'),
-        ('=', 'X', ('.', 'a', 'Z')),
-        ('>', 'W', 'Y'),
-        ('q', 'Z', 'Y', 'X'),
-    ]
-    clauses = [clause1, clause2, clause3]
+               ('=', 'X', ('.', 'a', 'Z')),
+               ('>', 'W', 'Y'),
+               ('q', 'Z', 'Y', 'X'),
+               ]
+    clause4 = [('is_even', ('s', ('s', 'X'))), ('is_even', 'X')]
+    clause5 = [('f', ('.', ('g', 'a'), ('.', ('h', 'b'), '[]')))]
+    clauses = [clause1, clause2, clause3, clause4, clause5]
     for clause in clauses:
         print(f'Clause: {clause}')
         d = clause_chunks(clause)
@@ -264,10 +303,18 @@ def main():
             use, nouse, conflict = d['use'], d['nouse'], d['conflict']
             for x in temps:
                 print(f'    USE({x}) = {use[x]}, NOUSE({x}) = {nouse[x]}, CONFLICT({x}) = {conflict[x]}')
-        
-        print(f'Instructions:')
-        for instr in ClauseCompiler(clause).compile():
+
+        print('Instructions:')
+        compiler = ClauseCompiler(clause)
+        instrs = compiler.compile()
+        for instr in instrs:
             print(f'  {instr}')
+
+        print('Addresses')
+        addrs = compiler.temp_addrs.copy()
+        addrs.update(compiler.perm_addrs)
+        for x, addr in addrs.items():
+            print(f'  {x}: {addr}')
 
 
 if __name__ == '__main__':
