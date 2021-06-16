@@ -186,7 +186,7 @@ class ChunkCompiler:
         for goal in chunk[:-1]:
             instr = [goal[0]]
             for arg in goal[1:]:
-                addr, _ = self.term_addr(arg)
+                addr = self.term_addr(arg)
                 instr.append(addr)
             self.instructions.append(tuple(instr))
 
@@ -234,7 +234,7 @@ class ChunkCompiler:
 
     def put_term(self, term, reg):
         if is_var(term):
-            addr, is_new = self.term_addr(term)
+            addr, is_new = self.var_addr(term)
             instr = 'put_var' if is_new else 'put_val'
             self.instructions.append((instr, addr, reg))
         elif is_comp(term):
@@ -244,7 +244,7 @@ class ChunkCompiler:
                 if is_var(arg):
                     delayed_vars.append(arg)
                 elif is_comp(arg):
-                    addr, _ = self.term_addr(arg)
+                    addr = self.term_addr(arg)
                     self.instructions.append(('unify_val', addr))
                 else:
                     self.unify_arg(arg)
@@ -255,16 +255,19 @@ class ChunkCompiler:
 
     def term_addr(self, term):
         if is_var(term):
-            if term in self.parent.perms:
-                return self.parent.perm_addr(term)
-            return self.temp_addr(term)
+            addr, _ = self.var_addr(term)
+            return addr
         if is_comp(term):
             addr, is_new = self.temp_addr(term)
-            if not is_new:
-                return addr, False
-            self.put_term(term, addr)
-            return addr, True
-        return term, False
+            if is_new:
+                self.put_term(term, addr)
+            return addr
+        return term
+
+    def var_addr(self, x):
+        if x in self.parent.perms:
+            return self.parent.perm_addr(x)
+        return self.temp_addr(x)
 
     def temp_addr(self, x):
         if x in self.parent.temp_addrs:
