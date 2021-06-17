@@ -42,14 +42,14 @@ def gen_vars(term):
 
 
 inlined = {
-    ('!', 0),
-    ('=', 2),
-    ('<', 2),
-    ('>', 2),
-    ('=<', 2),
-    ('>=', 2),
-    ('==', 2),
-    ('\\=', 2),
+    "!/0",
+    "=/2",
+    "</2",
+    ">/2",
+    "=</2",
+    ">=/2",
+    "==/2",
+    "\\==/2",
 }
 
 
@@ -304,17 +304,16 @@ testdata = [
         get_var X3 X0
         get_var X4 X1
         get_var X5 X2
-     put_struct s/1 X0
-      unify_var X6
-        put_val X4 X1
-           call =/2
-        put_var Y0 X0
-        put_var Y1 X1
-        put_var Y2 X2
+     put_struct s/1 X6
+      unify_var X7
+              = X6 X4
+        put_val X3 X0
+        put_var Y0 X1
+        put_var Y1 X2
            call mul/3
-        put_val Y1 X0
-        put_val Y2 X1
-        put_var Y3 X2
+        put_val Y0 X0
+        put_val Y1 X1
+        put_var Y2 X2
            call add/3
      """),
     ([('is_even', ('s', ('s', 'X'))), ('is_even', 'X')],
@@ -350,17 +349,14 @@ testdata = [
        unify_val X4
          get_var X5 X2
          get_var X6 X3
-         put_var Y0 X0
-      put_struct ./2 X1
+      put_struct ./2 X7
      unify_const a
-       unify_var X7
-            call =/2
-         put_var Y1 X0
-         put_var Y2 X1
-            call >/2
-         put_var Y3 X0
-         put_val Y2 X1
-         put_val Y0 X2
+       unify_var X8
+               = X4 X7
+               > X6 X5
+         put_val X8 X0
+         put_val X5 X1
+         put_val X4 X2
             call q/3
      """),
 ]
