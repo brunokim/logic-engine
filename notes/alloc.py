@@ -1,4 +1,5 @@
 from collections import defaultdict
+import pytest
 
 
 def is_var(term):
@@ -18,7 +19,7 @@ def is_clause(term):
 
 
 def indicator(comp):
-    return (comp[0], len(comp)-1)
+    return f"{comp[0]}/{len(comp)-1}"
 
 
 def gen_vars(term):
@@ -160,10 +161,11 @@ class ClauseCompiler:
 
 
 class ChunkCompiler:
-    def __init__(self, chunk, is_head, clause_compiler):
+    def __init__(self, chunk, is_head, clause_compiler, alloc_strategy='naive'):
         self.chunk = chunk
         self.is_head = is_head
         self.parent = clause_compiler
+        self.alloc_strategy = alloc_strategy
 
         d = chunk_sets(chunk, clause_compiler.temps, is_head)
         self.num_args = d['num_args']
@@ -272,30 +274,111 @@ class ChunkCompiler:
     def temp_addr(self, x):
         if x in self.parent.temp_addrs:
             return self.parent.temp_addrs[x], False
-        index = len(self.parent.temp_addrs) + self.num_args
-        addr = f'X{index}'
+        if self.alloc_strategy == 'naive':
+            addr = self.naive_alloc(x)
         self.parent.temp_addrs[x] = addr
         return addr, True
+
+    def naive_alloc(self, x):
+        index = len(self.parent.temp_addrs) + self.num_args
+        return f'X{index}'
+
+
+testdata = [
+    ([('member', 'E', ('.', 'H', 'T')), ('member_', 'T', 'E', 'H')],
+     """
+        get_var X3 X0
+     get_struct ./2 X1
+      unify_var X4
+      unify_var X5
+        put_val X5 X0
+        put_val X3 X1
+        put_val X4 X2
+           call member_/3
+     """),
+    ([('mul', 'A', 'B', 'P'),
+      ('=', ('s', 'B1'), 'B'),
+      ('mul', 'A', 'B1', 'P1'),
+      ('add', 'B1', 'P1', 'P')],
+     """
+        get_var X3 X0
+        get_var X4 X1
+        get_var X5 X2
+     put_struct s/1 X0
+      unify_var X6
+        put_val X4 X1
+           call =/2
+        put_var Y0 X0
+        put_var Y1 X1
+        put_var Y2 X2
+           call mul/3
+        put_val Y1 X0
+        put_val Y2 X1
+        put_var Y3 X2
+           call add/3
+     """),
+    ([('is_even', ('s', ('s', 'X'))), ('is_even', 'X')],
+     """
+     get_struct s/1 X0
+      unify_var X1
+     get_struct s/1 X1
+      unify_var X2
+        put_val X2 X0
+           call is_even/1
+     """),
+    ([('f', ('.', ('g', 'a'), ('.', ('h', 'b'), '[]')))],
+     """
+      get_struct ./2 X0
+       unify_var X1
+       unify_var X2
+      get_struct g/1 X1
+     unify_const a
+      get_struct ./2 X2
+       unify_var X3
+     unify_const []
+      get_struct h/1 X3
+     unify_const b
+     """),
+    ([('p', 'X', ('f', 'X'), 'Y', 'W'),
+      ('=', 'X', ('.', 'a', 'Z')),
+      ('>', 'W', 'Y'),
+      ('q', 'Z', 'Y', 'X'),
+      ],
+     """
+         get_var X4 X0
+      get_struct f/1 X1
+       unify_val X4
+         get_var X5 X2
+         get_var X6 X3
+         put_var Y0 X0
+      put_struct ./2 X1
+     unify_const a
+       unify_var X7
+            call =/2
+         put_var Y1 X0
+         put_var Y2 X1
+            call >/2
+         put_var Y3 X0
+         put_val Y2 X1
+         put_val Y0 X2
+            call q/3
+     """),
+]
+
+
+@pytest.mark.parametrize("clause,instrs", testdata)
+def test_compile_clause(clause, instrs):
+    lines = [line.strip() for line in instrs.split("\n")]
+    expected = [tuple(line.split(" ")) for line in lines if line]
+    compiler = ClauseCompiler(clause)
+    got = list(compiler.compile())
+    assert got == expected
 
 
 def main():
     term = ('f', 'X', 'a', 1, ('g', 'Y', 'X'))
     print(f"{term} vars: {list(gen_vars(term))}")
-    clause1 = [('member', 'E', ('.', 'H', 'T')), ('member_', 'T', 'E', 'H')]
-    clause2 = [('mul', 'A', 'B', 'P'),
-               ('=', ('s', 'B1'), 'B'),
-               ('mul', 'A', 'B1', 'P1'),
-               ('add', 'B1', 'P1', 'P'),
-               ]
-    clause3 = [('p', 'X', ('f', 'X'), 'Y', 'W'),
-               ('=', 'X', ('.', 'a', 'Z')),
-               ('>', 'W', 'Y'),
-               ('q', 'Z', 'Y', 'X'),
-               ]
-    clause4 = [('is_even', ('s', ('s', 'X'))), ('is_even', 'X')]
-    clause5 = [('f', ('.', ('g', 'a'), ('.', ('h', 'b'), '[]')))]
-    clauses = [clause1, clause2, clause3, clause4, clause5]
-    for clause in clauses:
+    for clause, _ in testdata:
         print(f'Clause: {clause}')
         d = clause_chunks(clause)
         temps, perms, chunks = d['temps'], d['perms'], d['chunks']
