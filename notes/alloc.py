@@ -180,10 +180,16 @@ class ClauseCompiler:
 
         self.perm_addrs = None
         self.temp_addrs = None
+        self.reg_content = None
 
+    def set_reg(self, reg, term):
+        self.temp_addrs[term] = reg
+        self.reg_content[reg] = term
+    
     def compile(self):
         self.perm_addrs = {}
         self.temp_addrs = {}
+        self.reg_content = {}
         for i, chunk in enumerate(self.chunks):
             chunk_compiler = ChunkCompiler(chunk, i == 0, self, **self.kwargs)
             yield from chunk_compiler.compile()
@@ -225,6 +231,9 @@ class ChunkCompiler:
         self.free_regs = {f'X{i}' for i in range(self.max_regs)}
         self.top_reg = self.max_args
 
+        self.parent.temp_addrs = {}
+        self.parent.reg_content = {}
+
         chunk = self.chunk
         if self.is_head:
             head = chunk[0]
@@ -243,7 +252,7 @@ class ChunkCompiler:
         if chunk:
             last_goal = chunk[-1]
             for i, arg in enumerate(last_goal[1:]):
-                self.put_term(arg, f'X{i}')
+                self.put_term(arg, f'X{i}', top_level=True)
             self.instructions.append(('call', indicator(last_goal)))
 
         yield from self.instructions
@@ -260,10 +269,13 @@ class ChunkCompiler:
 
     def get_term(self, term, reg):
         if is_var(term):
+            if self.alloc_strategy == 'conflict_resolution':
+                self.parent.set_reg(reg, term)
             addr, is_new = self.var_addr(term)
             instr = 'get_var' if is_new else 'get_val'
             self.instructions.append((instr, addr, reg))
-            self.free_regs.add(reg)
+            if addr != reg:
+                self.free_regs.add(reg)
         elif is_comp(term):
             self.instructions.append(('get_struct', indicator(term), reg))
             self.free_regs.add(reg)
@@ -285,7 +297,15 @@ class ChunkCompiler:
         else:
             self.instructions.append(('unify_const', term))
 
-    def put_term(self, term, reg):
+    def put_term(self, term, reg, *, top_level=False):
+        # Move content out of register if in conflict.
+        if self.alloc_strategy == 'conflict_resolution' and top_level:
+            value = self.parent.reg_content.get(reg)
+            if value is not None and value != term and value in self.parent.temps:
+                addr = self.conflict_resolution_alloc(value)
+                self.parent.set_reg(addr, value)
+                self.instructions.append(('get_var', addr, reg))
+
         if is_var(term):
             addr, is_new = self.var_addr(term)
             instr = 'put_var' if is_new else 'put_val'
@@ -329,7 +349,9 @@ class ChunkCompiler:
             addr = self.naive_alloc(x)
         if self.alloc_strategy == 'conflict_avoidance':
             addr = self.conflict_avoidance_alloc(x)
-        self.parent.temp_addrs[x] = addr
+        if self.alloc_strategy == 'conflict_resolution':
+            addr = self.conflict_resolution_alloc(x)
+        self.parent.set_reg(addr, x)
         return addr, True
 
     def naive_alloc(self, x):
@@ -347,7 +369,26 @@ class ChunkCompiler:
         if not free:
             free = free_regs - (nouse | conflict)
         if free:
-            reg = sorted(free, key=lambda reg: int(reg[1:]))[0]
+            reg = min_reg(free)
+            self.free_regs.remove(reg)
+            return reg
+
+        # Create a new register.
+        reg = f'X{self.top_reg}'
+        self.top_reg += 1
+        return reg
+
+    def conflict_resolution_alloc(self, x):
+        use = set(self.use[x])
+        nouse = set(self.nouse[x])
+        free_regs = self.free_regs
+
+        # Try to allocate a free register.
+        free = free_regs & use
+        if not free:
+            free = free_regs - nouse
+        if free:
+            reg = min_reg(free)
             self.free_regs.remove(reg)
             return reg
 
@@ -357,9 +398,14 @@ class ChunkCompiler:
         return reg
 
 
+def min_reg(regs):
+    by_index = lambda reg: int(reg[1:])  # Ignore 'X' in 'X123' and compare numerically
+    return min(regs, key=by_index)
+
+
 testdata = [
     ([('member', 'E', ('.', 'H', 'T')), ('member_', 'T', 'E', 'H')],
-     """
+     {'conflict_avoidance': """
         get_var X3 X0
      get_struct ./2 X1
       unify_var X2
@@ -368,12 +414,23 @@ testdata = [
         put_val X3 X1
         put_val X2 X2
            call member_/3
-     """),
+     """,
+      'conflict_resolution': """
+         get_val X0 X0
+      get_struct ./2 X1
+       unify_var X2
+       unify_var X3
+         get_var X1 X0
+         put_val X3 X0
+         put_val X1 X1
+         put_val X2 X2
+            call member_/3
+     """}),
     ([('mul', 'A', 'B', 'P'),
       ('=', ('s', 'B1'), 'B'),
       ('mul', 'A', 'B1', 'P1'),
       ('add', 'B1', 'P1', 'P')],
-     """
+     {'conflict_avoidance': """
         get_var X3 X0
         get_var X4 X1
         get_var Y0 X2
@@ -388,18 +445,43 @@ testdata = [
         put_val Y2 X1
         put_val Y0 X2
            call add/3
-     """),
+     """,
+      'conflict_resolution': """
+        get_val X0 X0
+        get_val X1 X1
+        get_var Y0 X2
+     put_struct s/1 X2
+      unify_var Y1
+              = X2 X1
+        put_val X0 X0
+        get_var X3 X1
+        put_val Y1 X1
+        put_var Y2 X2
+           call mul/3
+        put_val Y1 X0
+        put_val Y2 X1
+        put_val Y0 X2
+           call add/3
+     """}),
     ([('is_even', ('s', ('s', 'X'))), ('is_even', 'X')],
-     """
+     {'conflict_avoidance': """
      get_struct s/1 X0
       unify_var X0
      get_struct s/1 X0
       unify_var X0
         put_val X0 X0
            call is_even/1
-     """),
+     """,
+      'conflict_resolution': """
+     get_struct s/1 X0
+      unify_var X0
+     get_struct s/1 X0
+      unify_var X0
+        put_val X0 X0
+           call is_even/1
+     """}),
     ([('f', ('.', ('g', 'a'), ('.', ('h', 'b'), '[]')))],
-     """
+     {'conflict_avoidance': """
       get_struct ./2 X0
        unify_var X0
        unify_var X1
@@ -410,13 +492,25 @@ testdata = [
      unify_const []
       get_struct h/1 X0
      unify_const b
-     """),
+     """,
+      'conflict_resolution': """
+      get_struct ./2 X0
+       unify_var X0
+       unify_var X1
+      get_struct g/1 X0
+     unify_const a
+      get_struct ./2 X1
+       unify_var X0
+     unify_const []
+      get_struct h/1 X0
+     unify_const b
+     """}),
     ([('p', 'X', ('f', 'X'), 'Y', 'W'),
       ('=', 'X', ('.', 'a', 'Z')),
       ('>', 'W', 'Y'),
       ('q', 'Z', 'Y', 'X'),
       ],
-     """
+     {'conflict_avoidance': """
          get_var X4 X0
       get_struct f/1 X1
        unify_val X4
@@ -431,9 +525,27 @@ testdata = [
          put_val X1 X1
          put_val X4 X2
             call q/3
-     """),
+     """,
+      'conflict_resolution': """
+         get_val X0 X0
+      get_struct f/1 X1
+       unify_val X0
+         get_val X2 X2
+         get_val X3 X3
+      put_struct ./2 X1
+     unify_const a
+       unify_var X4
+               = X0 X1
+               > X3 X2
+         get_var X5 X0
+         put_val X4 X0
+         put_val X2 X1
+         get_var X6 X2
+         put_val X5 X2
+            call q/3
+     """}),
     ([('p', 'X', 'Y', 'Z', 'a'), ('q', 'Z', 'X', 'Y')],
-     """
+     {'conflict_avoidance': """
        get_var X4 X0
        get_var X5 X1
        get_var X0 X2
@@ -442,15 +554,30 @@ testdata = [
        put_val X4 X1
        put_val X5 X2
           call q/3
-     """),
+     """,
+      'conflict_resolution': """
+       get_val X0 X0
+       get_val X1 X1
+       get_val X2 X2
+     get_const a X3
+       get_var X3 X0
+       put_val X2 X0
+       get_var X4 X1
+       put_val X3 X1
+       get_var X5 X2
+       put_val X4 X2
+          call q/3
+     """}),
 ]
 
 
 @parametrize("clause,instrs", testdata)
-def test_compile_clause(clause, instrs):
+@parametrize("alloc_strategy", ['conflict_avoidance', 'conflict_resolution'])
+def test_compile_clause(clause, instrs, alloc_strategy):
+    instrs = instrs[alloc_strategy]
     lines = [line.strip() for line in instrs.split("\n")]
     expected = [tuple(line.split(" ")) for line in lines if line]
-    compiler = ClauseCompiler(clause, alloc_strategy='conflict_avoidance')
+    compiler = ClauseCompiler(clause, alloc_strategy=alloc_strategy)
     got = list(compiler.compile())
     assert got == expected
 
@@ -472,7 +599,7 @@ def main():
                 print(f'    USE({x}) = {use[x]}, NOUSE({x}) = {nouse[x]}, CONFLICT({x}) = {conflict[x]}')
 
         print('Instructions:')
-        compiler = ClauseCompiler(clause, alloc_strategy='naive')
+        compiler = ClauseCompiler(clause, alloc_strategy='conflict_resolution')
         instrs = compiler.compile()
         for instr in instrs:
             print(f'  {instr}')
