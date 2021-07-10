@@ -432,6 +432,17 @@ testdata = [
          put_val X4 X2
             call q/3
      """),
+    ([('p', 'X', 'Y', 'Z', 'a'), ('q', 'Z', 'X', 'Y')],
+     """
+       get_var X4 X0
+       get_var X5 X1
+       get_var X0 X2
+     get_const a X3
+       put_val X0 X0
+       put_val X4 X1
+       put_val X5 X2
+          call q/3
+     """),
 ]
 
 
