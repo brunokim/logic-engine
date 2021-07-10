@@ -44,6 +44,18 @@ def count_vars(term):
     return c
 
 
+def count_comps(term):
+    c = 0
+    def count(t):
+        nonlocal c
+        if is_comp(t):
+            c += 1
+            for arg in t:
+                count(arg)
+    count(term)
+    return c
+
+
 def gen_vars(term):
     c = count_vars(term)
     return c.keys()
@@ -99,12 +111,24 @@ def clause_chunks(clause):
     return {'temps': temps, 'perms': perms, 'chunks': chunks}
 
 
+def count_nested_comps(chunk):
+    n = 0
+    for term in chunk:
+        for arg in term[1:]:
+            n += count_comps(arg)
+    return n
+
+
 def chunk_sets(chunk, temps, is_head):
     last_args = chunk[-1][1:]
 
-    num_args = len(last_args)
+    # Maximum number of arguments, either output (last chunk) or input (head)
+    max_args = len(last_args)
     if is_head and len(chunk) > 1:
-        num_args = max(num_args, len(chunk[0])-1)
+        max_args = max(max_args, len(chunk[0])-1)
+
+    # Maximum number of registers: one per argument, temp variable, and nested comp.
+    max_regs = max_args + len(temps) + count_nested_comps(chunk)
 
     # Calc USE set
     def calc_use(term):
@@ -135,7 +159,13 @@ def chunk_sets(chunk, temps, is_head):
             if arg != x:
                 conflict[x].append(f'X{i}')
 
-    return {'num_args': num_args, 'use': use, 'nouse': nouse, 'conflict': conflict}
+    return {
+        'max_args': max_args,
+        'max_regs': max_regs,
+        'use': use,
+        'nouse': nouse,
+        'conflict': conflict,
+    }
 
 
 class ClauseCompiler:
@@ -177,7 +207,8 @@ class ChunkCompiler:
         self.alloc_strategy = alloc_strategy
 
         d = chunk_sets(chunk, clause_compiler.temps, is_head)
-        self.num_args = d['num_args']
+        self.max_args = d['max_args']
+        self.max_regs = d['max_regs']
         self.use = d['use']
         self.nouse = d['nouse']
         self.conflict = d['conflict']
@@ -191,8 +222,8 @@ class ChunkCompiler:
 
     def compile(self):
         self.instructions = []
-        self.free_regs = {f'X{i}' for i in range(100)} #TODO
-        self.top_reg = self.num_args
+        self.free_regs = {f'X{i}' for i in range(self.max_regs)}
+        self.top_reg = self.max_args
 
         chunk = self.chunk
         if self.is_head:
@@ -302,7 +333,7 @@ class ChunkCompiler:
         return addr, True
 
     def naive_alloc(self, x):
-        index = len(self.parent.temp_addrs) + self.num_args
+        index = len(self.parent.temp_addrs) + self.max_args
         return f'X{index}'
 
     def conflict_avoidance_alloc(self, x):
@@ -424,12 +455,13 @@ def main():
         for i, chunk in enumerate(chunks):
             print(f'  Chunk #{i}: {chunk}')
             d = chunk_sets(chunk, temps, i == 0)
+            print(f'    Max args: {d["max_args"]}, Max regs: {d["max_regs"]}')
             use, nouse, conflict = d['use'], d['nouse'], d['conflict']
             for x in temps:
                 print(f'    USE({x}) = {use[x]}, NOUSE({x}) = {nouse[x]}, CONFLICT({x}) = {conflict[x]}')
 
         print('Instructions:')
-        compiler = ClauseCompiler(clause, alloc_strategy='conflict_avoidance')
+        compiler = ClauseCompiler(clause, alloc_strategy='naive')
         instrs = compiler.compile()
         for instr in instrs:
             print(f'  {instr}')
