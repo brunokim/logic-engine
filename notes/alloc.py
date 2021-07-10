@@ -46,6 +46,7 @@ def count_vars(term):
 
 def count_comps(term):
     c = 0
+
     def count(t):
         nonlocal c
         if is_comp(t):
@@ -185,7 +186,7 @@ class ClauseCompiler:
     def set_reg(self, reg, term):
         self.temp_addrs[term] = reg
         self.reg_content[reg] = term
-    
+
     def compile(self):
         self.perm_addrs = {}
         self.temp_addrs = {}
@@ -403,7 +404,8 @@ class ChunkCompiler:
 
 
 def min_reg(regs):
-    by_index = lambda reg: int(reg[1:])  # Ignore 'X' in 'X123' and compare numerically
+    def by_index(reg):
+        return int(reg[1:])  # Ignore 'X' in 'X123' and compare numerically
     return min(regs, key=by_index)
 
 
