@@ -244,7 +244,7 @@ class ChunkCompiler:
 
     def unify_arg(self, term):
         if is_var(term):
-            addr, is_new = self.temp_addr(term)
+            addr, is_new = self.var_addr(term)
             instr = 'unify_var' if is_new else 'unify_val'
             self.instructions.append((instr, addr))
         elif is_comp(term):
