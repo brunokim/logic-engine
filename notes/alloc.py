@@ -192,7 +192,11 @@ class ClauseCompiler:
         self.reg_content = {}
         for i, chunk in enumerate(self.chunks):
             chunk_compiler = ChunkCompiler(chunk, i == 0, self, **self.kwargs)
-            yield from chunk_compiler.compile()
+            for instr in chunk_compiler.compile():
+                # Filter no-op instructions that don't move values around.
+                if instr[0] in ('get_var', 'get_val', 'put_val') and instr[1] == instr[2]:
+                    continue
+                yield instr
 
     def perm_addr(self, x):
         if x not in self.perms:
@@ -410,20 +414,15 @@ testdata = [
      get_struct ./2 X1
       unify_var X2
       unify_var X0
-        put_val X0 X0
         put_val X3 X1
-        put_val X2 X2
            call member_/3
      """,
       'conflict_resolution': """
-         get_val X0 X0
       get_struct ./2 X1
        unify_var X2
        unify_var X3
          get_var X1 X0
          put_val X3 X0
-         put_val X1 X1
-         put_val X2 X2
             call member_/3
      """}),
     ([('mul', 'A', 'B', 'P'),
@@ -447,13 +446,10 @@ testdata = [
            call add/3
      """,
       'conflict_resolution': """
-        get_val X0 X0
-        get_val X1 X1
         get_var Y0 X2
      put_struct s/1 X2
       unify_var Y1
               = X2 X1
-        put_val X0 X0
         get_var X3 X1
         put_val Y1 X1
         put_var Y2 X2
@@ -469,7 +465,6 @@ testdata = [
       unify_var X0
      get_struct s/1 X0
       unify_var X0
-        put_val X0 X0
            call is_even/1
      """,
       'conflict_resolution': """
@@ -477,7 +472,6 @@ testdata = [
       unify_var X0
      get_struct s/1 X0
       unify_var X0
-        put_val X0 X0
            call is_even/1
      """}),
     ([('f', ('.', ('g', 'a'), ('.', ('h', 'b'), '[]')))],
@@ -522,16 +516,12 @@ testdata = [
                = X4 X0
                > X5 X1
          put_val X3 X0
-         put_val X1 X1
          put_val X4 X2
             call q/3
      """,
       'conflict_resolution': """
-         get_val X0 X0
       get_struct f/1 X1
        unify_val X0
-         get_val X2 X2
-         get_val X3 X3
       put_struct ./2 X1
      unify_const a
        unify_var X4
@@ -550,15 +540,11 @@ testdata = [
        get_var X5 X1
        get_var X0 X2
      get_const a X3
-       put_val X0 X0
        put_val X4 X1
        put_val X5 X2
           call q/3
      """,
       'conflict_resolution': """
-       get_val X0 X0
-       get_val X1 X1
-       get_val X2 X2
      get_const a X3
        get_var X3 X0
        put_val X2 X0
