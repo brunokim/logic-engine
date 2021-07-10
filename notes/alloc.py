@@ -315,6 +315,8 @@ class ChunkCompiler:
             addr, is_new = self.var_addr(term)
             instr = 'put_var' if is_new else 'put_val'
             self.instructions.append((instr, addr, reg))
+            if addr != reg and addr[0] == 'X':
+                self.free_regs.add(addr)
         elif is_comp(term):
             self.instructions.append(('put_struct', indicator(term), reg))
             delayed_vars = []
@@ -532,7 +534,6 @@ testdata = [
          get_var X5 X0
          put_val X4 X0
          put_val X2 X1
-         get_var X6 X2
          put_val X5 X2
             call q/3
      """}),
@@ -550,10 +551,8 @@ testdata = [
      get_const a X3
        get_var X3 X0
        put_val X2 X0
-       get_var X4 X1
+       get_var X2 X1
        put_val X3 X1
-       get_var X5 X2
-       put_val X4 X2
           call q/3
      """}),
 ]
