@@ -180,17 +180,9 @@ class ClauseCompiler:
         self.chunks = d['chunks']
 
         self.perm_addrs = None
-        self.temp_addrs = None
-        self.reg_content = None
-
-    def set_reg(self, reg, term):
-        self.temp_addrs[term] = reg
-        self.reg_content[reg] = term
 
     def compile(self):
         self.perm_addrs = {}
-        self.temp_addrs = {}
-        self.reg_content = {}
         for i, chunk in enumerate(self.chunks):
             chunk_compiler = ChunkCompiler(chunk, i == 0, self, **self.kwargs)
             for instr in chunk_compiler.compile():
@@ -227,17 +219,22 @@ class ChunkCompiler:
         self.instructions = None
         self.delayed_comps = None
 
-        # Conflict avoidance
         self.free_regs = None
         self.top_reg = None
+        self.temp_addrs = None
+        self.reg_content = None
+
+    def set_reg(self, reg, term):
+        self.temp_addrs[term] = reg
+        self.reg_content[reg] = term
 
     def compile(self):
         self.instructions = []
         self.free_regs = {f'X{i}' for i in range(self.max_regs)}
         self.top_reg = self.max_args
 
-        self.parent.temp_addrs = {}
-        self.parent.reg_content = {}
+        self.temp_addrs = {}
+        self.reg_content = {}
 
         chunk = self.chunk
         if self.is_head:
@@ -275,7 +272,7 @@ class ChunkCompiler:
     def get_term(self, term, reg):
         if is_var(term):
             if self.alloc_strategy == 'conflict_resolution':
-                self.parent.set_reg(reg, term)
+                self.set_reg(reg, term)
             addr, is_new = self.var_addr(term)
             instr = 'get_var' if is_new else 'get_val'
             self.instructions.append((instr, addr, reg))
@@ -305,10 +302,10 @@ class ChunkCompiler:
     def put_term(self, term, reg, *, top_level=False):
         # Move content out of register if in conflict.
         if self.alloc_strategy == 'conflict_resolution' and top_level:
-            value = self.parent.reg_content.get(reg)
+            value = self.reg_content.get(reg)
             if value is not None and value != term and value in self.parent.temps:
                 addr = self.conflict_resolution_alloc(value)
-                self.parent.set_reg(addr, value)
+                self.set_reg(addr, value)
                 self.instructions.append(('get_var', addr, reg))
 
         if is_var(term):
@@ -350,19 +347,19 @@ class ChunkCompiler:
         return self.temp_addr(x)
 
     def temp_addr(self, x):
-        if x in self.parent.temp_addrs:
-            return self.parent.temp_addrs[x], False
+        if x in self.temp_addrs:
+            return self.temp_addrs[x], False
         if self.alloc_strategy == 'naive':
             addr = self.naive_alloc(x)
         if self.alloc_strategy == 'conflict_avoidance':
             addr = self.conflict_avoidance_alloc(x)
         if self.alloc_strategy == 'conflict_resolution':
             addr = self.conflict_resolution_alloc(x)
-        self.parent.set_reg(addr, x)
+        self.set_reg(addr, x)
         return addr, True
 
     def naive_alloc(self, x):
-        index = len(self.parent.temp_addrs) + self.max_args
+        index = len(self.temp_addrs) + self.max_args
         return f'X{index}'
 
     def conflict_avoidance_alloc(self, x):
@@ -554,6 +551,29 @@ testdata = [
        get_var X2 X1
        put_val X3 X1
           call q/3
+     """}),
+    ([('p', 'X', 'a', 'b'), ('q', 'c', 'd', ('f', 'X'))],
+     {'conflict_avoidance': """
+        get_var X3 X0
+      get_const a X1
+      get_const b X2
+      put_const c X0
+      put_const d X1
+     put_struct f/1 X2
+      unify_val X3
+           call q/3
+     """,
+      'conflict_resolution': """
+      get_const a X1
+      get_const b X2
+        get_var X1 X0
+      put_const c X0
+        get_var X2 X1
+      put_const d X1
+        get_var X3 X2
+     put_struct f/1 X2
+      unify_val X3
+           call q/3
      """}),
 ]
 
