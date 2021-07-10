@@ -1,5 +1,13 @@
-from collections import defaultdict
-import pytest
+from collections import defaultdict, Counter
+
+try:
+    from pytest import mark
+    parametrize = mark.parametrize
+except ImportError:
+    # On pdb, pytest is not available, so we stub parametrize.
+    def parametrize(args, data):
+        print("@parametrize stub")
+        return lambda f: f
 
 
 def is_var(term):
@@ -22,23 +30,23 @@ def indicator(comp):
     return f"{comp[0]}/{len(comp)-1}"
 
 
-def gen_vars(term):
-    xs = set()
+def count_vars(term):
+    c = Counter()
 
-    def gen(t):
+    def count(t):
         if is_var(t):
-            if t in xs:
-                return
-            xs.add(t)
-            yield t
-        if is_comp(t):
+            c[t] += 1
+        if is_comp(t) or isinstance(t, list):
             for arg in t:
-                yield from gen(arg)
-        if isinstance(t, list):
-            for term in t:
-                yield from gen(term)
+                count(arg)
 
-    return gen(term)
+    count(term)
+    return c
+
+
+def gen_vars(term):
+    c = count_vars(term)
+    return c.keys()
 
 
 inlined = {
@@ -103,7 +111,7 @@ def chunk_sets(chunk, temps, is_head):
         use = defaultdict(list)
         for i, arg in enumerate(term[1:]):
             if arg in temps:
-                use[arg].append(i)
+                use[arg].append(f'X{i}')
         return use
 
     use = calc_use(chunk[-1])
@@ -115,7 +123,7 @@ def chunk_sets(chunk, temps, is_head):
     for x in temps:
         for i, arg in enumerate(last_args):
             if arg in temps and arg != x and i not in use[x]:
-                nouse[x].append(i)
+                nouse[x].append(f'X{i}')
 
     # Calc CONFLICT set
     conflict = defaultdict(list)
@@ -125,14 +133,15 @@ def chunk_sets(chunk, temps, is_head):
             continue
         for i, arg in enumerate(last_args):
             if arg != x:
-                conflict[x].append(i)
+                conflict[x].append(f'X{i}')
 
     return {'num_args': num_args, 'use': use, 'nouse': nouse, 'conflict': conflict}
 
 
 class ClauseCompiler:
-    def __init__(self, clause):
+    def __init__(self, clause, **kwargs):
         self.clause = clause
+        self.kwargs = kwargs
 
         d = clause_chunks(clause)
         self.temps = d['temps']
@@ -146,7 +155,7 @@ class ClauseCompiler:
         self.perm_addrs = {}
         self.temp_addrs = {}
         for i, chunk in enumerate(self.chunks):
-            chunk_compiler = ChunkCompiler(chunk, i == 0, self)
+            chunk_compiler = ChunkCompiler(chunk, i == 0, self, **self.kwargs)
             yield from chunk_compiler.compile()
 
     def perm_addr(self, x):
@@ -176,13 +185,21 @@ class ChunkCompiler:
         self.instructions = None
         self.delayed_comps = None
 
+        # Conflict avoidance
+        self.free_regs = None
+        self.top_reg = None
+
     def compile(self):
         self.instructions = []
+        self.free_regs = {f'X{i}' for i in range(100)} #TODO
+        self.top_reg = self.num_args
 
         chunk = self.chunk
         if self.is_head:
             head = chunk[0]
             chunk = chunk[1:]
+            for i in range(len(head)-1):
+                self.free_regs.remove(f'X{i}')
             self.compile_head(head)
 
         for goal in chunk[:-1]:
@@ -212,15 +229,18 @@ class ChunkCompiler:
 
     def get_term(self, term, reg):
         if is_var(term):
-            addr, is_new = self.temp_addr(term)
+            addr, is_new = self.var_addr(term)
             instr = 'get_var' if is_new else 'get_val'
             self.instructions.append((instr, addr, reg))
+            self.free_regs.add(reg)
         elif is_comp(term):
             self.instructions.append(('get_struct', indicator(term), reg))
+            self.free_regs.add(reg)
             for arg in term[1:]:
                 self.unify_arg(arg)
         else:
             self.instructions.append(('get_const', term, reg))
+            self.free_regs.add(reg)
 
     def unify_arg(self, term):
         if is_var(term):
@@ -276,6 +296,8 @@ class ChunkCompiler:
             return self.parent.temp_addrs[x], False
         if self.alloc_strategy == 'naive':
             addr = self.naive_alloc(x)
+        if self.alloc_strategy == 'conflict_avoidance':
+            addr = self.conflict_avoidance_alloc(x)
         self.parent.temp_addrs[x] = addr
         return addr, True
 
@@ -283,17 +305,37 @@ class ChunkCompiler:
         index = len(self.parent.temp_addrs) + self.num_args
         return f'X{index}'
 
+    def conflict_avoidance_alloc(self, x):
+        use = set(self.use[x])
+        nouse = set(self.nouse[x])
+        conflict = set(self.conflict[x])
+        free_regs = self.free_regs
+
+        # Try to allocate a free register.
+        free = free_regs & use
+        if not free:
+            free = free_regs - (nouse | conflict)
+        if free:
+            reg = sorted(free, key=lambda reg: int(reg[1:]))[0]
+            self.free_regs.remove(reg)
+            return reg
+
+        # Create a new register.
+        reg = f'X{self.top_reg}'
+        self.top_reg += 1
+        return reg
+
 
 testdata = [
     ([('member', 'E', ('.', 'H', 'T')), ('member_', 'T', 'E', 'H')],
      """
         get_var X3 X0
      get_struct ./2 X1
-      unify_var X4
-      unify_var X5
-        put_val X5 X0
+      unify_var X2
+      unify_var X0
+        put_val X0 X0
         put_val X3 X1
-        put_val X4 X2
+        put_val X2 X2
            call member_/3
      """),
     ([('mul', 'A', 'B', 'P'),
@@ -303,39 +345,39 @@ testdata = [
      """
         get_var X3 X0
         get_var X4 X1
-        get_var X5 X2
-     put_struct s/1 X6
-      unify_var X7
-              = X6 X4
+        get_var Y0 X2
+     put_struct s/1 X0
+      unify_var Y1
+              = X0 X4
         put_val X3 X0
-        put_var Y0 X1
-        put_var Y1 X2
-           call mul/3
-        put_val Y0 X0
         put_val Y1 X1
         put_var Y2 X2
+           call mul/3
+        put_val Y1 X0
+        put_val Y2 X1
+        put_val Y0 X2
            call add/3
      """),
     ([('is_even', ('s', ('s', 'X'))), ('is_even', 'X')],
      """
      get_struct s/1 X0
-      unify_var X1
-     get_struct s/1 X1
-      unify_var X2
-        put_val X2 X0
+      unify_var X0
+     get_struct s/1 X0
+      unify_var X0
+        put_val X0 X0
            call is_even/1
      """),
     ([('f', ('.', ('g', 'a'), ('.', ('h', 'b'), '[]')))],
      """
       get_struct ./2 X0
+       unify_var X0
        unify_var X1
-       unify_var X2
-      get_struct g/1 X1
+      get_struct g/1 X0
      unify_const a
-      get_struct ./2 X2
-       unify_var X3
+      get_struct ./2 X1
+       unify_var X0
      unify_const []
-      get_struct h/1 X3
+      get_struct h/1 X0
      unify_const b
      """),
     ([('p', 'X', ('f', 'X'), 'Y', 'W'),
@@ -347,26 +389,26 @@ testdata = [
          get_var X4 X0
       get_struct f/1 X1
        unify_val X4
-         get_var X5 X2
-         get_var X6 X3
-      put_struct ./2 X7
+         get_var X1 X2
+         get_var X5 X3
+      put_struct ./2 X0
      unify_const a
-       unify_var X8
-               = X4 X7
-               > X6 X5
-         put_val X8 X0
-         put_val X5 X1
+       unify_var X3
+               = X4 X0
+               > X5 X1
+         put_val X3 X0
+         put_val X1 X1
          put_val X4 X2
             call q/3
      """),
 ]
 
 
-@pytest.mark.parametrize("clause,instrs", testdata)
+@parametrize("clause,instrs", testdata)
 def test_compile_clause(clause, instrs):
     lines = [line.strip() for line in instrs.split("\n")]
     expected = [tuple(line.split(" ")) for line in lines if line]
-    compiler = ClauseCompiler(clause)
+    compiler = ClauseCompiler(clause, alloc_strategy='conflict_avoidance')
     got = list(compiler.compile())
     assert got == expected
 
@@ -387,7 +429,7 @@ def main():
                 print(f'    USE({x}) = {use[x]}, NOUSE({x}) = {nouse[x]}, CONFLICT({x}) = {conflict[x]}')
 
         print('Instructions:')
-        compiler = ClauseCompiler(clause)
+        compiler = ClauseCompiler(clause, alloc_strategy='conflict_avoidance')
         instrs = compiler.compile()
         for instr in instrs:
             print(f'  {instr}')
