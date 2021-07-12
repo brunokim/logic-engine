@@ -228,6 +228,10 @@ class ChunkCompiler:
         self.temp_addrs[term] = reg
         self.reg_content[reg] = term
 
+    def unset_reg(self, reg, term):
+        del self.temp_addrs[term]
+        del self.reg_content[reg]
+
     def compile(self):
         self.instructions = []
         self.free_regs = {f'X{i}' for i in range(self.max_regs)}
@@ -304,8 +308,8 @@ class ChunkCompiler:
         if self.alloc_strategy == 'conflict_resolution' and top_level:
             value = self.reg_content.get(reg)
             if value is not None and value != term and value in self.parent.temps:
-                addr = self.conflict_resolution_alloc(value)
-                self.set_reg(addr, value)
+                self.unset_reg(reg, value)
+                addr, _ = self.temp_addr(value)
                 self.instructions.append(('get_var', addr, reg))
 
         if is_var(term):
@@ -350,47 +354,20 @@ class ChunkCompiler:
         if x in self.temp_addrs:
             return self.temp_addrs[x], False
         if self.alloc_strategy == 'naive':
-            addr = self.naive_alloc(x)
+            use, nouse, conflict = set(), set(), set()
         if self.alloc_strategy == 'conflict_avoidance':
-            addr = self.conflict_avoidance_alloc(x)
+            use, nouse, conflict = set(self.use[x]), set(self.nouse[x]), set(self.conflict[x])
         if self.alloc_strategy == 'conflict_resolution':
-            addr = self.conflict_resolution_alloc(x)
+            use, nouse, conflict = set(self.use[x]), set(self.nouse[x]), set()
+        addr = self.alloc_reg(x, use, nouse, conflict)
         self.set_reg(addr, x)
         return addr, True
 
-    def naive_alloc(self, x):
-        index = len(self.temp_addrs) + self.max_args
-        return f'X{index}'
-
-    def conflict_avoidance_alloc(self, x):
-        use = set(self.use[x])
-        nouse = set(self.nouse[x])
-        conflict = set(self.conflict[x])
-        free_regs = self.free_regs
-
+    def alloc_reg(self, x, use, nouse, conflict):
         # Try to allocate a free register.
-        free = free_regs & use
+        free = self.free_regs & use
         if not free:
-            free = free_regs - (nouse | conflict)
-        if free:
-            reg = min_reg(free)
-            self.free_regs.remove(reg)
-            return reg
-
-        # Create a new register.
-        reg = f'X{self.top_reg}'
-        self.top_reg += 1
-        return reg
-
-    def conflict_resolution_alloc(self, x):
-        use = set(self.use[x])
-        nouse = set(self.nouse[x])
-        free_regs = self.free_regs
-
-        # Try to allocate a free register.
-        free = free_regs & use
-        if not free:
-            free = free_regs - nouse
+            free = self.free_regs - (nouse | conflict)
         if free:
             reg = min_reg(free)
             self.free_regs.remove(reg)
