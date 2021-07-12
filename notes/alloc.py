@@ -354,7 +354,7 @@ class ChunkCompiler:
         if x in self.temp_addrs:
             return self.temp_addrs[x], False
         if self.alloc_strategy == 'naive':
-            use, nouse, conflict = set(), set(), set()
+            use, nouse, conflict = set(), set(), self.free_regs
         if self.alloc_strategy == 'conflict_avoidance':
             use, nouse, conflict = set(self.use[x]), set(self.nouse[x]), set(self.conflict[x])
         if self.alloc_strategy == 'conflict_resolution':
@@ -387,7 +387,17 @@ def min_reg(regs):
 
 testdata = [
     ([('member', 'E', ('.', 'H', 'T')), ('member_', 'T', 'E', 'H')],
-     {'conflict_avoidance': """
+     {'naive': """
+        get_var X3 X0
+     get_struct ./2 X1
+      unify_var X4
+      unify_var X5
+        put_val X5 X0
+        put_val X3 X1
+        put_val X4 X2
+           call member_/3
+     """,
+      'conflict_avoidance': """
         get_var X3 X0
      get_struct ./2 X1
       unify_var X2
@@ -407,7 +417,23 @@ testdata = [
       ('=', ('s', 'B1'), 'B'),
       ('mul', 'A', 'B1', 'P1'),
       ('add', 'B1', 'P1', 'P')],
-     {'conflict_avoidance': """
+     {'naive': """
+        get_var X3 X0
+        get_var X4 X1
+        get_var Y0 X2
+     put_struct s/1 X5
+      unify_var Y1
+              = X5 X4
+        put_val X3 X0
+        put_val Y1 X1
+        put_var Y2 X2
+           call mul/3
+        put_val Y1 X0
+        put_val Y2 X1
+        put_val Y0 X2
+           call add/3
+     """,
+      'conflict_avoidance': """
         get_var X3 X0
         get_var X4 X1
         get_var Y0 X2
@@ -438,7 +464,15 @@ testdata = [
            call add/3
      """}),
     ([('is_even', ('s', ('s', 'X'))), ('is_even', 'X')],
-     {'conflict_avoidance': """
+     {'naive': """
+     get_struct s/1 X0
+      unify_var X1
+     get_struct s/1 X1
+      unify_var X2
+        put_val X2 X0
+           call is_even/1
+     """,
+      'conflict_avoidance': """
      get_struct s/1 X0
       unify_var X0
      get_struct s/1 X0
@@ -453,7 +487,19 @@ testdata = [
            call is_even/1
      """}),
     ([('f', ('.', ('g', 'a'), ('.', ('h', 'b'), '[]')))],
-     {'conflict_avoidance': """
+     {'naive': """
+      get_struct ./2 X0
+       unify_var X1
+       unify_var X2
+      get_struct g/1 X1
+     unify_const a
+      get_struct ./2 X2
+       unify_var X3
+     unify_const []
+      get_struct h/1 X3
+     unify_const b
+     """,
+      'conflict_avoidance': """
       get_struct ./2 X0
        unify_var X0
        unify_var X1
@@ -482,7 +528,23 @@ testdata = [
       ('>', 'W', 'Y'),
       ('q', 'Z', 'Y', 'X'),
       ],
-     {'conflict_avoidance': """
+     {'naive': """
+         get_var X4 X0
+      get_struct f/1 X1
+       unify_val X4
+         get_var X5 X2
+         get_var X6 X3
+      put_struct ./2 X7
+     unify_const a
+       unify_var X8
+               = X4 X7
+               > X6 X5
+         put_val X8 X0
+         put_val X5 X1
+         put_val X4 X2
+            call q/3
+     """,
+      'conflict_avoidance': """
          get_var X4 X0
       get_struct f/1 X1
        unify_val X4
@@ -512,7 +574,17 @@ testdata = [
             call q/3
      """}),
     ([('p', 'X', 'Y', 'Z', 'a'), ('q', 'Z', 'X', 'Y')],
-     {'conflict_avoidance': """
+     {'naive': """
+       get_var X4 X0
+       get_var X5 X1
+       get_var X6 X2
+     get_const a X3
+       put_val X6 X0
+       put_val X4 X1
+       put_val X5 X2
+          call q/3
+     """,
+      'conflict_avoidance': """
        get_var X4 X0
        get_var X5 X1
        get_var X0 X2
@@ -530,7 +602,17 @@ testdata = [
           call q/3
      """}),
     ([('p', 'X', 'a', 'b'), ('q', 'c', 'd', ('f', 'X'))],
-     {'conflict_avoidance': """
+     {'naive': """
+        get_var X3 X0
+      get_const a X1
+      get_const b X2
+      put_const c X0
+      put_const d X1
+     put_struct f/1 X2
+      unify_val X3
+           call q/3
+     """,
+      'conflict_avoidance': """
         get_var X3 X0
       get_const a X1
       get_const b X2
@@ -556,7 +638,7 @@ testdata = [
 
 
 @parametrize("clause,instrs", testdata)
-@parametrize("alloc_strategy", ['conflict_avoidance', 'conflict_resolution'])
+@parametrize("alloc_strategy", ['naive', 'conflict_avoidance', 'conflict_resolution'])
 def test_compile_clause(clause, instrs, alloc_strategy):
     instrs = instrs[alloc_strategy]
     lines = [line.strip() for line in instrs.split("\n")]
