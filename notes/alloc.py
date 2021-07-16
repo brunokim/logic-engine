@@ -180,9 +180,11 @@ class ClauseCompiler:
         self.chunks = d['chunks']
 
         self.perm_addrs = None
+        self.temp_addrs = None
 
     def compile(self):
         self.perm_addrs = {}
+        self.temp_addrs = {}
         for i, chunk in enumerate(self.chunks):
             chunk_compiler = ChunkCompiler(chunk, i == 0, self, **self.kwargs)
             for instr in chunk_compiler.compile():
@@ -190,6 +192,7 @@ class ClauseCompiler:
                 if instr[0] in ('get_var', 'get_val', 'put_val') and instr[1] == instr[2]:
                     continue
                 yield instr
+            self.temp_addrs.update(chunk_compiler.temp_addrs)
 
     def perm_addr(self, x):
         if x not in self.perms:
