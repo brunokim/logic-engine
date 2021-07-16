@@ -418,6 +418,14 @@ testdata = [
          get_var X1 X0
          put_val X3 X0
             call member_/3
+     """,
+      'debray': """
+      get_struct ./2 X1
+       unify_var X2
+       unify_var X3
+         get_var X1 X0
+         put_val X3 X0
+            call member_/3
      """}),
     ([('mul', 'A', 'B', 'P'),
       ('=', ('s', 'B1'), 'B'),
@@ -468,6 +476,20 @@ testdata = [
         put_val Y2 X1
         put_val Y0 X2
            call add/3
+     """,
+      'debray': """
+        get_var Y0 X2
+     put_struct s/1 X2
+      unify_var Y1
+              = X2 X1
+        get_var X3 X1
+        put_val Y1 X1
+        put_var Y2 X2
+           call mul/3
+        put_val Y1 X0
+        put_val Y2 X1
+        put_val Y0 X2
+           call add/3
      """}),
     ([('is_even', ('s', ('s', 'X'))), ('is_even', 'X')],
      {'naive': """
@@ -486,6 +508,13 @@ testdata = [
            call is_even/1
      """,
       'conflict_resolution': """
+     get_struct s/1 X0
+      unify_var X0
+     get_struct s/1 X0
+      unify_var X0
+           call is_even/1
+     """,
+      'debray': """
      get_struct s/1 X0
       unify_var X0
      get_struct s/1 X0
@@ -518,6 +547,18 @@ testdata = [
      unify_const b
      """,
       'conflict_resolution': """
+      get_struct ./2 X0
+       unify_var X0
+       unify_var X1
+      get_struct g/1 X0
+     unify_const a
+      get_struct ./2 X1
+       unify_var X0
+     unify_const []
+      get_struct h/1 X0
+     unify_const b
+     """,
+      'debray': """
       get_struct ./2 X0
        unify_var X0
        unify_var X1
@@ -578,6 +619,20 @@ testdata = [
          put_val X2 X1
          put_val X5 X2
             call q/3
+     """,
+      'debray': """
+      get_struct f/1 X1
+       unify_val X0
+      put_struct ./2 X1
+     unify_const a
+       unify_var X4
+               = X0 X1
+               > X3 X2
+         get_var X5 X0
+         put_val X4 X0
+         put_val X2 X1
+         put_val X5 X2
+            call q/3
      """}),
     ([('p', 'X', 'Y', 'Z', 'a'), ('q', 'Z', 'X', 'Y')],
      {'naive': """
@@ -600,6 +655,14 @@ testdata = [
           call q/3
      """,
       'conflict_resolution': """
+     get_const a X3
+       get_var X3 X0
+       put_val X2 X0
+       get_var X2 X1
+       put_val X3 X1
+          call q/3
+     """,
+      'debray': """
      get_const a X3
        get_var X3 X0
        put_val X2 X0
@@ -639,12 +702,22 @@ testdata = [
      put_struct f/1 X2
       unify_val X3
            call q/3
+     """,
+      'debray': """
+      get_const a X1
+      get_const b X2
+        get_var X3 X0
+      put_const c X0
+      put_const d X1
+     put_struct f/1 X2
+      unify_val X3
+           call q/3
      """}),
 ]
 
 
 @parametrize("clause,instrs", testdata)
-@parametrize("alloc_strategy", ['naive', 'conflict_avoidance', 'conflict_resolution'])
+@parametrize("alloc_strategy", ['naive', 'conflict_avoidance', 'conflict_resolution', 'debray'])
 def test_compile_clause(clause, instrs, alloc_strategy):
     instrs = instrs[alloc_strategy]
     lines = [line.strip() for line in instrs.split("\n")]
