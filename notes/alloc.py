@@ -278,9 +278,9 @@ class ChunkCompiler:
 
     def get_term(self, term, reg):
         if is_var(term):
-            if self.alloc_strategy == 'conflict_resolution':
+            if self.alloc_strategy in ('conflict_resolution', 'debray'):
                 self.set_reg(reg, term)
-            addr, is_new = self.var_addr(term)
+            addr, is_new = self.var_addr(term, is_head=True)
             instr = 'get_var' if is_new else 'get_val'
             self.instructions.append((instr, addr, reg))
             if addr != reg:
@@ -308,7 +308,7 @@ class ChunkCompiler:
 
     def put_term(self, term, reg, *, top_level=False):
         # Move content out of register if in conflict.
-        if self.alloc_strategy == 'conflict_resolution' and top_level:
+        if self.alloc_strategy in ('conflict_resolution', 'debray') and top_level:
             value = self.reg_content.get(reg)
             if value is not None and value != term and value in self.parent.temps:
                 self.unset_reg(reg, value)
@@ -348,19 +348,22 @@ class ChunkCompiler:
             return addr
         return term
 
-    def var_addr(self, x):
+    def var_addr(self, x, *, is_head=False):
         if x in self.parent.perms:
             return self.parent.perm_addr(x)
-        return self.temp_addr(x)
+        return self.temp_addr(x, is_head=is_head)
 
-    def temp_addr(self, x):
+    def temp_addr(self, x, *, is_head=False):
         if x in self.temp_addrs:
             return self.temp_addrs[x], False
         if self.alloc_strategy == 'naive':
+            # No reg is ever considered free, always allocate a new one.
             use, nouse, conflict = set(), set(), self.free_regs
-        if self.alloc_strategy == 'conflict_avoidance':
+        if (self.alloc_strategy == 'conflict_avoidance'
+                or self.alloc_strategy == 'debray' and not is_head):
             use, nouse, conflict = set(self.use[x]), set(self.nouse[x]), set(self.conflict[x])
-        if self.alloc_strategy == 'conflict_resolution':
+        if (self.alloc_strategy == 'conflict_resolution'
+                or self.alloc_strategy == 'debray' and is_head):
             use, nouse, conflict = set(self.use[x]), set(self.nouse[x]), set()
         addr = self.alloc_reg(x, use, nouse, conflict)
         self.set_reg(addr, x)
@@ -668,7 +671,7 @@ def main():
                 print(f'    USE({x}) = {use[x]}, NOUSE({x}) = {nouse[x]}, CONFLICT({x}) = {conflict[x]}')
 
         print('Instructions:')
-        compiler = ClauseCompiler(clause, alloc_strategy='conflict_resolution')
+        compiler = ClauseCompiler(clause, alloc_strategy='debray')
         instrs = compiler.compile()
         for instr in instrs:
             print(f'  {instr}')
