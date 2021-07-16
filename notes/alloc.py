@@ -251,6 +251,8 @@ class ChunkCompiler:
                 self.free_regs.remove(f'X{i}')
             self.compile_head(head)
 
+        # TODO: free registers from temp variables that are last referenced
+        # before the last goal.
         for goal in chunk[:-1]:
             instr = [goal[0]]
             for arg in goal[1:]:
@@ -805,6 +807,17 @@ def main():
         addrs.update(compiler.perm_addrs)
         for x, addr in addrs.items():
             print(f'  {x}: {addr}')
+
+    print()
+    print('Instruction size')
+    print('clause | naive | conflict_avoidance | conflict_resolution | debray')
+    print('-------|-------|--------------------|---------------------|-------')
+    for i, (clause, _) in enumerate(testdata):
+        instrs_by_strategy = {
+            strategy: ClauseCompiler(clause, alloc_strategy=strategy).compile()
+            for strategy in ['naive', 'conflict_avoidance', 'conflict_resolution', 'debray']}
+        naive, avoidance, resolution, debray = [len(list(instrs)) for instrs in instrs_by_strategy.values()]
+        print(f'{i:>6d} | {naive:>5d} | {avoidance:>18d} | {resolution:>19d} | {debray:>6d}')
 
 
 if __name__ == '__main__':
