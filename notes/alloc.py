@@ -713,6 +713,57 @@ testdata = [
       unify_val X3
            call q/3
      """}),
+    ([('p', 'X', 'Y', ('f', 'Z')), ('q', 'a', 'b', 'Z', ('g', 'X', 'Y'))],
+     {'naive': """
+        get_var X4 X0
+        get_var X5 X1
+     get_struct f/1 X2
+      unify_var X6
+      put_const a X0
+      put_const b X1
+        put_val X6 X2
+     put_struct g/2 X3
+      unify_val X4
+      unify_val X5
+           call q/4
+     """,
+      'conflict_avoidance': """
+        get_var X4 X0
+        get_var X5 X1
+     get_struct f/1 X2
+      unify_var X2
+      put_const a X0
+      put_const b X1
+     put_struct g/2 X3
+      unify_val X4
+      unify_val X5
+           call q/4
+     """,
+      'conflict_resolution': """
+     get_struct f/1 X2
+      unify_var X2
+        get_var X3 X0
+      put_const a X0
+        get_var X4 X1
+      put_const b X1
+        get_var X5 X3
+     put_struct g/2 X3
+      unify_val X5
+      unify_val X4
+           call q/4
+     """,
+      'debray': """
+     get_struct f/1 X2
+      unify_var X2
+        get_var X4 X0
+      put_const a X0
+        get_var X5 X1
+      put_const b X1
+     put_struct g/2 X3
+      unify_val X4
+      unify_val X5
+           call q/4
+     """}),
 ]
 
 
