@@ -417,7 +417,7 @@ func tempAllocationSets(chunks []flatClause, permVars varset) map[logic.Var]*reg
 	return tempSets
 }
 
-// ---- clause compiler ctx
+// ---- clause compiler
 
 func numArgs(clause flatClause) int {
 	max := 0
@@ -435,9 +435,9 @@ type compound struct {
 	addr RegAddr
 }
 
-// compileClauseCtx wraps all the state necessary to compile a single clause.
-type compileClauseCtx struct {
-	pkgCtx   *compilePkgCtx
+// clauseCompiler wraps all the state necessary to compile a single clause.
+type clauseCompiler struct {
+	pc       *packageCompiler
 	clause   *Clause
 	freeRegs regset
 	topReg   RegAddr
@@ -451,13 +451,13 @@ type compileClauseCtx struct {
 	labelID  int
 }
 
-func newCompileClauseCtx(pkgCtx *compilePkgCtx, clause *Clause, numArgs int, permVars varset, tempSets map[logic.Var]*registerAllocation) *compileClauseCtx {
+func newClauseCompiler(pc *packageCompiler, clause *Clause, numArgs int, permVars varset, tempSets map[logic.Var]*registerAllocation) *clauseCompiler {
 	freeRegs := make(regset, numArgs)
 	for i := 0; i < numArgs; i++ {
 		freeRegs[i] = RegAddr(i)
 	}
-	return &compileClauseCtx{
-		pkgCtx:   pkgCtx,
+	return &clauseCompiler{
+		pc:       pc,
 		clause:   clause,
 		freeRegs: freeRegs,
 		topReg:   RegAddr(numArgs),
@@ -468,25 +468,25 @@ func newCompileClauseCtx(pkgCtx *compilePkgCtx, clause *Clause, numArgs int, per
 	}
 }
 
-func (ctx *compileClauseCtx) nextReg() RegAddr {
-	addr := ctx.topReg
-	ctx.topReg++
+func (cc *clauseCompiler) nextReg() RegAddr {
+	addr := cc.topReg
+	cc.topReg++
 	return addr
 }
 
-func (ctx *compileClauseCtx) nextStack() StackAddr {
-	addr := ctx.topStack
-	ctx.topStack++
+func (cc *clauseCompiler) nextStack() StackAddr {
+	addr := cc.topStack
+	cc.topStack++
 	return addr
 }
 
-func (ctx *compileClauseCtx) allocReg(x logic.Var) RegAddr {
-	alloc, ok := ctx.tempSets[x]
+func (cc *clauseCompiler) allocReg(x logic.Var) RegAddr {
+	alloc, ok := cc.tempSets[x]
 	if !ok {
 		panic(fmt.Sprintf("Temp variable %v doesn't have a allocation sets", x))
 	}
 	var addr RegAddr = -1
-	for _, reg := range ctx.freeRegs {
+	for _, reg := range cc.freeRegs {
 		// 1. Reserve a free register from the USE set.
 		if alloc.use.has(reg) {
 			addr = reg
@@ -504,61 +504,61 @@ func (ctx *compileClauseCtx) allocReg(x logic.Var) RegAddr {
 		break
 	}
 	if addr >= 0 {
-		ctx.freeRegs = ctx.freeRegs.remove(addr)
+		cc.freeRegs = cc.freeRegs.remove(addr)
 		return addr
 	}
-	return ctx.nextReg()
+	return cc.nextReg()
 }
 
-func (ctx *compileClauseCtx) nextAddr(x logic.Var) Addr {
+func (cc *clauseCompiler) nextAddr(x logic.Var) Addr {
 	if x == logic.AnonymousVar {
 		panic(fmt.Sprintf("Trying to allocate register for anonymous var"))
 	}
 	var addr Addr
-	if _, ok := ctx.permVars[x]; ok {
-		addr = ctx.nextStack()
+	if _, ok := cc.permVars[x]; ok {
+		addr = cc.nextStack()
 	} else {
-		if _, ok := ctx.pkgCtx.opts[UseConflictAvoidanceAllocationStrategy{}]; ok {
-			addr = ctx.allocReg(x)
+		if _, ok := cc.pc.opts[UseConflictAvoidanceAllocationStrategy{}]; ok {
+			addr = cc.allocReg(x)
 		} else {
-			addr = ctx.nextReg()
+			addr = cc.nextReg()
 		}
 	}
-	ctx.register[x] = addr
-	ctx.content[addr] = x
+	cc.register[x] = addr
+	cc.content[addr] = x
 	return addr
 }
 
 // ---- get/unify/put variables
 
-func (ctx *compileClauseCtx) getVar(x logic.Var, regAddr RegAddr) Instruction {
-	if addr, ok := ctx.register[x]; ok {
+func (cc *clauseCompiler) getVar(x logic.Var, regAddr RegAddr) Instruction {
+	if addr, ok := cc.register[x]; ok {
 		return getValue{addr, regAddr}
 	}
-	addr := ctx.nextAddr(x)
+	addr := cc.nextAddr(x)
 	if addr == regAddr {
 		return nil
 	}
 	return getVariable{addr, regAddr}
 }
 
-func (ctx *compileClauseCtx) unifyVar(x logic.Var) Instruction {
+func (cc *clauseCompiler) unifyVar(x logic.Var) Instruction {
 	if x == logic.AnonymousVar {
 		return unifyVoid{}
 	}
-	if addr, ok := ctx.register[x]; ok {
+	if addr, ok := cc.register[x]; ok {
 		return unifyValue{addr}
 	}
-	return unifyVariable{ctx.nextAddr(x)}
+	return unifyVariable{cc.nextAddr(x)}
 }
 
-func (ctx *compileClauseCtx) putVar(x logic.Var, regAddr RegAddr) Instruction {
+func (cc *clauseCompiler) putVar(x logic.Var, regAddr RegAddr) Instruction {
 	if x == logic.AnonymousVar {
-		return putVariable{ctx.nextReg(), regAddr}
+		return putVariable{cc.nextReg(), regAddr}
 	}
-	addr, ok := ctx.register[x]
+	addr, ok := cc.register[x]
 	if !ok {
-		return putVariable{ctx.nextAddr(x), regAddr}
+		return putVariable{cc.nextAddr(x), regAddr}
 	}
 	if addr == regAddr {
 		return nil
@@ -568,7 +568,7 @@ func (ctx *compileClauseCtx) putVar(x logic.Var, regAddr RegAddr) Instruction {
 
 // ---- get terms
 
-func (ctx *compileClauseCtx) getTerm(term logic.Term, addr RegAddr) []Instruction {
+func (cc *clauseCompiler) getTerm(term logic.Term, addr RegAddr) []Instruction {
 	switch t := term.(type) {
 	case logic.Atom:
 		return []Instruction{getConstant{toConstant(t), addr}}
@@ -578,7 +578,7 @@ func (ctx *compileClauseCtx) getTerm(term logic.Term, addr RegAddr) []Instructio
 		if t == logic.AnonymousVar {
 			return []Instruction{}
 		}
-		instr := ctx.getVar(t, addr)
+		instr := cc.getVar(t, addr)
 		if instr == nil {
 			return []Instruction{}
 		}
@@ -587,48 +587,48 @@ func (ctx *compileClauseCtx) getTerm(term logic.Term, addr RegAddr) []Instructio
 		instrs := make([]Instruction, len(t.Args)+1)
 		instrs[0] = getStruct{toFunctor(t.Indicator()), addr}
 		for i, arg := range t.Args {
-			instrs[i+1] = ctx.unifyArg(arg)
+			instrs[i+1] = cc.unifyArg(arg)
 		}
 		return instrs
 	case *logic.List:
-		return ctx.getPair(ListPair, addr, t.Terms[0], t.Slice(1))
+		return cc.getPair(ListPair, addr, t.Terms[0], t.Slice(1))
 	case *logic.Assoc:
-		return ctx.getPair(AssocPair, addr, t.Key, t.Val)
+		return cc.getPair(AssocPair, addr, t.Key, t.Val)
 	case *logic.Dict:
-		return ctx.getPair(DictPair, addr, t.Assocs[0], t.Tail())
+		return cc.getPair(DictPair, addr, t.Assocs[0], t.Tail())
 	default:
 		panic(fmt.Sprintf("wam.getTerm: unhandled type %T (%v)", term, term))
 	}
 }
 
-func (ctx *compileClauseCtx) getPair(tag PairTag, addr RegAddr, head, tail logic.Term) []Instruction {
-	return []Instruction{getPair{tag, addr}, ctx.unifyArg(head), ctx.unifyArg(tail)}
+func (cc *clauseCompiler) getPair(tag PairTag, addr RegAddr, head, tail logic.Term) []Instruction {
+	return []Instruction{getPair{tag, addr}, cc.unifyArg(head), cc.unifyArg(tail)}
 }
 
 // ---- unify terms
 
-func (ctx *compileClauseCtx) delayComplexArg(arg logic.Term) Instruction {
-	addr := ctx.nextReg()
-	ctx.delayed = append(ctx.delayed, compound{t: arg, addr: addr})
+func (cc *clauseCompiler) delayComplexArg(arg logic.Term) Instruction {
+	addr := cc.nextReg()
+	cc.delayed = append(cc.delayed, compound{t: arg, addr: addr})
 	return unifyVariable{addr}
 }
 
-func (ctx *compileClauseCtx) unifyArg(arg logic.Term) Instruction {
+func (cc *clauseCompiler) unifyArg(arg logic.Term) Instruction {
 	switch a := arg.(type) {
 	case logic.Atom:
 		return unifyConstant{toConstant(a)}
 	case logic.Int:
 		return unifyConstant{toConstant(a)}
 	case logic.Var:
-		return ctx.unifyVar(a)
+		return cc.unifyVar(a)
 	case *logic.Comp:
-		return ctx.delayComplexArg(a)
+		return cc.delayComplexArg(a)
 	case *logic.List:
-		return ctx.delayComplexArg(a)
+		return cc.delayComplexArg(a)
 	case *logic.Assoc:
-		return ctx.delayComplexArg(a)
+		return cc.delayComplexArg(a)
 	case *logic.Dict:
-		return ctx.delayComplexArg(a)
+		return cc.delayComplexArg(a)
 	default:
 		panic(fmt.Sprintf("wam.unifyArg: unhandled type %T (%v)", arg, arg))
 	}
@@ -636,14 +636,14 @@ func (ctx *compileClauseCtx) unifyArg(arg logic.Term) Instruction {
 
 // ---- put terms
 
-func (ctx *compileClauseCtx) putTerm(term logic.Term, addr RegAddr) []Instruction {
+func (cc *clauseCompiler) putTerm(term logic.Term, addr RegAddr) []Instruction {
 	switch t := term.(type) {
 	case logic.Atom:
 		return []Instruction{putConstant{toConstant(t), addr}}
 	case logic.Int:
 		return []Instruction{putConstant{toConstant(t), addr}}
 	case logic.Var:
-		instr := ctx.putVar(t, addr)
+		instr := cc.putVar(t, addr)
 		if instr == nil {
 			return []Instruction{}
 		}
@@ -651,22 +651,22 @@ func (ctx *compileClauseCtx) putTerm(term logic.Term, addr RegAddr) []Instructio
 	case *logic.Comp:
 		instrs := make([]Instruction, len(t.Args)+1)
 		instrs[0] = putStruct{toFunctor(t.Indicator()), addr}
-		ctx.setArgs(t.Args, instrs)
+		cc.setArgs(t.Args, instrs)
 		return instrs
 	case *logic.List:
-		return ctx.putPair(ListPair, addr, t.Terms[0], t.Slice(1))
+		return cc.putPair(ListPair, addr, t.Terms[0], t.Slice(1))
 	case *logic.Assoc:
-		return ctx.putPair(AssocPair, addr, t.Key, t.Val)
+		return cc.putPair(AssocPair, addr, t.Key, t.Val)
 	case *logic.Dict:
-		return ctx.putPair(DictPair, addr, t.Assocs[0], t.Tail())
+		return cc.putPair(DictPair, addr, t.Assocs[0], t.Tail())
 	default:
 		panic(fmt.Sprintf("wam.putTerm: unhandled type %T (%v)", term, term))
 	}
 }
 
-func (ctx *compileClauseCtx) putPair(tag PairTag, addr RegAddr, head, tail logic.Term) []Instruction {
+func (cc *clauseCompiler) putPair(tag PairTag, addr RegAddr, head, tail logic.Term) []Instruction {
 	instrs := []Instruction{putPair{tag, addr}, nil, nil}
-	ctx.setArgs([]logic.Term{head, tail}, instrs)
+	cc.setArgs([]logic.Term{head, tail}, instrs)
 	return instrs
 }
 
@@ -681,60 +681,60 @@ func (ctx *compileClauseCtx) putPair(tag PairTag, addr RegAddr, head, tail logic
 //       put_struct f/2, X0
 //       unify_value X2        % A's reference within f/2 comes later
 //       unify_value X3
-func (ctx *compileClauseCtx) setArgs(args []logic.Term, instrs []Instruction) {
+func (cc *clauseCompiler) setArgs(args []logic.Term, instrs []Instruction) {
 	var varIdxs []int
 	for i, arg := range args {
 		if _, ok := arg.(logic.Var); ok {
 			varIdxs = append(varIdxs, i)
 		} else {
-			instrs[i+1] = ctx.setArg(arg)
+			instrs[i+1] = cc.setArg(arg)
 		}
 	}
 	for _, idx := range varIdxs {
-		instrs[idx+1] = ctx.setArg(args[idx])
+		instrs[idx+1] = cc.setArg(args[idx])
 	}
 }
 
-func (ctx *compileClauseCtx) setArg(arg logic.Term) Instruction {
+func (cc *clauseCompiler) setArg(arg logic.Term) Instruction {
 	switch a := arg.(type) {
 	case logic.Atom:
 		return unifyConstant{toConstant(a)}
 	case logic.Int:
 		return unifyConstant{toConstant(a)}
 	case logic.Var:
-		return ctx.unifyVar(a)
+		return cc.unifyVar(a)
 	case *logic.Comp:
-		return ctx.setComplexArg(arg)
+		return cc.setComplexArg(arg)
 	case *logic.List:
-		return ctx.setComplexArg(arg)
+		return cc.setComplexArg(arg)
 	case *logic.Assoc:
-		return ctx.setComplexArg(arg)
+		return cc.setComplexArg(arg)
 	case *logic.Dict:
-		return ctx.setComplexArg(arg)
+		return cc.setComplexArg(arg)
 	default:
 		panic(fmt.Sprintf("wam.setArg: unhandled type %T (%v)", arg, arg))
 	}
 }
 
-func (ctx *compileClauseCtx) setComplexArg(arg logic.Term) Instruction {
-	addr := ctx.nextReg()
-	ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, addr)...)
+func (cc *clauseCompiler) setComplexArg(arg logic.Term) Instruction {
+	addr := cc.nextReg()
+	cc.instrs = append(cc.instrs, cc.putTerm(arg, addr)...)
 	return unifyValue{addr}
 }
 
 // ---- term addr
 
-func (ctx *compileClauseCtx) ensureVar(x logic.Var) {
+func (cc *clauseCompiler) ensureVar(x logic.Var) {
 	if x == logic.AnonymousVar {
 		return
 	}
-	if _, ok := ctx.register[x]; ok {
+	if _, ok := cc.register[x]; ok {
 		return
 	}
-	ctx.instrs = append(ctx.instrs, putVariable{ctx.nextAddr(x), ctx.nextReg()})
+	cc.instrs = append(cc.instrs, putVariable{cc.nextAddr(x), cc.nextReg()})
 }
 
-func (ctx *compileClauseCtx) termAddr(term logic.Term) Addr {
+func (cc *clauseCompiler) termAddr(term logic.Term) Addr {
 	switch t := term.(type) {
 	case logic.Atom:
 		return ConstantAddr{toConstant(t)}
@@ -743,11 +743,11 @@ func (ctx *compileClauseCtx) termAddr(term logic.Term) Addr {
 	case logic.Ptr:
 		return ConstantAddr{toConstant(t)}
 	case logic.Var:
-		ctx.ensureVar(t)
-		return ctx.register[t]
+		cc.ensureVar(t)
+		return cc.register[t]
 	}
-	addr := ctx.nextReg()
-	ctx.instrs = append(ctx.instrs, ctx.putTerm(term, addr)...)
+	addr := cc.nextReg()
+	cc.instrs = append(cc.instrs, cc.putTerm(term, addr)...)
 	return addr
 }
 
@@ -764,7 +764,7 @@ func Compile(clause *logic.Clause, options ...CompileOption) (*Clause, error) {
 	for _, opt := range options {
 		opts[opt] = empty
 	}
-	return newCompilePkgCtx(opts).compile(goals)
+	return newPackageCompiler(opts).compile(goals)
 }
 
 func compileQuery(query []logic.Term) (*Clause, error) {
@@ -783,7 +783,7 @@ func compileQuery(query []logic.Term) (*Clause, error) {
 	for _, x := range goalVars(dummy) {
 		permVars[x] = empty
 	}
-	c, err := newCompilePkgCtx(nil).compile0(dummy, nil, permVars)
+	c, err := newPackageCompiler(nil).compile0(dummy, nil, permVars)
 	if err != nil {
 		return nil, err
 	}
@@ -808,11 +808,11 @@ func asmGoal(t logic.Term) goal {
 	return goal{"", comp("asm", t)}
 }
 
-func (ctx *compileClauseCtx) flattenControl(terms0 flatClause) (flatClause, error) {
+func (cc *clauseCompiler) flattenControl(terms0 flatClause) (flatClause, error) {
 	terms := make(flatClause, len(terms0))
 	copy(terms, terms0)
 	var body flatClause
-	ctx.labelID = 1
+	cc.labelID = 1
 	for len(terms) > 0 {
 		g := terms[0]
 		terms = terms[1:]
@@ -822,7 +822,7 @@ func (ctx *compileClauseCtx) flattenControl(terms0 flatClause) (flatClause, erro
 		}
 		term := g.comp
 		if _, ok := controlFunctors[term.Functor]; ok {
-			goals, err := ctx.controlFunctor(term)
+			goals, err := cc.controlFunctor(term)
 			if err != nil {
 				return nil, err
 			}
@@ -830,7 +830,7 @@ func (ctx *compileClauseCtx) flattenControl(terms0 flatClause) (flatClause, erro
 			continue
 		}
 		if _, ok := controlIndicators[term.Indicator()]; ok {
-			goals, err := ctx.controlIndicator(term)
+			goals, err := cc.controlIndicator(term)
 			if err != nil {
 				return nil, err
 			}
@@ -843,7 +843,7 @@ func (ctx *compileClauseCtx) flattenControl(terms0 flatClause) (flatClause, erro
 	return body, nil
 }
 
-func (ctx *compileClauseCtx) controlFunctor(term *logic.Comp) (flatClause, error) {
+func (cc *clauseCompiler) controlFunctor(term *logic.Comp) (flatClause, error) {
 	switch term.Functor {
 	case "and":
 		return toGoals(term.Args)
@@ -852,27 +852,27 @@ func (ctx *compileClauseCtx) controlFunctor(term *logic.Comp) (flatClause, error
 	}
 }
 
-func (ctx *compileClauseCtx) controlIndicator(term *logic.Comp) (flatClause, error) {
+func (cc *clauseCompiler) controlIndicator(term *logic.Comp) (flatClause, error) {
 	switch term.Indicator() {
 	case dsl.Indicator("\\+", 1):
 		target := term.Args[0]
-		targetID, endID := ctx.labelID, ctx.labelID+1
-		ctx.labelID += 2
+		targetID, endID := cc.labelID, cc.labelID+1
+		cc.labelID += 2
 		//
 		targetGoal, err := toGoal(target)
 		if err != nil {
 			return nil, err
 		}
 		// Ensure that variables referenced within Target are initialized.
-		ctx.instrs = nil
+		cc.instrs = nil
 		for _, x := range logic.Vars(term) {
-			ctx.ensureVar(x)
+			cc.ensureVar(x)
 		}
-		ctx.clause.Code = append(ctx.clause.Code, ctx.instrs...)
+		cc.clause.Code = append(cc.clause.Code, cc.instrs...)
 		// Inline \+(Target) :- ->(Target, false, true).
 		return flatClause{
-			asmGoal(comp("try", comp("instr", ptr(ctx.clause), int_(-targetID)))),
-			asmGoal(comp("trust", comp("instr", ptr(ctx.clause), int_(-endID)))),
+			asmGoal(comp("try", comp("instr", ptr(cc.clause), int_(-targetID)))),
+			asmGoal(comp("trust", comp("instr", ptr(cc.clause), int_(-endID)))),
 			asmGoal(comp("label", int_(targetID))),
 			targetGoal,
 			asmGoal(atom("cut")),
@@ -881,8 +881,8 @@ func (ctx *compileClauseCtx) controlIndicator(term *logic.Comp) (flatClause, err
 		}, nil
 	case dsl.Indicator("->", 3):
 		cond, then_, else_ := term.Args[0], term.Args[1], term.Args[2]
-		thenID, elseID, endID := ctx.labelID, ctx.labelID+1, ctx.labelID+2
-		ctx.labelID += 3
+		thenID, elseID, endID := cc.labelID, cc.labelID+1, cc.labelID+2
+		cc.labelID += 3
 		//
 		condGoal, err1 := toGoal(cond)
 		thenGoal, err2 := toGoal(then_)
@@ -891,20 +891,20 @@ func (ctx *compileClauseCtx) controlIndicator(term *logic.Comp) (flatClause, err
 			return nil, errors.New("cond err=%v, then err=%v, else err=%v", err1, err2, err3)
 		}
 		// Ensure that variables referenced in any branch are initialized.
-		ctx.instrs = nil
+		cc.instrs = nil
 		for _, x := range logic.Vars(term) {
-			ctx.ensureVar(x)
+			cc.ensureVar(x)
 		}
-		ctx.clause.Code = append(ctx.clause.Code, ctx.instrs...)
+		cc.clause.Code = append(cc.clause.Code, cc.instrs...)
 		// Inline cond, then and else branches, adding control instructions to move around.
 		return flatClause{
-			asmGoal(comp("try", comp("instr", ptr(ctx.clause), int_(-thenID)))),
-			asmGoal(comp("trust", comp("instr", ptr(ctx.clause), int_(-elseID)))),
+			asmGoal(comp("try", comp("instr", ptr(cc.clause), int_(-thenID)))),
+			asmGoal(comp("trust", comp("instr", ptr(cc.clause), int_(-elseID)))),
 			asmGoal(comp("label", int_(thenID))),
 			condGoal,
 			asmGoal(atom("cut")),
 			thenGoal,
-			asmGoal(comp("jump", comp("instr", ptr(ctx.clause), int_(-endID)))),
+			asmGoal(comp("jump", comp("instr", ptr(cc.clause), int_(-endID)))),
 			asmGoal(comp("label", int_(elseID))),
 			elseGoal,
 			asmGoal(comp("label", int_(endID))),
@@ -918,37 +918,37 @@ func (ctx *compileClauseCtx) controlIndicator(term *logic.Comp) (flatClause, err
 	}
 }
 
-func (ctx *compileClauseCtx) compileBodyTerm(pos int, g goal) ([]Instruction, error) {
-	ctx.instrs = nil
+func (cc *clauseCompiler) compileBodyTerm(pos int, g goal) ([]Instruction, error) {
+	cc.instrs = nil
 	if g.pkg != "" {
-		return ctx.compileDefaultTerm(g)
+		return cc.compileDefaultTerm(g)
 	}
 	term := g.comp
 	if _, ok := inlinedFunctors[term.Functor]; ok {
-		return ctx.inlinedFunctor(pos, term)
+		return cc.inlinedFunctor(pos, term)
 	}
 	if _, ok := inlinedIndicators[term.Indicator()]; ok {
-		return ctx.inlinedIndicator(pos, term)
+		return cc.inlinedIndicator(pos, term)
 	}
-	return ctx.compileDefaultTerm(g)
+	return cc.compileDefaultTerm(g)
 }
 
-func (ctx *compileClauseCtx) inlinedFunctor(pos int, term *logic.Comp) ([]Instruction, error) {
+func (cc *clauseCompiler) inlinedFunctor(pos int, term *logic.Comp) ([]Instruction, error) {
 	switch term.Functor {
 	case "call":
-		callee := ctx.termAddr(term.Args[0])
+		callee := cc.termAddr(term.Args[0])
 		params := make([]Addr, len(term.Args)-1)
 		for i, param := range term.Args[1:] {
-			params[i] = ctx.termAddr(param)
+			params[i] = cc.termAddr(param)
 		}
-		ctx.instrs = append(ctx.instrs, callMeta{Addr: callee, Params: params})
-		return ctx.instrs, nil
+		cc.instrs = append(cc.instrs, callMeta{Addr: callee, Params: params})
+		return cc.instrs, nil
 	default:
 		panic(fmt.Sprintf("unimplemented inlined functor %v", term.Functor))
 	}
 }
 
-func (ctx *compileClauseCtx) inlinedIndicator(pos int, term *logic.Comp) ([]Instruction, error) {
+func (cc *clauseCompiler) inlinedIndicator(pos int, term *logic.Comp) ([]Instruction, error) {
 	switch term.Indicator() {
 	case dsl.Indicator("!", 0):
 		if pos == 0 {
@@ -968,21 +968,21 @@ func (ctx *compileClauseCtx) inlinedIndicator(pos int, term *logic.Comp) ([]Inst
 		}
 		return []Instruction{importPkg{pkg.Name}}, nil
 	case dsl.Indicator("=", 2):
-		x := ctx.termAddr(term.Args[0])
-		y := ctx.termAddr(term.Args[1])
-		ctx.instrs = append(ctx.instrs, inlineUnify{x, y})
-		return ctx.instrs, nil
+		x := cc.termAddr(term.Args[0])
+		y := cc.termAddr(term.Args[1])
+		cc.instrs = append(cc.instrs, inlineUnify{x, y})
+		return cc.instrs, nil
 	case dsl.Indicator("@<", 2),
 		dsl.Indicator("@=<", 2),
 		dsl.Indicator("@>=", 2),
 		dsl.Indicator("@>", 2),
 		dsl.Indicator("==", 2),
 		dsl.Indicator("\\==", 2):
-		x := ctx.termAddr(term.Args[0])
-		y := ctx.termAddr(term.Args[1])
+		x := cc.termAddr(term.Args[0])
+		y := cc.termAddr(term.Args[1])
 		pred := comparisonPredicates[term.Functor]
-		ctx.instrs = append(ctx.instrs, builtinComparisonInstruction(pred, x, y))
-		return ctx.instrs, nil
+		cc.instrs = append(cc.instrs, builtinComparisonInstruction(pred, x, y))
+		return cc.instrs, nil
 	case dsl.Indicator("atom", 1),
 		dsl.Indicator("int", 1),
 		dsl.Indicator("ptr", 1),
@@ -990,78 +990,78 @@ func (ctx *compileClauseCtx) inlinedIndicator(pos int, term *logic.Comp) ([]Inst
 		dsl.Indicator("list", 1),
 		dsl.Indicator("assoc", 1),
 		dsl.Indicator("dict", 1):
-		x := ctx.termAddr(term.Args[0])
+		x := cc.termAddr(term.Args[0])
 		pred := typeCheckPredicates[term.Functor]
-		ctx.instrs = append(ctx.instrs, builtinTypeCheckInstruction(pred, x))
-		return ctx.instrs, nil
+		cc.instrs = append(cc.instrs, builtinTypeCheckInstruction(pred, x))
+		return cc.instrs, nil
 	case dsl.Indicator("get_attr", 3):
 		pkg, ok := term.Args[0].(logic.Atom)
 		if !ok {
 			return nil, errors.New("expected atom for get_attr/3, got %v", term.Args[0])
 		}
-		x := ctx.termAddr(term.Args[1])
-		attr := ctx.termAddr(term.Args[2])
-		ctx.instrs = append(ctx.instrs, getAttr{pkg.Name, x, attr})
-		return ctx.instrs, nil
+		x := cc.termAddr(term.Args[1])
+		attr := cc.termAddr(term.Args[2])
+		cc.instrs = append(cc.instrs, getAttr{pkg.Name, x, attr})
+		return cc.instrs, nil
 	case dsl.Indicator("put_attr", 3):
 		pkg, ok := term.Args[0].(logic.Atom)
 		if !ok {
 			return nil, errors.New("expected atom for put_attr/3, got %v", term.Args[0])
 		}
-		x := ctx.termAddr(term.Args[1])
-		attr := ctx.termAddr(term.Args[2])
-		ctx.instrs = append(ctx.instrs, putAttr{pkg.Name, x, attr})
-		return ctx.instrs, nil
+		x := cc.termAddr(term.Args[1])
+		attr := cc.termAddr(term.Args[2])
+		cc.instrs = append(cc.instrs, putAttr{pkg.Name, x, attr})
+		return cc.instrs, nil
 	case dsl.Indicator("del_attr", 2):
 		pkg, ok := term.Args[0].(logic.Atom)
 		if !ok {
 			return nil, errors.New("expected atom for del_attr/2, got %v", term.Args[0])
 		}
-		x := ctx.termAddr(term.Args[1])
-		ctx.instrs = append(ctx.instrs, delAttr{pkg.Name, x})
-		return ctx.instrs, nil
+		x := cc.termAddr(term.Args[1])
+		cc.instrs = append(cc.instrs, delAttr{pkg.Name, x})
+		return cc.instrs, nil
 	default:
 		panic(fmt.Sprintf("unimplemented inlined indicator %v", term.Indicator()))
 	}
 }
 
-func (ctx *compileClauseCtx) compileDefaultTerm(g goal) ([]Instruction, error) {
+func (cc *clauseCompiler) compileDefaultTerm(g goal) ([]Instruction, error) {
 	// Put term args into registers X0-Xn and issue a call to f/n.
 	for i, arg := range g.comp.Args {
-		ctx.instrs = append(ctx.instrs, ctx.putTerm(arg, RegAddr(i))...)
+		cc.instrs = append(cc.instrs, cc.putTerm(arg, RegAddr(i))...)
 	}
 	var pkg Addr
 	if g.pkg != "" {
 		pkg = ConstantAddr{WAtom(g.pkg)}
 	}
-	ctx.instrs = append(ctx.instrs, call{
+	cc.instrs = append(cc.instrs, call{
 		Pkg:     pkg,
 		Functor: toFunctor(g.comp.Indicator()),
 	})
-	return ctx.instrs, nil
+	return cc.instrs, nil
 }
 
 // ---- indexing
 
 // Create level-1 index of clauses, based on their first arg.
-func (ctx *compilePkgCtx) compileClauseGroup(ind logic.Indicator, clauses []flatClause) (*Clause, error) {
+func (pc *packageCompiler) compileClauseGroup(ind logic.Indicator, clauses []flatClause) (*Clause, error) {
 	if len(clauses) == 1 {
-		return ctx.compile(clauses[0])
+		return pc.compile(clauses[0])
 	}
 	if ind.Arity == 0 {
 		// No first arg, impossible to index.
-		return ctx.compileSequenceNoIndex(clauses)
+		return pc.compileSequenceNoIndex(clauses)
 	}
 	seqs, anyNonVar := splitOnVarFirstArg(clauses)
 	if !anyNonVar {
 		// All first arg are vars, impossible to index.
-		return ctx.compileSequenceNoIndex(clauses)
+		return pc.compileSequenceNoIndex(clauses)
 	}
 	var numReg int
 	compiledClauses := make([]*Clause, len(seqs))
 	for i, seq := range seqs {
 		var err error
-		compiledClauses[i], err = ctx.compileSequence(ind, seq)
+		compiledClauses[i], err = pc.compileSequence(ind, seq)
 		if err != nil {
 			return nil, err
 		}
@@ -1084,12 +1084,12 @@ func (ctx *compilePkgCtx) compileClauseGroup(ind logic.Indicator, clauses []flat
 //
 // Clauses with same first arg are also placed in a linked-list of
 // try-retry-trust instructions.
-func (ctx *compilePkgCtx) compileSequence(ind logic.Indicator, clauses []flatClause) (*Clause, error) {
+func (pc *packageCompiler) compileSequence(ind logic.Indicator, clauses []flatClause) (*Clause, error) {
 	var numReg int
 	codes := make([]*Clause, len(clauses))
 	for i, clause := range clauses {
 		var err error
-		codes[i], err = ctx.compile(clause)
+		codes[i], err = pc.compile(clause)
 		if err != nil {
 			return nil, errors.New("%v#%d: %v", ind, i+1, err)
 		}
@@ -1233,12 +1233,12 @@ func splitOnVarFirstArg(clauses []flatClause) ([][]flatClause, bool) {
 	return subSeqs, anyNonVar
 }
 
-func (ctx *compilePkgCtx) compileSequenceNoIndex(clauses []flatClause) (*Clause, error) {
+func (pc *packageCompiler) compileSequenceNoIndex(clauses []flatClause) (*Clause, error) {
 	// Compile each clause in isolation.
 	codes := make([]*Clause, len(clauses))
 	for i, clause := range clauses {
 		var err error
-		codes[i], err = ctx.compile(clause)
+		codes[i], err = pc.compile(clause)
 		if err != nil {
 			return nil, err
 		}
@@ -1264,12 +1264,12 @@ func addChoiceLinks(clauses []*Clause) {
 	}
 }
 
-func (ctx *compilePkgCtx) compile(clause flatClause) (*Clause, error) {
+func (pc *packageCompiler) compile(clause flatClause) (*Clause, error) {
 	permVars, chunks, err := permanentVars(clause)
 	if err != nil {
 		return nil, err
 	}
-	c, err := ctx.compile0(clause, chunks, permVars)
+	c, err := pc.compile0(clause, chunks, permVars)
 	if err != nil {
 		return nil, err
 	}
@@ -1277,28 +1277,28 @@ func (ctx *compilePkgCtx) compile(clause flatClause) (*Clause, error) {
 	return c, nil
 }
 
-func (pkgCtx *compilePkgCtx) compile0(clause flatClause, chunks []flatClause, permVars varset) (*Clause, error) {
+func (pc *packageCompiler) compile0(clause flatClause, chunks []flatClause, permVars varset) (*Clause, error) {
 	functor := toFunctor(clause[0].comp.Indicator())
 	c := &Clause{Functor: functor}
-	ctx := newCompileClauseCtx(pkgCtx, c, numArgs(clause), permVars, tempAllocationSets(chunks, permVars))
+	cc := newClauseCompiler(pc, c, numArgs(clause), permVars, tempAllocationSets(chunks, permVars))
 	// Compile clause head
 	for i, term := range clause[0].comp.Args {
-		c.Code = append(c.Code, ctx.getTerm(term, RegAddr(i))...)
+		c.Code = append(c.Code, cc.getTerm(term, RegAddr(i))...)
 	}
-	for len(ctx.delayed) > 0 {
-		buf := ctx.delayed
-		ctx.delayed = nil
+	for len(cc.delayed) > 0 {
+		buf := cc.delayed
+		cc.delayed = nil
 		for _, compound := range buf {
-			c.Code = append(c.Code, ctx.getTerm(compound.t, compound.addr)...)
+			c.Code = append(c.Code, cc.getTerm(compound.t, compound.addr)...)
 		}
 	}
 	// Compile clause body
-	body, err := ctx.flattenControl(clause[1:])
+	body, err := cc.flattenControl(clause[1:])
 	if err != nil {
 		return nil, err
 	}
 	for i, term := range body {
-		instrs, err := ctx.compileBodyTerm(i, term)
+		instrs, err := cc.compileBodyTerm(i, term)
 		if err != nil {
 			return nil, err
 		}
@@ -1309,12 +1309,12 @@ func (pkgCtx *compilePkgCtx) compile0(clause flatClause, chunks []flatClause, pe
 		c.Code = append(c.Code, proceed{Run})
 	}
 	// If call requires an environment, add an allocate-deallocate pair to the clause.
-	if ctx.topStack > 0 || requiresEnv(c.Code) {
-		c.Code = append([]Instruction{allocate{int(ctx.topStack)}}, c.Code...)
+	if cc.topStack > 0 || requiresEnv(c.Code) {
+		c.Code = append([]Instruction{allocate{int(cc.topStack)}}, c.Code...)
 		c.Code = append(c.Code, deallocate{})
 	}
-	c.NumRegisters = int(ctx.topReg)
-	c.Vars = ctx.content
+	c.NumRegisters = int(cc.topReg)
+	c.Vars = cc.content
 	return c, nil
 }
 
@@ -1463,14 +1463,14 @@ type UseConflictAvoidanceAllocationStrategy struct{}
 func (KeepLabels) isCompileOption()                             {}
 func (UseConflictAvoidanceAllocationStrategy) isCompileOption() {}
 
-type compilePkgCtx struct {
+type packageCompiler struct {
 	opts map[CompileOption]struct{}
 }
 
-func newCompilePkgCtx(opts map[CompileOption]struct{}) *compilePkgCtx {
-	ctx := new(compilePkgCtx)
-	ctx.opts = opts
-	return ctx
+func newPackageCompiler(opts map[CompileOption]struct{}) *packageCompiler {
+	pc := new(packageCompiler)
+	pc.opts = opts
+	return pc
 }
 
 // compileClauses returns a list of compiled clauses. Each corresponds with
@@ -1494,10 +1494,10 @@ func compileClauses(clauses []*logic.Clause, options ...CompileOption) ([]*Claus
 		}
 		m[ind] = append(m[ind], goals)
 	}
-	ctx := newCompilePkgCtx(opts)
+	pc := newPackageCompiler(opts)
 	var cs []*Clause
 	for _, ind := range order {
-		clause, err := ctx.compileClauseGroup(ind, m[ind])
+		clause, err := pc.compileClauseGroup(ind, m[ind])
 		if err != nil {
 			return nil, err
 		}
