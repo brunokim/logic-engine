@@ -1,9 +1,73 @@
 package compiler
 
 import (
+	"sort"
+
 	"github.com/brunokim/logic-engine/logic"
 	"github.com/brunokim/logic-engine/wam"
 )
+
+// regset is a set of register addresses, implemented as a sorted array.
+type regset []wam.RegAddr
+
+func (r regset) index(reg wam.RegAddr) (int, bool) {
+	i := sort.Search(len(r), func(i int) bool { return r[i] >= reg })
+	return i, i < len(r) && r[i] == reg
+}
+
+func (r regset) has(reg wam.RegAddr) bool {
+	_, ok := r.index(reg)
+	return ok
+}
+
+func (r regset) add(reg wam.RegAddr) regset {
+	i, ok := r.index(reg)
+	if ok {
+		return r
+	}
+	r = append(r, -1)
+	copy(r[i+1:], r[i:])
+	r[i] = reg
+	return r
+}
+
+func (r regset) remove(reg wam.RegAddr) regset {
+	i, ok := r.index(reg)
+	if !ok {
+		return r
+	}
+	copy(r[i:], r[i+1:])
+	r = r[:len(r)-1]
+	return r
+}
+
+func (r regset) union(s regset) regset {
+	if len(r) < len(s) {
+		// Let r be the largest of the sets
+		r, s = s, r
+	}
+	t := make(regset, len(r), len(r)+len(s))
+	copy(t, r)
+	for _, x := range s {
+		t = t.add(x)
+	}
+	return t
+}
+
+func (r regset) difference(s regset) regset {
+	if len(r) < len(s) {
+		// Let r be the largest of the sets
+		r, s = s, r
+	}
+	t := make(regset, len(r))
+	copy(t, r)
+	for _, x := range s {
+		t = t.remove(x)
+	}
+	return t
+}
+
+// ----
 
 type Code struct {
 	Functor      wam.Functor
@@ -76,13 +140,11 @@ const (
 	newComplexTerm
 )
 
-type regSet []wam.RegAddr
-
 type chunkSets struct {
 	maxRegs  int
-	use      map[logic.Var]regSet
-	noUse    map[logic.Var]regSet
-	conflict map[logic.Var]regSet
+	use      map[logic.Var]regset
+	noUse    map[logic.Var]regset
+	conflict map[logic.Var]regset
 }
 
 func newChunkSets(chunk *chunk, temps []logic.Var, isHead bool) *chunkSets {
@@ -121,13 +183,13 @@ type chunkCompiler struct {
 	parent *clauseCompiler
 
 	maxRegs  int
-	use      map[logic.Var]regSet
-	noUse    map[logic.Var]regSet
-	conflict map[logic.Var]regSet
+	use      map[logic.Var]regset
+	noUse    map[logic.Var]regset
+	conflict map[logic.Var]regset
 
 	delayedComplexTerms []delayedComplexTerm
 
-	freeRegs   regSet
+	freeRegs   regset
 	tempAddrs  map[logic.Term]wam.RegAddr
 	regContent map[wam.RegAddr]logic.Term
 }
@@ -174,6 +236,13 @@ func (cc *chunkCompiler) tempAddr(x logic.Term, isHead bool) (wam.RegAddr, addrA
 	return wam.RegAddr(0), existingTerm
 }
 
-func (cc *chunkCompiler) allocReg(x logic.Term, use regSet, noUse regSet) wam.RegAddr {
-	return wam.RegAddr(0)
+// Allocate a register for a variable or complex term.
+func (cc *chunkCompiler) allocReg(x logic.Term, use regset, noUse regset) wam.RegAddr {
+	free := cc.freeRegs.union(use)
+	if len(free) == 0 {
+		free = cc.freeRegs.difference(noUse)
+	}
+	reg := free[0] // Get the min of free registers
+	cc.freeRegs.remove(reg)
+	return reg
 }
