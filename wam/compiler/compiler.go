@@ -217,12 +217,68 @@ func (cc *chunkCompiler) compileHead(head logic.Term) []wam.Instruction {
 	return nil
 }
 
+// Issue get instruction for term.
 func (cc *chunkCompiler) getTerm(term logic.Term, reg wam.RegAddr) []wam.Instruction {
-	return nil
+	cat := category(term)
+	switch cat {
+	case atomic:
+		cc.freeRegs = cc.freeRegs.add(reg)
+		return []wam.Instruction{ /*getConstant{toConstant(term), reg}*/ }
+	case variable:
+		x := term.(logic.Var)
+		if _, ok := cc.tempAddrs[x]; !ok {
+			cc.setReg(reg, x)
+		}
+		addr, alloc := cc.varAddr(x, false /*isHead*/)
+		if addr == reg {
+			// Filter no-op get instructions that wouldn't move values around.
+			return nil
+		}
+		cc.freeRegs = cc.freeRegs.add(reg)
+		if alloc == existingTerm {
+			return []wam.Instruction{ /*getValue{addr, reg}*/ }
+		}
+		return []wam.Instruction{ /*getVariable{addr, reg}*/ }
+	case complexTerm:
+		var instrs []wam.Instruction
+		if t, ok := term.(*logic.Comp); ok {
+			_ = t
+			instrs = append(instrs /*getStruct{t.functor(), reg}*/)
+		} else {
+			pairType := pairTag(term)
+			_ = pairType
+			instrs = append(instrs /*getPair{pairType, reg}*/)
+		}
+		cc.freeRegs = cc.freeRegs.add(reg)
+		for _, arg := range complexArgs(term) {
+			instrs = append(instrs, cc.unifyArg(arg)...)
+		}
+		return instrs
+	default:
+		panic(fmt.Sprintf("unifyArg: unexpected term category %T (%v)", cat, term))
+	}
 }
 
+// Issue unify instruction for struct arg.
 func (cc *chunkCompiler) unifyArg(term logic.Term) []wam.Instruction {
-	return nil
+	cat := category(term)
+	switch cat {
+	case atomic:
+		return []wam.Instruction{ /*unifyConstant{toConstant(term)}*/ }
+	case variable:
+		addr, alloc := cc.varAddr(term.(logic.Var), false /*isHead*/)
+		_ = addr
+		if alloc == existingTerm {
+			return []wam.Instruction{ /*unifyValue{addr}*/ }
+		}
+		return []wam.Instruction{ /*unifyVariable{addr}*/ }
+	case complexTerm:
+		addr, _ := cc.tempAddr(term, false /*isHead*/)
+		cc.delayedComplexTerms = append(cc.delayedComplexTerms, delayedComplexTerm{term, addr})
+		return []wam.Instruction{ /*unifyVariable{addr}*/ }
+	default:
+		panic(fmt.Sprintf("unifyArg: unexpected term category %T (%v)", cat, term))
+	}
 }
 
 // Data structure to convert putTerm into an iterative implementation.
@@ -298,12 +354,13 @@ func (cc *chunkCompiler) putTerm(term logic.Term, reg wam.RegAddr, isTopLevel bo
 				addInstrs( /*putVariable{addr, step.reg}*/ )
 			}
 			if regAddr, ok := addr.(wam.RegAddr); ok {
-				cc.freeRegs.add(regAddr)
+				cc.freeRegs = cc.freeRegs.add(regAddr)
 			}
 		case complexTerm:
 			if !step.hasPutArgs {
+				// Reserve reg for put_struct instruction in the second round
+				cc.freeRegs = cc.freeRegs.remove(step.reg)
 				var nextSteps []putStep
-				cc.freeRegs.remove(step.reg) // Reserve reg for put_struct instruction in the second round
 				for _, arg := range complexArgs(step.term) {
 					if category(arg) != complexTerm {
 						continue
@@ -398,6 +455,6 @@ func (cc *chunkCompiler) allocReg(use regset, noUse regset) wam.RegAddr {
 		free = cc.freeRegs.difference(noUse)
 	}
 	reg := free[0] // Get the min of free registers
-	cc.freeRegs.remove(reg)
+	cc.freeRegs = cc.freeRegs.remove(reg)
 	return reg
 }
