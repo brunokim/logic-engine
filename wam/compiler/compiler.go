@@ -1,6 +1,7 @@
 package compiler
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/brunokim/logic-engine/logic"
@@ -168,6 +169,10 @@ func (cc *clauseCompiler) compile() []wam.Instruction {
 	return nil
 }
 
+func (cc *clauseCompiler) isPermanent(x logic.Var) bool {
+	return false
+}
+
 func (cc *clauseCompiler) permanentAddr(x logic.Var) (wam.StackAddr, addrAlloc) {
 	return wam.StackAddr(0), existingTerm
 }
@@ -224,12 +229,28 @@ func (cc *chunkCompiler) putTerm(term logic.Term, reg wam.RegAddr, isTopLevel bo
 	return nil
 }
 
+// Return address for a term.
 func (cc *chunkCompiler) termAddr(term logic.Term) (wam.Addr, addrAlloc) {
-	return wam.StackAddr(0), existingTerm
+	isHead := false
+	cat := logic.Category(term)
+	switch cat {
+	case logic.Atomic:
+		return wam.ConstantAddr{toConstant(term)}, existingTerm
+	case logic.Variable:
+		return cc.varAddr(term.(logic.Var), isHead)
+	case logic.Complex:
+		return cc.tempAddr(term, isHead)
+	default:
+		panic(fmt.Sprintf("termAddr: unexpected term category %T (%v)", cat, term))
+	}
 }
 
+// Return address for a variable.
 func (cc *chunkCompiler) varAddr(x logic.Var, isHead bool) (wam.Addr, addrAlloc) {
-	return wam.StackAddr(0), existingTerm
+	if cc.parent.isPermanent(x) {
+		return cc.parent.permanentAddr(x)
+	}
+	return cc.tempAddr(x, isHead)
 }
 
 // Return register for a variable or complex term.

@@ -658,7 +658,7 @@ type Constant interface {
 type WAtom string
 type WInt int
 type WPtr struct {
-	ptr interface{}
+	Ptr interface{}
 }
 
 func (c WAtom) isConstant() {}

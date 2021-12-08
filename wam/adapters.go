@@ -30,7 +30,7 @@ func fromConstant(c Constant) logic.Term {
 	case WInt:
 		return logic.Int{Value: int(c)}
 	case WPtr:
-		return logic.Ptr{Value: c.ptr}
+		return logic.Ptr{Value: c.Ptr}
 	default:
 		panic(fmt.Sprintf("fromConstant: unhandled type %T (%v)", c, c))
 	}
