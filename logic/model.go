@@ -159,6 +159,31 @@ var (
 	EmptyDict = Atom{"{}"}
 )
 
+type TermCategory int
+
+const (
+	Atomic TermCategory = iota
+	Variable
+	Complex
+)
+
+func Category(term Term) TermCategory {
+	switch term.(type) {
+	case Int:
+	case Atom:
+	case Ptr:
+		return Atomic
+	case Var:
+		return Variable
+	case *Comp:
+	case *List:
+	case *Assoc:
+	case *Dict:
+		return Complex
+	}
+	panic(fmt.Sprintf("logic.Category: unhandled term type %T (%v)", term, term))
+}
+
 // ---- Vars
 
 // NewVar creates a new var.
