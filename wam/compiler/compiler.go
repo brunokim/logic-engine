@@ -232,12 +232,36 @@ func (cc *chunkCompiler) varAddr(x logic.Var, isHead bool) (wam.Addr, addrAlloc)
 	return wam.StackAddr(0), existingTerm
 }
 
-func (cc *chunkCompiler) tempAddr(x logic.Term, isHead bool) (wam.RegAddr, addrAlloc) {
-	return wam.RegAddr(0), existingTerm
+// Return register for a variable or complex term.
+//
+// Debray's allocation algorithm seeks to put term in registers used
+// by the variable (either in first or last goal of chunk),
+// and avoid registers used by other variables (NOUSE set) or any
+// term in the last goal (CONFLICT set).
+func (cc *chunkCompiler) tempAddr(term logic.Term, isHead bool) (wam.RegAddr, addrAlloc) {
+	if reg, ok := cc.tempAddrs[term]; ok {
+		return reg, existingTerm
+	}
+	var use, noUse regset
+	var alloc addrAlloc
+	if x, ok := term.(logic.Var); !ok {
+		alloc = newComplexTerm
+	} else {
+		alloc = newVariable
+		use, noUse = cc.use[x], cc.noUse[x]
+		if !isHead {
+			// Conflict avoidance: do not use registers that are
+			// necessary for last goal args.
+			noUse = noUse.union(cc.conflict[x])
+		}
+	}
+	addr := cc.allocReg(use, noUse)
+	cc.setReg(addr, term)
+	return addr, alloc
 }
 
 // Allocate a register for a variable or complex term.
-func (cc *chunkCompiler) allocReg(x logic.Term, use regset, noUse regset) wam.RegAddr {
+func (cc *chunkCompiler) allocReg(use regset, noUse regset) wam.RegAddr {
 	free := cc.freeRegs.union(use)
 	if len(free) == 0 {
 		free = cc.freeRegs.difference(noUse)
