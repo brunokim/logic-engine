@@ -225,20 +225,130 @@ func (cc *chunkCompiler) unifyArg(term logic.Term) []wam.Instruction {
 	return nil
 }
 
-func (cc *chunkCompiler) putTerm(term logic.Term, reg wam.RegAddr, isTopLevel bool) []wam.Instruction {
+// Data structure to convert putTerm into an iterative implementation.
+// As complex terms are discovered, their components are enqueued to
+// be put ahead of its parent in the first round. The parent itself is
+// enqueued as well, and will be put in the second round.
+type putStep struct {
+	term       logic.Term
+	isTopLevel bool
+	reg        wam.RegAddr
+	hasPutArgs bool
+}
+
+// Conflict resolution: move content out of register if in
+// conflict with an argument.
+func (cc *chunkCompiler) conflictResolution(step putStep) []wam.Instruction {
+	// Conflicts may only arise when putting args for calls, in
+	// the top level, not when we're putting nested args.
+	if !step.isTopLevel {
+		return nil
+	}
+	value, ok := cc.regContent[step.reg]
+	// Register is empty or term is already present.
+	if !ok || value == step.term {
+		return nil
+	}
+	// Atomic terms may be overwritten.
+	if category(step.term) == atomic {
+		return nil
+	}
+	// Permanent variables may be overwritten.
+	if x, ok := step.term.(logic.Var); ok && cc.parent.isPermanent(x) {
+		return nil
+	}
+	cc.unsetReg(step.reg, value)
+	addr, _ := cc.tempAddr(value, false /*isHead*/)
+	if addr != step.reg {
+		return []wam.Instruction{ /*getVariable{addr, step.reg}*/ }
+	}
 	return nil
+}
+
+// Issue put instruction for term in register.
+//
+// Debray's allocation method lets variable as long as possible in
+// the register.
+// If we were to put a term in the same register, we need to move the
+// existing variable elsewhere.
+func (cc *chunkCompiler) putTerm(term logic.Term, reg wam.RegAddr, isTopLevel bool) []wam.Instruction {
+	var instrs []wam.Instruction
+	addInstrs := func(ins ...wam.Instruction) {
+		instrs = append(instrs, ins...)
+	}
+	steps := []putStep{{term, isTopLevel, reg, false}}
+	for len(steps) > 0 {
+		var step putStep
+		step, steps = steps[0], steps[1:]
+		addInstrs(cc.conflictResolution(step)...)
+		cat := category(step.term)
+		switch cat {
+		case atomic:
+			addInstrs( /*putConstant{toConstant(step.term), step.reg}*/ )
+		case variable:
+			addr, alloc := cc.varAddr(step.term.(logic.Var), false)
+			if alloc == existingTerm {
+				if addr == step.reg {
+					// Filter no-op putValue instruction that wouldn't
+					// move value around.
+					continue
+				}
+				addInstrs( /*putValue{addr, step.reg}*/ )
+			} else {
+				addInstrs( /*putVariable{addr, step.reg}*/ )
+			}
+			if regAddr, ok := addr.(wam.RegAddr); ok {
+				cc.freeRegs.add(regAddr)
+			}
+		case complexTerm:
+			if !step.hasPutArgs {
+				var nextSteps []putStep
+				cc.freeRegs.remove(step.reg) // Reserve reg for put_struct instruction in the second round
+				for _, arg := range complexArgs(step.term) {
+					if category(arg) != complexTerm {
+						continue
+					}
+					addr, alloc := cc.tempAddr(arg, false /*isHead*/)
+					if alloc == newComplexTerm {
+						nextSteps = append(nextSteps, putStep{arg, false, addr, false})
+					}
+				}
+				nextSteps = append(nextSteps, putStep{step.term, step.isTopLevel, step.reg, true /*hasPutArgs*/})
+				steps = append(nextSteps, steps...)
+			} else {
+				if t, ok := step.term.(*logic.Comp); ok {
+					addInstrs( /*putStruct{t.functor(), step.reg}*/ )
+					_ = t
+				} else {
+					pairType := pairTag(step.term)
+					addInstrs( /*putPair{pairType, step.reg}*/ )
+					_ = pairType
+				}
+				for _, arg := range complexArgs(step.term) {
+					if category(arg) == complexTerm {
+						addInstrs( /*unifyValue{cc.tempAddrs[arg]}*/ )
+					} else {
+						addInstrs(cc.unifyArg(arg)...)
+					}
+				}
+			}
+		default:
+			panic(fmt.Sprintf("putTerm: unexpected term category %T (%v)", cat, step.term))
+		}
+	}
+	return instrs
 }
 
 // Return address for a term.
 func (cc *chunkCompiler) termAddr(term logic.Term) (wam.Addr, addrAlloc) {
 	isHead := false
-	cat := logic.Category(term)
+	cat := category(term)
 	switch cat {
-	case logic.Atomic:
+	case atomic:
 		return wam.ConstantAddr{toConstant(term)}, existingTerm
-	case logic.Variable:
+	case variable:
 		return cc.varAddr(term.(logic.Var), isHead)
-	case logic.Complex:
+	case complexTerm:
 		return cc.tempAddr(term, isHead)
 	default:
 		panic(fmt.Sprintf("termAddr: unexpected term category %T (%v)", cat, term))
