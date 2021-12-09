@@ -74,6 +74,11 @@ var builtins = map[logic.Indicator]struct{}{
 	logic.Indicator{"=", 2}: struct{}{},
 }
 
+func isBuiltin(t *logic.Comp) bool {
+	_, ok := builtins[t.Indicator()]
+	return ok
+}
+
 // ----
 
 type Code struct {
@@ -111,6 +116,27 @@ func NewPackageCompiler(clauses []*logic.Clause) *PackageCompiler {
 
 func (pc *PackageCompiler) Compile() map[wam.Functor][]*Index {
 	return nil
+}
+
+// Return all vars within term, in depth-first order and without duplicates
+func termVars(term logic.Term) []logic.Var {
+	set := make(map[logic.Var]bool)
+	terms := []logic.Term{term}
+	var xs []logic.Var
+	for len(terms) > 0 {
+		term, terms = terms[0], terms[1:]
+		switch category(term) {
+		case variable:
+			x := term.(logic.Var)
+			if !set[x] {
+				set[x] = true
+			}
+			xs = append(xs, x)
+		case complexTerm:
+			terms = append(complexArgs(term), terms...)
+		}
+	}
+	return xs
 }
 
 type goal struct {
@@ -163,7 +189,83 @@ type allocSets struct {
 }
 
 func newAllocSets(chunk *chunk, temps []logic.Var, isHead bool) *allocSets {
-	return nil
+	numGoals := len(chunk.goals)
+	firstGoal, lastGoal := chunk.goals[0], chunk.goals[numGoals-1]
+	tempSet := make(map[logic.Var]bool)
+	for _, x := range temps {
+		tempSet[x] = true
+	}
+
+	// Maximum number of arguments, either input (head) or output (last goal)
+	var inputArity, outputArity int
+	if isHead {
+		inputArity = len(firstGoal.comp.Args)
+	}
+	if !isBuiltin(lastGoal.comp) {
+		outputArity = len(lastGoal.comp.Args)
+	}
+	maxArgs := inputArity
+	if maxArgs < outputArity {
+		maxArgs = outputArity
+	}
+
+	// Maximum number of registers: one per argument, temp variable and
+	// nested complex term.
+	maxRegs := maxArgs + len(temps) + countNestedComplexTerms(chunk)
+
+	// Calculate USE set.
+	use := make(map[logic.Var]regset)
+	calcUse := func(term *logic.Comp) {
+		for i, arg := range term.Args {
+			if x, ok := arg.(logic.Var); ok && tempSet[x] {
+				use[x] = use[x].add(wam.RegAddr(i))
+			}
+		}
+	}
+	if isHead {
+		calcUse(firstGoal.comp)
+	}
+	calcUse(lastGoal.comp)
+
+	// Calculate NOUSE set.
+	noUse := make(map[logic.Var]regset)
+	for _, x := range temps {
+		for i, arg := range lastGoal.comp.Args {
+			y, ok := arg.(logic.Var)
+			if !(ok && tempSet[y]) {
+				continue
+			}
+			reg := wam.RegAddr(i)
+			if y == x || use[x].has(reg) {
+				continue
+			}
+			noUse[x] = noUse[x].add(reg)
+		}
+	}
+
+	// Calculate CONFLICT set.
+	conflict := make(map[logic.Var]regset)
+	lastGoalVars := termVars(lastGoal.comp)
+	varInLastGoal := make(map[logic.Var]bool)
+	for _, x := range lastGoalVars {
+		varInLastGoal[x] = true
+	}
+	for _, x := range temps {
+		if !varInLastGoal[x] {
+			continue
+		}
+		for i, arg := range lastGoal.comp.Args {
+			if arg != x {
+				conflict[x] = conflict[x].add(wam.RegAddr(i))
+			}
+		}
+	}
+	return &allocSets{
+		maxRegs:  maxRegs,
+		use:      use,
+		noUse:    noUse,
+		conflict: conflict,
+	}
 }
 
 // Compiler for a single predicate clause.
@@ -290,7 +392,7 @@ func (cc *chunkCompiler) compile() []wam.Instruction {
 	// E.g., in "p :- q(X, Y), X > 0, f(Y)", the register storing X
 	// should be free after "X > 0".
 	lastGoal := goals[len(goals)-1]
-	_, isLastBuiltin := builtins[lastGoal.comp.Indicator()]
+	isLastBuiltin := isBuiltin(lastGoal.comp)
 	builtinGoals := goals
 	if !isLastBuiltin {
 		builtinGoals = goals[:len(goals)-1]
