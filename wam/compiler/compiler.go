@@ -70,6 +70,12 @@ func (r regset) difference(s regset) regset {
 
 // ----
 
+var builtins = map[logic.Indicator]struct{}{
+	logic.Indicator{"=", 2}: struct{}{},
+}
+
+// ----
+
 type Code struct {
 	Functor      wam.Functor
 	Instructions []wam.Instruction
@@ -107,8 +113,13 @@ func (pc *PackageCompiler) Compile() map[wam.Functor][]*Index {
 	return nil
 }
 
+type goal struct {
+	pkg  string
+	comp *logic.Comp
+}
+
 type chunk struct {
-	terms []logic.Term
+	goals []goal
 }
 
 func (chunk *chunk) vars() []logic.Var {
@@ -129,7 +140,7 @@ func newClauseChunks(clause *logic.Clause) *clauseChunks {
 	return nil
 }
 
-func countNestedStructs(chunk *chunk) int {
+func countNestedComplexTerms(chunk *chunk) int {
 	return 0
 }
 
@@ -141,14 +152,14 @@ const (
 	newComplexTerm
 )
 
-type chunkSets struct {
+type allocSets struct {
 	maxRegs  int
 	use      map[logic.Var]regset
 	noUse    map[logic.Var]regset
 	conflict map[logic.Var]regset
 }
 
-func newChunkSets(chunk *chunk, temps []logic.Var, isHead bool) *chunkSets {
+func newAllocSets(chunk *chunk, temps []logic.Var, isHead bool) *allocSets {
 	return nil
 }
 
@@ -177,20 +188,19 @@ func (cc *clauseCompiler) permanentAddr(x logic.Var) (wam.StackAddr, addrAlloc) 
 	return wam.StackAddr(0), existingTerm
 }
 
+// Tuple relating a complex term to its allocated register.
 type delayedComplexTerm struct {
-	term     logic.Term
-	register wam.RegAddr
+	term logic.Term
+	reg  wam.RegAddr
 }
 
+// Compiler for a clause chunk.
 type chunkCompiler struct {
 	chunk  *chunk
 	isHead bool
 	parent *clauseCompiler
 
-	maxRegs  int
-	use      map[logic.Var]regset
-	noUse    map[logic.Var]regset
-	conflict map[logic.Var]regset
+	allocSets *allocSets
 
 	delayedComplexTerms []delayedComplexTerm
 
@@ -200,21 +210,100 @@ type chunkCompiler struct {
 }
 
 func newChunkCompiler(chunk *chunk, isHead bool, clauseCompiler *clauseCompiler) *chunkCompiler {
-	return nil
+	return &chunkCompiler{
+		chunk:     chunk,
+		isHead:    isHead,
+		parent:    clauseCompiler,
+		allocSets: newAllocSets(chunk, clauseCompiler.temps, isHead),
+	}
 }
 
 func (cc *chunkCompiler) setReg(reg wam.RegAddr, term logic.Term) {
+	cc.tempAddrs[term] = reg
+	cc.regContent[reg] = term
 }
 
 func (cc *chunkCompiler) unsetReg(reg wam.RegAddr, term logic.Term) {
+	delete(cc.tempAddrs, term)
+	delete(cc.regContent, reg)
 }
 
 func (cc *chunkCompiler) compile() []wam.Instruction {
-	return nil
+	cc.freeRegs = make(regset, cc.allocSets.maxRegs)
+	for i := 0; i < cc.allocSets.maxRegs; i++ {
+		cc.freeRegs[i] = wam.RegAddr(i)
+	}
+	cc.tempAddrs = make(map[logic.Term]wam.RegAddr)
+	cc.regContent = make(map[wam.RegAddr]logic.Term)
+	goals := cc.chunk.goals
+
+	var instrs []wam.Instruction
+	// If this is the clause head, compile first chunk to issue get instructions.
+	if cc.isHead {
+		var firstGoal goal
+		firstGoal, goals = goals[0], goals[1:]
+		for i := 0; i < len(firstGoal.comp.Args); i++ {
+			cc.freeRegs = cc.freeRegs.remove(wam.RegAddr(i))
+		}
+		instrs = append(instrs, cc.compileHead(firstGoal.comp)...)
+	}
+	// Early return if clause is a fact.
+	if len(goals) == 0 {
+		return instrs
+	}
+	// Compile intermediate, builtin goals.
+	// TODO: free registers from temp variables that are last referenced
+	// in builtins before the last goal.
+	// E.g., in "p :- q(X, Y), X > 0, f(Y)", the register storing X
+	// should be free after "X > 0".
+	lastGoal := goals[len(goals)-1]
+	_, isLastBuiltin := builtins[lastGoal.comp.Indicator()]
+	builtinGoals := goals
+	if !isLastBuiltin {
+		builtinGoals = goals[:len(goals)-1]
+	}
+	for _, goal := range builtinGoals {
+		name := goal.comp.Functor
+		var addrs []wam.Addr
+		for _, arg := range goal.comp.Args {
+			addr, alloc := cc.termAddr(arg)
+			if alloc == newComplexTerm {
+				instrs = append(instrs, cc.putTerm(arg, addr.(wam.RegAddr), false /*isTopLevel*/)...)
+			}
+			addrs = append(addrs, addr)
+		}
+		instrs = append(instrs /*builtin{name, addrs}*/)
+		_ = name
+	}
+	// Issue put instructions and predicate call for non-builtin goal.
+	if !isLastBuiltin {
+		for i, arg := range lastGoal.comp.Args {
+			instrs = append(instrs, cc.putTerm(arg, wam.RegAddr(i), true /*isTopLevel*/)...)
+			cc.freeRegs.remove(wam.RegAddr(i))
+		}
+		instrs = append(instrs /*call{lastGoal.pkg, toFunctor(lastGoal.comp.Indicator())}*/)
+	}
+	return instrs
 }
 
-func (cc *chunkCompiler) compileHead(head logic.Term) []wam.Instruction {
-	return nil
+// Compile head of clause.
+//
+// Return get instruction for args, delaying complex terms after atoms and vars.
+// If there is a nested complex term, it will be added to the delayed list as well.
+func (cc *chunkCompiler) compileHead(head *logic.Comp) []wam.Instruction {
+	var instrs []wam.Instruction
+	cc.delayedComplexTerms = nil
+	for i, arg := range head.Args {
+		instrs = append(instrs, cc.getTerm(arg, wam.RegAddr(i))...)
+	}
+	for len(cc.delayedComplexTerms) > 0 {
+		delayed := cc.delayedComplexTerms
+		cc.delayedComplexTerms = nil
+		for _, t := range delayed {
+			instrs = append(instrs, cc.getTerm(t.term, t.reg)...)
+		}
+	}
+	return instrs
 }
 
 // Issue get instruction for term.
@@ -436,11 +525,11 @@ func (cc *chunkCompiler) tempAddr(term logic.Term, isHead bool) (wam.RegAddr, ad
 		alloc = newComplexTerm
 	} else {
 		alloc = newVariable
-		use, noUse = cc.use[x], cc.noUse[x]
+		use, noUse = cc.allocSets.use[x], cc.allocSets.noUse[x]
 		if !isHead {
 			// Conflict avoidance: do not use registers that are
 			// necessary for last goal args.
-			noUse = noUse.union(cc.conflict[x])
+			noUse = noUse.union(cc.allocSets.conflict[x])
 		}
 	}
 	addr := cc.allocReg(use, noUse)
