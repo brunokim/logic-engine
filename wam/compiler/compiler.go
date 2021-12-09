@@ -130,13 +130,13 @@ func chunks(clause *logic.Clause) []*chunk {
 	return nil
 }
 
-type clauseChunks struct {
+type chunksInfo struct {
 	temps      []logic.Var
 	permanents []logic.Var
 	chunks     []*chunk
 }
 
-func newClauseChunks(clause *logic.Clause) *clauseChunks {
+func newChunksInfo(clause *logic.Clause) *chunksInfo {
 	return nil
 }
 
@@ -144,6 +144,7 @@ func countNestedComplexTerms(chunk *chunk) int {
 	return 0
 }
 
+// Address allocation result.
 type addrAlloc int
 
 const (
@@ -152,6 +153,8 @@ const (
 	newComplexTerm
 )
 
+// Analysis of temporary variables' locations to compute best registers
+// to allocate.
 type allocSets struct {
 	maxRegs  int
 	use      map[logic.Var]regset
@@ -163,29 +166,59 @@ func newAllocSets(chunk *chunk, temps []logic.Var, isHead bool) *allocSets {
 	return nil
 }
 
+// Compiler for a single predicate clause.
 type clauseCompiler struct {
 	clause         *logic.Clause
-	temps          []logic.Var
-	permanents     []logic.Var
-	chunks         []*chunk
+	chunksInfo     *chunksInfo
+	permanents     map[logic.Var]struct{}
 	permanentAddrs map[logic.Var]wam.StackAddr
 	tempAddrs      map[logic.Term]wam.RegAddr
 }
 
 func newClauseCompiler(clause *logic.Clause) *clauseCompiler {
-	return nil
+	info := newChunksInfo(clause)
+	perms := make(map[logic.Var]struct{})
+	for _, x := range info.permanents {
+		perms[x] = struct{}{}
+	}
+	return &clauseCompiler{
+		clause:     clause,
+		permanents: perms,
+		chunksInfo: info,
+	}
 }
 
 func (cc *clauseCompiler) compile() []wam.Instruction {
-	return nil
+	cc.permanentAddrs = make(map[logic.Var]wam.StackAddr)
+	cc.tempAddrs = make(map[logic.Term]wam.RegAddr)
+
+	var instrs []wam.Instruction
+	for i, chunk := range cc.chunksInfo.chunks {
+		chunkCompiler := newChunkCompiler(chunk, i == 0, cc)
+		instrs = append(instrs, chunkCompiler.compile()...)
+		for x, addr := range chunkCompiler.tempAddrs {
+			cc.tempAddrs[x] = addr
+		}
+	}
+	return instrs
 }
 
 func (cc *clauseCompiler) isPermanent(x logic.Var) bool {
-	return false
+	_, ok := cc.permanents[x]
+	return ok
 }
 
 func (cc *clauseCompiler) permanentAddr(x logic.Var) (wam.StackAddr, addrAlloc) {
-	return wam.StackAddr(0), existingTerm
+	if !cc.isPermanent(x) {
+		panic(fmt.Sprintf("%v is not a permament variable (%v)", x, cc.chunksInfo.permanents))
+	}
+	if addr, ok := cc.permanentAddrs[x]; ok {
+		return addr, existingTerm
+	}
+	index := len(cc.permanentAddrs)
+	addr := wam.StackAddr(index)
+	cc.permanentAddrs[x] = addr
+	return addr, newVariable
 }
 
 // Tuple relating a complex term to its allocated register.
@@ -214,7 +247,7 @@ func newChunkCompiler(chunk *chunk, isHead bool, clauseCompiler *clauseCompiler)
 		chunk:     chunk,
 		isHead:    isHead,
 		parent:    clauseCompiler,
-		allocSets: newAllocSets(chunk, clauseCompiler.temps, isHead),
+		allocSets: newAllocSets(chunk, clauseCompiler.chunksInfo.temps, isHead),
 	}
 }
 
